@@ -13,13 +13,22 @@
 
 namespace esn {
 
+// The size of the height or width of the kernel above which the matrix multiplication
+// will be used instead of unwrapping.
+// For the matrix sizes we use, the matrix multiplication is more efficient, so
+// the threshold is intentionally set to zero.
+constexpr int KERNEL_SIZE_MATMUL_THRESHOLD = 0;
+
 namespace po = boost::program_options;
 
 /// Locally connected network configuration.
 struct lcnn_config {
     /// The initial state of the network of size [state_height, state_width].
     af::array init_state;
+    /// The reservoir weights of size [state_height, state_width, kernel_height, kernel_width].
+    af::array reservoir_w;
     /// The reservoir weights of size [state_height*state_width, state_height*state_width].
+    /// This field is optional and intended for performance optimization.
     af::array reservoir_w_full;
     /// The reservoir biases of size [state_height, state_width].
     af::array reservoir_b;
@@ -82,11 +91,13 @@ protected:
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
     af::array last_output_;  // the last output of the net
+    af::array reservoir_w_;
     af::array reservoir_w_full_;
     af::array reservoir_b_;
     af::array input_w_;
     af::array feedback_w_;
     af::array output_w_;
+    bool force_matmul_;
 
     // Random engines.
     std::mt19937* prng_;
@@ -108,6 +119,36 @@ protected:
     double noise_;
     double leakage_;
 
+    /// Return whether the step should be performed by matmul or by unwrapping.
+    bool do_matmul_step() const
+    {
+        if (force_matmul_) return true;
+        if (reservoir_w_.dims(2) >= KERNEL_SIZE_MATMUL_THRESHOLD) return true;
+        if (reservoir_w_.dims(3) >= KERNEL_SIZE_MATMUL_THRESHOLD) return true;
+        return false;
+    }
+
+    /// Unwrap local area of each neuron on a grid.
+    ///
+    /// Every row of the resulting matrix is the local area of one neuron.
+    /// See arrayfire unwrap() function for more info.
+    ///
+    /// \param state The rectangular state matrix to unwrap.
+    /// \returns Unwrapped state of shape [neurons, kernel_height * kernel_width].
+    af::array unwrap_state(const af::array& state) const
+    {
+        int kernel_height = reservoir_w_.dims(2);
+        int kernel_width = reservoir_w_.dims(3);
+        // make the state matrix periodic with large enough borders
+        af::array cyclic_state = af_utils::periodic(state, kernel_height / 2, kernel_width / 2);
+        // unwrap the state so that each neuron perception field is in a single row
+        af::array unwrapped_state = af::unwrap(
+          std::move(cyclic_state), kernel_height, kernel_width, 1, 1,  // stride
+          0, 0,    // padding is already done by cyclic state
+          false);  // each window to a row
+        return unwrapped_state;
+    }
+
     af::array update_via_weights_matmul_impl(const af::array& state) const
     {
         af::array new_state = af::matmul(reservoir_w_full_, af::flat(state));
@@ -118,6 +159,20 @@ protected:
     virtual void update_via_weights_matmul()
     {
         state_delta_ = update_via_weights_matmul_impl(state_);
+    }
+
+    af::array update_via_weights_impl(const af::array& state)
+    {
+        af::array unwrapped_state = unwrap_state(state);
+        af::array unwrapped_weights = af::moddims(reservoir_w_, unwrapped_state.dims());
+        af::array new_state = af::sum(unwrapped_weights * unwrapped_state, 1);
+        return af::moddims(std::move(new_state), state.dims());
+    }
+
+    /// Update the state matrix from the unwrapped weights and previous state.
+    virtual void update_via_weights()
+    {
+        state_delta_ = update_via_weights_impl(state_);
     }
 
     /// Update the state matrix by adding the inputs.
@@ -221,6 +276,7 @@ public:
       , n_outs_{cfg.feedback_w.dims(2)}
       , last_output_{af::constant(0, n_outs_, DType)}
       , output_w_{af::constant(af::NaN, n_outs_, cfg.init_state.elements() + 1, DType)}
+      , force_matmul_{false}
       , prng_{&prng}
       , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_->operator()()}
 
@@ -240,7 +296,10 @@ public:
       , leakage_{cfg.leakage}
     {
         state(std::move(cfg.init_state));
-        reservoir_weights_full(std::move(cfg.reservoir_w_full));
+        assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
+        if (!cfg.reservoir_w.isempty()) reservoir_weights(std::move(cfg.reservoir_w));
+        if (!cfg.reservoir_w_full.isempty())
+            reservoir_weights_full(std::move(cfg.reservoir_w_full));
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
@@ -266,7 +325,13 @@ public:
         assert((!desired || af::allTrue<bool>(desired.value() >= -1. && desired.value() <= 1.)));
 
         // Update the internal state.
-        update_via_weights_matmul();
+        // Perform matrix multiplication instead of state unwrapping for large kernels.
+        if (do_matmul_step()) {
+            update_via_weights_matmul();
+        } else {
+            // Use state unwrapping for small kernels
+            update_via_weights();
+        }
 
         // add input
         update_via_input(input);
@@ -434,7 +499,11 @@ public:
     /// The average number of inputs to a neuron.
     double neuron_ins() const override
     {
-        af::array in = af::sum(reservoir_w_full_ != 0, 1);
+        if (force_matmul_) {
+            af::array in = af::sum(reservoir_w_full_ != 0, 1);
+            return af::mean<double>(in);
+        }
+        af::array in = af::sum(af::sum(reservoir_w_ != 0, 3), 2);
         return af::mean<double>(in);
     }
 
@@ -470,6 +539,53 @@ public:
         return feedback_w_;
     }
 
+    /// Set the reservoir weights of the network.
+    ///
+    /// Also initializes the fully connected reservoir matrix.
+    ///
+    /// The shape has to be [state_height, state_width, kernel_height, kernel_width].
+    void reservoir_weights(af::array new_weights)
+    {
+        assert(new_weights.type() == DType);
+        assert(new_weights.numdims() == 4);
+        assert(new_weights.dims(0) == state_.dims(0));
+        assert(new_weights.dims(1) == state_.dims(1));
+        assert(new_weights.dims(2) % 2 == 1);
+        assert(new_weights.dims(3) % 2 == 1);
+        reservoir_w_ = std::move(new_weights);
+        force_matmul_ = false;
+
+        // Prepare the fully connected weight matrix.
+        if (do_matmul_step()) {
+            af::array reservoir_w_full =
+              af::constant(0, state_.elements(), state_.elements(), DType);
+            int state_height = reservoir_w_.dims(0);
+            int state_width = reservoir_w_.dims(1);
+            int kernel_height = reservoir_w_.dims(2);
+            int kernel_width = reservoir_w_.dims(3);
+            for (int i = 0; i < state_height; ++i) {
+                for (int j = 0; j < state_width; ++j) {
+                    for (int k = 0; k < kernel_height; ++k) {
+                        for (int l = 0; l < kernel_width; ++l) {
+                            int from_i = (i + k - kernel_height / 2 + state_height) % state_height;
+                            int from_j = (j + l - kernel_width / 2 + state_width) % state_width;
+                            reservoir_w_full(i + j * state_height, from_i + from_j * state_height) =
+                              reservoir_w_(i, j, k, l);
+                        }
+                    }
+                }
+            }
+            reservoir_weights_full(std::move(reservoir_w_full));
+// Check that the matmul style and kernel style step are the same.
+#ifndef NDEBUG
+            af::array rand_state = af::randu({state_.dims()}, DType, af_prng_);
+            af::array state_matmul = update_via_weights_matmul_impl(rand_state);
+            af::array state_wrap = update_via_weights_impl(rand_state);
+            assert(af_utils::almost_equal(state_matmul, state_wrap, 1e-6));
+#endif
+        }
+    }
+
     /// Set the fully connected reservoir weights of the network.
     ///
     /// This forces the step() always use the fully connected matrix.
@@ -482,6 +598,13 @@ public:
         assert(new_weights.dims(0) == state_.elements());
         assert(new_weights.dims(1) == state_.elements());
         reservoir_w_full_ = std::move(new_weights);
+        force_matmul_ = true;
+    }
+
+    /// Get the reservoir weights of the network.
+    const af::array& reservoir_weights() const
+    {
+        return reservoir_w_;
     }
 
     /// Get the reservoir weights of the network in the form of fully connected matrix.
@@ -544,6 +667,10 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
     long state_height = args.at("lcnn.state-height").as<long>();
     // The number of columns of the state matrix.
     long state_width = args.at("lcnn.state-width").as<long>();
+    // The number of rows of the neuron kernel.
+    long kernel_height = args.at("lcnn.kernel-height").as<long>();
+    // The number of columns of the neuron kernel.
+    long kernel_width = args.at("lcnn.kernel-width").as<long>();
     // Standard deviation of the normal distribution generating the reservoir.
     double sigma_res = args.at("lcnn.sigma-res").as<double>();
     // The mean of the normal distribution generating the reservoir.
@@ -574,6 +701,18 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
           af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) >= sparsity;
+    } else if (topology.starts_with("lcnn")) {
+        // generate reservoir weights
+        cfg.reservoir_w = sigma_res
+            * af::randn({state_height, state_width, kernel_height, kernel_width}, DType, af_prng)
+          + mu_res;
+        // make the reservoir sparse by the given coefficient
+        cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
+        // only allow connections going to the right
+        if (topology == "lcnn-od") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+        }
     } else if (topology == "permutation") {
         // only allow one connection to each neuron
         std::vector<int> perm(neurons, 0);
@@ -663,6 +802,10 @@ po::options_description lcnn_arg_description()
        "The fixed height of the kernel.")                                           //
       ("lcnn.state-width", po::value<long>()->default_value(11),                    //
        "The width of the state matrix.")                                            //
+      ("lcnn.kernel-height", po::value<long>()->default_value(5),                   //
+       "The height of the kernel.")                                                 //
+      ("lcnn.kernel-width", po::value<long>()->default_value(5),                    //
+       "The width of the kernel.")                                                  //
       ("lcnn.sigma-res", po::value<double>()->default_value(0.18282597654191446),   //
        "See random_lcnn().")                                                        //
       ("lcnn.mu-res", po::value<double>()->default_value(-0.008182614281959771),    //
