@@ -1,0 +1,39 @@
+---
+DisableFormat: false
+Language: Cpp
+BasedOnStyle: LLVM
+
+AccessModifierOffset: -4
+AlignAfterOpenBracket: AlwaysBreak
+AllowShortBlocksOnASingleLine: Empty
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+AlwaysBreakTemplateDeclarations: Yes
+AlwaysBreakBeforeMultilineStrings: true
+BinPackArguments: true
+BinPackParameters: false
+AlignOperands: DontAlign
+BreakBeforeBinaryOperators: NonAssignment
+BreakBeforeBraces: WebKit
+BreakConstructorInitializers: BeforeComma
+ColumnLimit: 100
+ConstructorInitializerIndentWidth: 2
+ContinuationIndentWidth: 2
+IncludeBlocks: Regroup
+IndentWidth: 4
+KeepEmptyLinesAtTheStartOfBlocks: false
+# clang-format 14:
+# PackConstructorInitializers: NextLine
+# clang-format 13 version of the previous:
+ConstructorInitializerAllOnOneLineOrOnePerLine: true
+PointerAlignment: Left
+# clang-format 14:
+# SeparateDefinitionBlocks: Always
+# clang-format 14:
+# RemoveBracesLLVM: true
+SpacesBeforeTrailingComments: 2
+Standard: Latest
+TabWidth: 4
+...

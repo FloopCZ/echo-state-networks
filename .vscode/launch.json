@@ -1,0 +1,65 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "(gdb) Launch optmize_cuda for esn",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/optimize_cuda",
+            "args": [
+                "--gen.net-type=lcnn",
+                "--lcnn.topology=sparse",
+                "--lcnn.input-to-all=true",
+                "--lcnn.state-height=20",
+                "--lcnn.state-width=25",
+                "--gen.benchmark-set=narma10",
+                "--bench.init-steps=10",
+                "--bench.train-steps=100",
+                "--bench.valid-steps=100",
+                "--gen.af-device=0",
+                "--opt.no-multithreading"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Launch evaluate_cuda for lcnn",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/evaluate_cuda",
+            "args": [
+                "--gen.net-type=lcnn",
+                "--lcnn.topology=lcnn",
+                "--lcnn.input-to-all=true",
+                "--lcnn.state-height=20",
+                "--lcnn.state-width=25",
+                "--bench.init-steps=10",
+                "--bench.train-steps=100",
+                "--bench.valid-steps=100",
+                "--gen.af-device=0"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        }
+    ]
+}
