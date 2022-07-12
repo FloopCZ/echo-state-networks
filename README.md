@@ -40,6 +40,19 @@ when passed the `--help` flag.
 Feel free to try various configurations and find the network
 that works the best for your task.
 
+## Experiments
+
+The `experiments/` folder contains a set of pre-defined experiments.
+For instance, executing
+```
+./experiments/optimize-TOPO-500-gallancchio-narma10.sh sparse
+./experiments/optimize-TOPO-500-gallancchio-narma10.sh ring
+```
+will generate various results in the `log/` folder that can be visualized using
+```
+./compare_plot.py --param="lcnn.topology" log/optimize-*-500-gallancchio-narma10.csv
+```
+
 ## Citation
 
 If you use the code for your scientific paper, please cite:
