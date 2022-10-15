@@ -57,8 +57,20 @@ will generate various results in the `log/` folder that can be visualized using
 
 If you use the code for your scientific paper, please cite:
 ```
-Hyperparameter Tuning in Echo State Networks
-Filip Matzner
-GECCO 2022
-Full citation yet to be added
+@inproceedings{matznerecho:2022,
+    author = {Matzner, Filip},
+    title = {Hyperparameter Tuning in Echo State Networks},
+    crossref = {gecco:2022},
+    pages = {404–412},
+    doi = {10.1145/3512290.3528721}
+}
+
+@proceedings{gecco:2022,
+    title = {GECCO '22: Proceedings of the Genetic and Evolutionary Computation Conference},
+    booktitle = {GECCO '22: Proceedings of the Genetic and Evolutionary Computation Conference},
+    year = {2022},
+    publisher = {Association for Computing Machinery},
+    address = {New York, NY, USA},
+    isbn = {978-1-4503-9237-2}
+}
 ```

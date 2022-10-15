@@ -67,10 +67,10 @@ function(add_object EXECUTABLE_NAME)
   )
   target_include_directories(
     "${EXECUTABLE_NAME}"
-    PUBLIC "${ArrayFire_INCLUDE_DIRS}"
-    PUBLIC "${Boost_INCLUDE_DIRS}"
-    PUBLIC "${EIGEN3_INCLUDE_DIRS}"
-    PUBLIC "${FORGE_INCLUDE_DIRS}"
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+    PUBLIC ${Boost_INCLUDE_DIRS}
+    PUBLIC ${EIGEN3_INCLUDE_DIRS}
+    PUBLIC ${FORGE_INCLUDE_DIRS}
   )
 endfunction(add_object)
 
@@ -99,8 +99,7 @@ function(link_with_cpu EXECUTABLE_NAME)
   link_without_backend("${EXECUTABLE_NAME}" "_cpu")
   target_link_libraries(
     "${EXECUTABLE_NAME}_cpu"
-    PUBLIC "${ArrayFire_CPU_LIBRARIES}"
-    PUBLIC iomp5
+    PUBLIC ${ArrayFire_CPU_LIBRARIES}
   )
 endfunction(link_with_cpu)
 
@@ -109,7 +108,7 @@ function(link_with_cuda EXECUTABLE_NAME)
   link_without_backend("${EXECUTABLE_NAME}" "_cuda")
   target_link_libraries(
     "${EXECUTABLE_NAME}_cuda"
-    PUBLIC "${ArrayFire_CUDA_LIBRARIES}"
+    PUBLIC ${ArrayFire_CUDA_LIBRARIES}
   )
 endfunction(link_with_cuda)
 
@@ -118,7 +117,7 @@ function(link_with_cl EXECUTABLE_NAME)
   link_without_backend("${EXECUTABLE_NAME}" "_cl")
   target_link_libraries(
     "${EXECUTABLE_NAME}_cl"
-    PUBLIC "${ArrayFire_OpenCL_LIBRARIES}"
+    PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
   )
 endfunction(link_with_cl)
 
