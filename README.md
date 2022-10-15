@@ -57,7 +57,7 @@ will generate various results in the `log/` folder that can be visualized using
 
 If you use the code for your scientific paper, please cite:
 ```
-@inproceedings{matzner:2022,
+@inproceedings{matznerecho:2022,
     author = {Matzner, Filip},
     title = {Hyperparameter Tuning in Echo State Networks},
     crossref = {gecco:2022},
