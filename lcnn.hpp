@@ -697,10 +697,24 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
     int neurons = state_height * state_width;
     // generate the reservoir weights based on topology
     if (topology == "sparse") {
+        // TODO check if randu better
         cfg.reservoir_w_full = sigma_res * af::randn({neurons, neurons}, DType, af_prng) + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
           af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) >= sparsity;
+    } else if (topology.starts_with("conv")) {
+        // generate kernel
+        af::array kernel =
+          sigma_res * af::randn({kernel_height, kernel_width}, DType, af_prng) + mu_res;
+        if (topology == "conv-od") {
+            kernel(af::span, af::seq(kernel_width / 2, af::end)) = 0.;
+        }
+        // generate reservoir weights
+        cfg.reservoir_w = af::tile(kernel, state_height * state_width);
+        cfg.reservoir_w =
+          af::moddims(cfg.reservoir_w, {state_height, state_width, kernel_height, kernel_width});
+        // make the reservoir sparse by the given coefficient
+        cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
     } else if (topology.starts_with("lcnn")) {
         // generate reservoir weights
         cfg.reservoir_w = sigma_res
@@ -712,6 +726,55 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
         if (topology == "lcnn-od") {
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+        } else if (topology == "lcnn-a1") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+            cfg.reservoir_w(
+              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2 - 1), af::span) = 0.;
+            cfg.reservoir_w(
+              af::span, af::span, af::seq(cfg.reservoir_w.dims(2) / 2 + 1, af::end), af::span) = 0.;
+            [[maybe_unused]] int kernel_expect_nonzero = cfg.reservoir_w.dims(3) / 2;
+            assert(
+              af::count<int>(cfg.reservoir_w)
+              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
+        } else if (topology == "lcnn-a3") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2 + 1, af::end)) = 0.;
+            cfg.reservoir_w(
+              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2),
+              af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+            [[maybe_unused]] int kernel_expect_nonzero =
+              cfg.reservoir_w.dims(2) / 2 + cfg.reservoir_w.dims(2) * (cfg.reservoir_w.dims(3) / 2);
+            assert(
+              af::count<int>(cfg.reservoir_w)
+              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
+        } else if (topology == "lcnn-a4") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2 + 1, af::end)) = 0.;
+            cfg.reservoir_w(
+              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2 - 1), af::span) = 0.;
+            // center
+            cfg.reservoir_w(
+              af::span, af::span, cfg.reservoir_w.dims(2) / 2, cfg.reservoir_w.dims(3) / 2) = 0.;
+            // bottom left
+            cfg.reservoir_w(
+              af::span, af::span, af::seq(cfg.reservoir_w.dims(2) / 2 + 1, af::end),
+              af::seq(0, cfg.reservoir_w.dims(3) / 2 - 1)) = 0.;
+            [[maybe_unused]] int kernel_expect_nonzero =
+              cfg.reservoir_w.dims(2) / 2 + cfg.reservoir_w.dims(3) / 2;
+            assert(
+              af::count<int>(cfg.reservoir_w)
+              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
+        } else if (topology == "lcnn-a5") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+            cfg.reservoir_w(
+              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2 - 1), af::span) = 0.;
+            [[maybe_unused]] int kernel_expect_nonzero =
+              (cfg.reservoir_w.dims(2) / 2 + 1) * (cfg.reservoir_w.dims(3) / 2);
+            assert(
+              af::count<int>(cfg.reservoir_w)
+              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
         }
     } else if (topology == "permutation") {
         // only allow one connection to each neuron
