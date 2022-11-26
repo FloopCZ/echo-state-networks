@@ -57,7 +57,7 @@ public:
       const std::optional<af::array>& feedback = std::nullopt,
       const std::optional<af::array>& desired = std::nullopt) = 0;
 
-    virtual void train(const af::array& input, const af::array& desired) = 0;
+    virtual feed_result_t train(const af::array& input, const af::array& desired) = 0;
 
     virtual feed_result_t
     loop(long n_steps, const std::optional<af::array>& desired = std::nullopt) = 0;

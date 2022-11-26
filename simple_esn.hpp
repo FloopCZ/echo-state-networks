@@ -209,7 +209,7 @@ public:
     /// \param inputs Input sequence of dimensions [n_ins, time].
     /// \param desired The desired output sequences. Those are also teacher-forced into the net.
     ///                Needs to have dimensions [n_outs, time]
-    void train(const af::array& input, const af::array& desired) override
+    feed_result_t train(const af::array& input, const af::array& desired) override
     {
         assert(input.type() == DType);
         assert(input.numdims() == 2);
@@ -219,10 +219,12 @@ public:
         assert(desired.numdims() <= 2);
         assert(desired.dims(0) == n_outs_);
         assert(desired.dims(1) == input.dims(1));
-        af::array states = feed(input, desired).states;
+        feed_result_t feed_result = feed(input, desired);
+        af::array states = feed_result.states;
         assert((states.dims() == af::dim4{state_.elements(), input.dims(1)}));
         output_w_ = af_utils::lstsq_train(states.T(), desired.T()).T();
         assert((output_w_.dims() == af::dim4{n_outs_, state_.elements() + 1}));
+        return feed_result;
     }
 
     /// Perform multiple steps using self's output as input.
