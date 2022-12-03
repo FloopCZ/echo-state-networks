@@ -199,6 +199,7 @@ private:
             throw std::runtime_error{"Only scalar outputs are supported in file output."};
         if (time_ == 0) csv_out_ << "time,input,output\n";
         csv_out_ << data.input.scalar<double>() << "," << data.output.scalar<double>() << "\n";
+        ++time_;
     }
 
 public:
