@@ -777,6 +777,41 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
               af::count<int>(cfg.reservoir_w)
               <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
         }
+    } else if (topology.starts_with("const")) {
+        // TODO what if we disable only self-connections?
+        double c = std::normal_distribution{mu_res, sigma_res}(prng);
+        // generate reservoir weights
+        cfg.reservoir_w =
+          af::constant(c, {state_height, state_width, kernel_height, kernel_width}, DType);
+        // make the reservoir sparse by the given coefficient
+        cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
+        // only allow connections going to the right
+        if (topology == "const-od") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+        } else if (topology == "const-lindiscount") {
+            af::array mask;
+            if (kernel_width == 3)
+                mask = af::constant(1, 1);
+            else
+                mask = af::transpose(1. / af::seq(kernel_width / 2, 1, -1));
+            mask = af::join(1, mask, af::constant(0, 1), af::flip(mask, 1));
+            mask = af::tile(mask, state_height * state_width * kernel_height);
+            mask = af::moddims(mask, state_height, state_width, kernel_height, kernel_width);
+            cfg.reservoir_w *= mask;
+        } else if (topology == "const-od-lindiscount") {
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
+            af::array mask;
+            if (kernel_width == 3)
+                mask = af::constant(1, 1);
+            else
+                mask = af::transpose(1. / af::seq(kernel_width / 2, 1, -1));
+            mask = af::tile(mask, state_height * state_width * kernel_height);
+            mask = af::moddims(mask, state_height, state_width, kernel_height, kernel_width / 2);
+            cfg.reservoir_w(
+              af::span, af::span, af::span, af::seq(0, cfg.reservoir_w.dims(3) / 2 - 1)) *= mask;
+        }
     } else if (topology == "permutation") {
         // only allow one connection to each neuron
         std::vector<int> perm(neurons, 0);
