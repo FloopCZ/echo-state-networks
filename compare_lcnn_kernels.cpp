@@ -18,6 +18,8 @@ int main(int argc, char* argv[])
        "Produce help message.")                                                       //
       ("gen.net-type", po::value<std::string>()->default_value("lcnn"),               //
        "Network type, one of {simple-esn, lcnn}.")                                    //
+      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),         //
+       "The type of the optimizer (e.g., lcnn-nofb, lcnn-noiseless).")                //
       ("gen.benchmark-set", po::value<std::string>()->default_value("narma-memory"),  //
        "Benchmark set to be evaluated.")                                              //
       ("gen.output-csv",                                                              //
