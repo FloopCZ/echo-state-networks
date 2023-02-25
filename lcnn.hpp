@@ -723,8 +723,11 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
           + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
-        // only allow connections going to the right
-        if (topology == "lcnn-od") {
+        if (topology == "lcnn-noself") {
+            cfg.reservoir_w(
+              af::span, af::span, cfg.reservoir_w.dims(2) / 2, cfg.reservoir_w.dims(3) / 2) = 0.;
+        } else if (topology == "lcnn-od") {
+            // only allow connections going to the right
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
         } else if (topology == "lcnn-a1") {
