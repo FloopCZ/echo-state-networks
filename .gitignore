@@ -131,3 +131,4 @@ ENV/
 
 log/
 compare_plot.pdf
+visual.csv

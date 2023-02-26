@@ -4,7 +4,7 @@ TOPO="$1"
 TAU="$2"
 
 mkdir -p ./log/
-./build/compare_lcnn_kernels_cuda \
+./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn-nofb \
   --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \

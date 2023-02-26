@@ -1,7 +1,7 @@
 #!/bin/bash -e
 
 mkdir -p ./log/
-./build/param_sensitivity_int_cuda \
+./build/param_sensitivity_int_cpu \
     --bench.init-steps=0 \
     --bench.train-steps=5000 \
     --bench.valid-steps=4900 \

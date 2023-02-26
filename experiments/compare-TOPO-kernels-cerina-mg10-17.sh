@@ -8,9 +8,10 @@ if [ $# != 1 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 
 mkdir -p ./log/
-./build/optimize_cpu \
+./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn-nofb \
+  --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \
   --lcnn.topology=${TOPO} \
   --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
@@ -25,6 +26,6 @@ mkdir -p ./log/
   --bench.teacher-force-steps=100 \
   --gen.af-device=1 \
   --opt.sigma=0.5 \
-  --gen.output-csv=./log/optimize-${TOPO}-500-cerina-mg10-17.csv \
-  --opt.cmaes-fplot=./log/optimize-${TOPO}-500-cerina-mg10-17-run@RUN@.dat \
-  2>&1 | tee ./log/optimize-${TOPO}-500-cerina-mg10-17.log
+  --gen.output-csv=./log/compare-${TOPO}-kernels-cerina-mg10-17.csv \
+  --opt.cmaes-fplot=./log/compare-${TOPO}-kernels-cerina-mg10-17-run@RUN@.dat \
+  2>&1 | tee ./log/compare-${TOPO}-kernels-cerina-mg10-17.log

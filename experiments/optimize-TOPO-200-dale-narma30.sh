@@ -6,7 +6,7 @@ TOPO="$1"
 # Neuroevolution of Hierarchical Reservoir Computers
 
 mkdir -p ./log/
-./build/optimize_cuda \
+./build/optimize_cpu \
   --gen.net-type=lcnn \
   --lcnn.topology=${TOPO} \
   --lcnn.input-to-all=true \

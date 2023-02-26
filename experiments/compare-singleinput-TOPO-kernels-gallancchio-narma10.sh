@@ -7,7 +7,7 @@ mkdir -p ./log/
   --gen.net-type=lcnn \
   --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \
   --lcnn.topology=${TOPO} \
-  --lcnn.input-to-all=true \
+  --lcnn.input-to-all=false \
   --lcnn.state-height=20 \
   --lcnn.state-width=25 \
   --gen.benchmark-set=narma10 \
@@ -15,6 +15,6 @@ mkdir -p ./log/
   --bench.train-steps=5000 \
   --bench.valid-steps=4900 \
   --gen.af-device=0 \
-  --gen.output-csv=./log/compare-${TOPO}-kernels-gallancchio-narma10.csv \
-  --opt.cmaes-fplot=./log/compare-${TOPO}-kernels-gallancchio-narma10-run@RUN@.dat \
-  2>&1 | tee ./log/compare-${TOPO}-kernels-gallancchio-narma10.log
+  --gen.output-csv=./log/compare-singleinput-${TOPO}-kernels-gallancchio-narma10.csv \
+  --opt.cmaes-fplot=./log/compare-singleinput-${TOPO}-kernels-gallancchio-narma10-run@RUN@.dat \
+  2>&1 | tee ./log/compare-singleinput-${TOPO}-kernels-gallancchio-narma10.log

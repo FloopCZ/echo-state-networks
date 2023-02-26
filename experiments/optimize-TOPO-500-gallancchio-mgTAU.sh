@@ -4,7 +4,7 @@ TOPO="$1"
 TAU="$2"
 
 mkdir -p ./log/
-./build/optimize_cuda \
+./build/optimize_cpu \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn-nofb \
   --lcnn.topology=${TOPO} \
