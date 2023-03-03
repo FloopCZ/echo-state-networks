@@ -4,11 +4,14 @@
 
 #include <boost/program_options.hpp>
 #include <iostream>
+#include <range/v3/all.hpp>
 #include <unordered_map>
 
 namespace esn {
 
 namespace po = boost::program_options;
+namespace rg = ranges;
+namespace rgv = ranges::views;
 
 /// Parse generic command line arguments and conditionally select what other parameters
 /// to parse.
@@ -85,6 +88,13 @@ std::ostream& operator<<(std::ostream& out, const po::variables_map& m)
             out << v.as<long>();
         } else if (typeid(int) == v.value().type()) {
             out << v.as<int>();
+        } else if (typeid(std::vector<std::string>) == v.value().type()) {
+            out << (rgv::join(v.as<std::vector<std::string>>(), " ") | rg::to<std::string>());
+        } else if (typeid(std::vector<long>) == v.value().type()) {
+            out
+              << (v.as<std::vector<long>>()
+                  | rgv::transform([](long i) { return std::to_string(i); }) | rgv::join(" ")
+                  | rg::to<std::string>());
         } else {
             out << "[UNPRINTABLE]";
         }
