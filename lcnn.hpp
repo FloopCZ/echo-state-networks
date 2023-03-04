@@ -17,6 +17,9 @@ namespace esn {
 // the library uses matrix multiplication or the shifting method.
 constexpr double KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD = 0.04;
 
+// Use matrix multiplication also for states under 1000 neurons.
+constexpr double STATE_SIZE_MATMUL_THRESHOLD = 1000;
+
 // The shifting method creates a long JIT function which has to be limited
 // to avoid a failed nvcc compilation.
 constexpr int SHIFT_STEP_MAX_JIT_SIZE = 20;
@@ -128,8 +131,9 @@ protected:
         if (force_matmul_) return true;
         int state_size = reservoir_w_.dims(0) * reservoir_w_.dims(1);
         int kernel_size = reservoir_w_.dims(2) * reservoir_w_.dims(3);
-        if ((double)kernel_size / state_size >= KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD)
-            return true;
+        double kernel_to_size_ratio = (double)kernel_size / state_size;
+        if (state_size <= STATE_SIZE_MATMUL_THRESHOLD) return true;
+        if (kernel_to_size_ratio >= KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD) return true;
         return false;
     }
 
