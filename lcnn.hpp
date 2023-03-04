@@ -579,10 +579,7 @@ public:
             int state_width = reservoir_w_.dims(1);
 
             // Convert the reservoir matrices on host for performance.
-            std::vector<double> reservoir_w(
-              state_height * state_width * kernel_height * kernel_width);
-            reservoir_w_.host(reservoir_w.data());
-
+            std::vector<double> reservoir_w = af_utils::to_vector(reservoir_w_);
             std::vector<double> reservoir_w_full(
               state_height * state_width * state_height * state_width);
 
