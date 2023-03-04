@@ -570,7 +570,7 @@ po::options_description optimizer_arg_description()
     optimizer_arg_desc.add_options()                                                        //
       ("opt.cmaes-fplot", po::value<std::string>()->default_value("fplot.dat"),             //
        "Output file of the CMA-ES optimization plot.")                                      //
-      ("opt.max-fevals", po::value<int>()->default_value(5000),                             //
+      ("opt.max-fevals", po::value<int>()->default_value(2500),                             //
        "Set the maximum number of evaluations of the objective function "                   //
        "aggregated evals are considered as one).")                                          //
       ("opt.lambda", po::value<int>()->default_value(25),                                   //
