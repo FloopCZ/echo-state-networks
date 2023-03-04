@@ -158,10 +158,44 @@ af::array lstsq_predict(const af::array& A, const af::array& X)
 /// \param border_w The size of the padding on the top and down.
 af::array periodic(const af::array& A, int border_h, int border_w)
 {
-    af::array per_arr = af::tile(A, 3, 3);
-    return per_arr(
-      af::seq(A.dims(0) - border_h, 2 * A.dims(0) + border_h - 1),
-      af::seq(A.dims(1) - border_w, 2 * A.dims(1) + border_w - 1));
+    int h = A.dims(0);
+    int w = A.dims(1);
+    assert(h >= border_h);
+    assert(w >= border_w);
+    af::array per_arr = af::array(A.dims(0) + border_h * 2, A.dims(1) + border_w * 2, A.type());
+
+    // left side
+    per_arr(af::seq(0, border_h - 1), af::seq(0, border_w - 1)) =
+      A(af::seq(h - border_h, h - 1), af::seq(w - border_w, w - 1));
+    per_arr(af::seq(border_h, border_h + h - 1), af::seq(0, border_w - 1)) =
+      A(af::span, af::seq(w - border_w, w - 1));
+    per_arr(af::seq(border_h + h, border_h + h + border_h - 1), af::seq(0, border_w - 1)) =
+      A(af::seq(0, border_h - 1), af::seq(w - border_w, w - 1));
+
+    // bottom
+    per_arr(
+      af::seq(border_h + h, border_h + h + border_h - 1), af::seq(border_w, border_w + w - 1)) =
+      A(af::seq(0, border_h - 1), af::span);
+    per_arr(
+      af::seq(border_h + h, border_h + h + border_h - 1),
+      af::seq(border_w + w, border_w + w + border_w - 1)) =
+      A(af::seq(0, border_h - 1), af::seq(0, border_w - 1));
+
+    // right
+    per_arr(
+      af::seq(border_h, border_h + h - 1), af::seq(border_w + w, border_w + w + border_w - 1)) =
+      A(af::span, af::seq(0, border_w - 1));
+    per_arr(af::seq(0, border_h - 1), af::seq(border_w + w, border_w + w + border_w - 1)) =
+      A(af::seq(h - border_h, h - 1), af::seq(0, border_w - 1));
+
+    // top
+    per_arr(af::seq(0, border_h - 1), af::seq(border_w, border_w + w - 1)) =
+      A(af::seq(h - border_h, h - 1), af::span);
+
+    // center
+    per_arr(af::seq(border_h, border_h + h - 1), af::seq(border_w, border_w + w - 1)) = A;
+
+    return per_arr;
 }
 
 /// Check if all elements of two arrays are almost equal.
