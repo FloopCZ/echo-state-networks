@@ -558,25 +558,38 @@ public:
 
         // Prepare the fully connected weight matrix.
         if (do_matmul_step()) {
-            af::array reservoir_w_full =
-              af::constant(0, state_.elements(), state_.elements(), DType);
             int state_height = reservoir_w_.dims(0);
             int state_width = reservoir_w_.dims(1);
             int kernel_height = reservoir_w_.dims(2);
             int kernel_width = reservoir_w_.dims(3);
+
+            // Convert the reservoir matrices on host for performance.
+            std::vector<double> reservoir_w(
+              state_height * state_width * kernel_height * kernel_width);
+            reservoir_w_.host(reservoir_w.data());
+
+            std::vector<double> reservoir_w_full(
+              state_height * state_width * state_height * state_width);
+
             for (int i = 0; i < state_height; ++i) {
                 for (int j = 0; j < state_width; ++j) {
                     for (int k = 0; k < kernel_height; ++k) {
                         for (int l = 0; l < kernel_width; ++l) {
                             int from_i = (i + k - kernel_height / 2 + state_height) % state_height;
                             int from_j = (j + l - kernel_width / 2 + state_width) % state_width;
-                            reservoir_w_full(i + j * state_height, from_i + from_j * state_height) =
-                              reservoir_w_(i, j, k, l);
+                            int full_index = i + j * state_height
+                              + (from_i + from_j * state_height) * state_height * state_width;
+                            int sparse_index = i + j * state_height + k * state_height * state_width
+                              + l * state_height * state_width * kernel_height;
+                            reservoir_w_full[full_index] = reservoir_w[sparse_index];
                         }
                     }
                 }
             }
-            reservoir_weights_full(std::move(reservoir_w_full));
+
+            reservoir_weights_full(
+              af::array{state_.elements(), state_.elements(), reservoir_w_full.data()}.as(DType));
+
 // Check that the matmul style and kernel style step are the same.
 #ifndef NDEBUG
             af::array rand_state = af::randu({state_.dims()}, DType, af_prng_);
