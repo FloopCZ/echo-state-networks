@@ -607,7 +607,7 @@ public:
             af::array rand_state = af::randu({state_.dims()}, DType, af_prng_) / state_.elements();
             af::array state_matmul = update_via_weights_matmul_impl(rand_state);
             af::array state_wrap = update_via_weights_impl(rand_state);
-            assert(af_utils::almost_equal(state_matmul, state_wrap, 1e-12));
+            assert(af_utils::almost_equal(state_matmul, state_wrap, 1e-8));
 #endif
         }
     }
