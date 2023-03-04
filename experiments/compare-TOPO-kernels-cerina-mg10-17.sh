@@ -10,7 +10,9 @@ TOPO="$1"
 mkdir -p ./log/
 ./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \
-  --gen.optimizer-type=lcnn-nofb \
+  --gen.optimizer-type=lcnn \
+  --opt.exclude-params=default \
+  --opt.exclude-params=lcnn.fb-weight \
   --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \
   --lcnn.topology=${TOPO} \
   --lcnn.input-to-all=true \

@@ -6,7 +6,9 @@ TAU="$2"
 mkdir -p ./log/
 ./build/optimize_cpu \
   --gen.net-type=lcnn \
-  --gen.optimizer-type=lcnn-nofb \
+  --gen.optimizer-type=lcnn \
+  --opt.exclude-params=default \
+  --opt.exclude-params=lcnn.fb-weight \
   --lcnn.topology=${TOPO} \
   --lcnn.input-to-all=true \
   --lcnn.state-height=20 \

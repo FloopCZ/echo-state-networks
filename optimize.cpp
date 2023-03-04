@@ -12,16 +12,16 @@ using namespace esn;
 int main(int argc, char* argv[])
 {
     po::options_description arg_desc{"Generic options"};
-    arg_desc.add_options()                                                       //
-      ("help",                                                                   //
-       "Produce help message.")                                                  //
-      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),          //
-       "Network type, one of {simple-esn, lcnn}.")                               //
-      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),    //
-       "The type of the optimizer (e.g., lcnn-nofb, lcnn-noiseless).")           //
-      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),  //
-       "Benchmark set to be evaluated.")                                         //
-      ("gen.output-csv",
+    arg_desc.add_options()                                                         //
+      ("help",                                                                     //
+       "Produce help message.")                                                    //
+      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),            //
+       "Network type, one of {simple-esn, lcnn}.")                                 //
+      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),      //
+       "The type of the optimizer (e.g., lcnn, simple-esn).")                      //
+      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),    //
+       "Benchmark set to be evaluated.")                                           //
+      ("gen.output-csv",                                                           //
        po::value<std::string>()->default_value("./log/optimization_results.csv"),  //
        "Output csv file with the results.")                                        //
       ("gen.n-runs", po::value<long>()->default_value(10),                         //
@@ -91,7 +91,7 @@ int main(int argc, char* argv[])
                 } else if (param == "trial") {
                     fout << trial;
                 } else if (param == "f-value") {
-                    double f_value = opt->evaluate(*best_evaluation.net, global_prng);
+                    double f_value = opt->evaluate_net(*best_evaluation.net, global_prng);
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << f_value;
                 } else if (param == net_type + ".topology") {
                     fout << args.at(net_type + ".topology").as<std::string>();

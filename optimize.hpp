@@ -24,6 +24,11 @@ namespace po = boost::program_options;
 namespace rg = ranges;
 namespace rgv = ranges::views;
 
+inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
+  "lcnn.noise", "lcnn.sparsity", "esn.noise", "esn.sparsity"};
+inline const std::string DEFAULT_EXCLUDED_PARAMS_STR =
+  rgv::join(DEFAULT_EXCLUDED_PARAMS, ',') | rg::to<std::string>();
+
 /// Generic function optimizer.
 template <typename EvaluationResult>
 class optimizer {
@@ -230,7 +235,7 @@ public:
         // scale the candidate to the proper space using genopheno.
         std::vector<double> params = pheno_candidate(candidate);
         print_params(out, params);
-        // restore the oritinal precision
+        // restore the original precision
         out.precision(out_precision);
         return out;
     }
@@ -245,11 +250,97 @@ public:
 
 struct net_evaluation_result_t {
     double f_value;
-    std::vector<double> params;
+    std::map<std::string, double> params;
     std::unique_ptr<net_base> net;
 };
 
-class net_optimizer : public optimizer<net_evaluation_result_t> {
+/// Interface for the optimizer providing named access to optimized parameters.
+template <typename EvaluationResult>
+class named_optimizer : public optimizer<EvaluationResult> {
+private:
+    EvaluationResult evaluate(const std::vector<double>& params, std::mt19937& prng) const override
+    {
+        return named_evaluate(name_and_filter_params(params), prng);
+    }
+
+    std::vector<double> param_x0() const override
+    {
+        return unname_and_filter_params(named_param_x0());
+    }
+
+    std::vector<double> param_sigmas() const override
+    {
+        return unname_and_filter_params(named_param_sigmas());
+    }
+
+    std::vector<double> param_lbounds() const override
+    {
+        return unname_and_filter_params(named_param_lbounds());
+    }
+
+    std::vector<double> param_ubounds() const override
+    {
+        return unname_and_filter_params(named_param_ubounds());
+    }
+
+protected:
+    std::set<std::string> excluded_params_;
+
+public:
+    named_optimizer() = default;
+
+    named_optimizer(po::variables_map config, std::mt19937& prng)
+      : optimizer<EvaluationResult>{std::move(config), prng}
+    {
+        if (this->config_.contains("opt.exclude-params")) {
+            std::vector<std::string>& excluded_params_arg =
+              this->config_.at("opt.exclude-params").template as<std::vector<std::string>>();
+            excluded_params_ = excluded_params_arg | rg::to<std::set<std::string>>();
+            // Replace `default` keyword with default arguments.
+            if (excluded_params_.contains("default")) {
+                excluded_params_.erase("default");
+                excluded_params_.insert(
+                  DEFAULT_EXCLUDED_PARAMS.begin(), DEFAULT_EXCLUDED_PARAMS.end());
+            }
+            // Update the original argument to have better logs.
+            excluded_params_arg = excluded_params_ | rg::to<std::vector<std::string>>();
+        }
+    }
+
+    std::map<std::string, double> name_and_filter_params(const std::vector<double>& params) const
+    {
+        std::set<std::string> param_names = available_params();
+        for (const std::string& ep : excluded_params_) param_names.erase(ep);
+        assert(params.size() == param_names.size());
+        return rgv::zip(param_names, params) | rg::to<std::map>();
+    }
+
+    std::vector<double> unname_and_filter_params(std::map<std::string, double> params) const
+    {
+        assert(params.size() == available_params().size());
+        for (const std::string& ep : excluded_params_) params.erase(ep);
+        return rgv::values(params) | rg::to_vector;
+    }
+
+    virtual std::set<std::string> available_params() const = 0;
+    virtual EvaluationResult
+    named_evaluate(const std::map<std::string, double>& params, std::mt19937& prng) const = 0;
+    virtual std::map<std::string, double> named_param_x0() const = 0;
+    virtual std::map<std::string, double> named_param_sigmas() const = 0;
+    virtual std::map<std::string, double> named_param_lbounds() const = 0;
+    virtual std::map<std::string, double> named_param_ubounds() const = 0;
+};
+
+class net_optimizer : public named_optimizer<net_evaluation_result_t> {
+private:
+    net_evaluation_result_t
+    named_evaluate(const std::map<std::string, double>& params, std::mt19937& prng) const override
+    {
+        auto net = this->make_net(params, prng);
+        double f_value = evaluate_net(*net, prng);
+        return {.f_value = f_value, .params = params, .net = std::move(net)};
+    }
+
 protected:
     std::unique_ptr<benchmark_set_base> bench_;
     int af_device_;
@@ -277,24 +368,47 @@ protected:
     }
 
 public:
-    virtual po::variables_map to_variables_map(const std::vector<double>& params) const
+    po::variables_map to_variables_map(const std::vector<double>& params) const
     {
-        // TODO this is ugly, make each optimizer list those that it optimizes instead and
-        // put all the defaults to net_optimizer (or even better - take those from params)
-        assert(params.size() == 8);
-        std::string p = arg_prefix_();
-        po::variables_map cfg = config_;
-        auto val = [](double v) { return po::variable_value{v, false}; };  // syntactic sugar
+        return to_variables_map(name_and_filter_params(params));
+    }
+
+    po::variables_map to_variables_map(const std::map<std::string, double>& params) const
+    {
+        // syntactic sugar
+        auto val = [](double v) { return po::variable_value{v, false}; };
         auto expval = [&](double v) { return val(exp_transform(v)); };
         auto powval = [&](double v) { return val(pow_transform(v)); };
-        cfg.insert_or_assign(p + "sigma-res", expval(params.at(0)));
-        cfg.insert_or_assign(p + "mu-res", powval(params.at(1)));
-        cfg.insert_or_assign(p + "in-weight", powval(params.at(2)));
-        cfg.insert_or_assign(p + "fb-weight", powval(params.at(3)));
-        cfg.insert_or_assign(p + "sparsity", val(std::clamp(params.at(4), 0.0, 1.0)));
-        cfg.insert_or_assign(p + "leakage", val(std::clamp(params.at(5), 0.0, 1.0)));
-        cfg.insert_or_assign(p + "noise", expval(params.at(6)));
-        cfg.insert_or_assign(p + "mu-b", powval(params.at(7)));
+
+        const std::string& p = arg_prefix_();
+        po::variables_map cfg = config_;
+
+        if (params.contains(p + "sigma-res")) {
+            cfg.insert_or_assign(p + "sigma-res", expval(params.at(p + "sigma-res")));
+        }
+        if (params.contains(p + "mu-res")) {
+            cfg.insert_or_assign(p + "mu-res", powval(params.at(p + "mu-res")));
+        }
+        if (params.contains(p + "in-weight")) {
+            cfg.insert_or_assign(p + "in-weight", powval(params.at(p + "in-weight")));
+        }
+        if (params.contains(p + "fb-weight")) {
+            cfg.insert_or_assign(p + "fb-weight", powval(params.at(p + "fb-weight")));
+        }
+        if (params.contains(p + "sparsity")) {
+            cfg.insert_or_assign(
+              p + "sparsity", val(std::clamp(params.at(p + "sparsity"), 0.0, 1.0)));
+        }
+        if (params.contains(p + "leakage")) {
+            cfg.insert_or_assign(
+              p + "leakage", val(std::clamp(params.at(p + "leakage"), 0.0, 1.0)));
+        }
+        if (params.contains(p + "noise")) {
+            cfg.insert_or_assign(p + "noise", expval(params.at(p + "noise")));
+        }
+        if (params.contains(p + "mu-b")) {
+            cfg.insert_or_assign(p + "mu-b", powval(params.at(p + "mu-b")));
+        }
         return cfg;
     }
 
@@ -307,26 +421,18 @@ public:
 
     net_optimizer(
       po::variables_map config, std::unique_ptr<benchmark_set_base> bench, std::mt19937& prng)
-      : optimizer{std::move(config), prng}
+      : named_optimizer{std::move(config), prng}
       , bench_{std::move(bench)}
       , af_device_{config_.at("gen.af-device").as<int>()}
     {
     }
 
     virtual std::unique_ptr<net_base>
-    make_net(const std::vector<double>& params, std::mt19937& prng) const = 0;
+    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const = 0;
 
-    virtual double evaluate(net_base& net, std::mt19937& prng) const
+    virtual double evaluate_net(net_base& net, std::mt19937& prng) const
     {
         return bench_->evaluate(net, prng);
-    }
-
-    net_evaluation_result_t
-    evaluate(const std::vector<double>& params, std::mt19937& prng) const override
-    {
-        auto net = this->make_net(params, prng);
-        double f_value = evaluate(*net, prng);
-        return {.f_value = f_value, .params = params, .net = std::move(net)};
     }
 };
 
@@ -337,7 +443,7 @@ protected:
         return "lcnn.";
     }
 
-    std::vector<double> param_x0_;
+    std::map<std::string, double> param_x0_;
     double neuron_ins_;
     double init_sigma_res_;
 
@@ -348,18 +454,32 @@ public:
     {
         // Deduce initial sigma-res from the number of connections to each neuron.
         double unit_sigma = inv_exp_transform(1.0);
-        param_x0_ = {unit_sigma, 0.0, 0.1, 0.0, 0.1, 0.9, 0.2, 0.0};
+        param_x0_ = {
+          {"lcnn.sigma-res", unit_sigma},
+          {"lcnn.mu-res", 0.0},
+          {"lcnn.in-weight", 0.1},
+          {"lcnn.fb-weight", 0.0},
+          {"lcnn.sparsity", 0.1},
+          {"lcnn.leakage", 0.9},
+          {"lcnn.noise", 0.2},
+          {"lcnn.mu-b", 0.0}};
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
-        param_x0_.at(0) = inv_exp_transform(1. / std::sqrt(2 * neuron_ins_));
+        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2 * neuron_ins_));
         // Sparse nets should be biased towards positive mu_res, e.g. 0.3, negative mu-res provide
         // slightly worse results than positive mu-res.
-        if (neuron_ins_ < 5.) param_x0_.at(1) = inv_pow_transform(0.3);
+        if (neuron_ins_ < 5.) param_x0_.at("lcnn.mu-res") = inv_pow_transform(0.3);
+    }
+
+    std::set<std::string> available_params() const override
+    {
+        return {"lcnn.sigma-res", "lcnn.mu-res",  "lcnn.in-weight", "lcnn.fb-weight",
+                "lcnn.sparsity",  "lcnn.leakage", "lcnn.noise",     "lcnn.mu-b"};
     }
 
     std::unique_ptr<net_base>
-    make_net(const std::vector<double>& params, std::mt19937& prng) const override
+    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const override
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
@@ -367,106 +487,30 @@ public:
           random_lcnn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
     }
 
-    std::vector<double> param_x0() const override
+    std::map<std::string, double> named_param_x0() const override
     {
         return param_x0_;
     }
 
-    std::vector<double> param_sigmas() const override
+    std::map<std::string, double> named_param_sigmas() const override
     {
-        return {0.01, 0.05, 0.05, 0.01, 0.05, 0.05, 0.05, 0.05};
+        return {{"lcnn.sigma-res", 0.01}, {"lcnn.mu-res", 0.05},   {"lcnn.in-weight", 0.05},
+                {"lcnn.fb-weight", 0.01}, {"lcnn.sparsity", 0.05}, {"lcnn.leakage", 0.05},
+                {"lcnn.noise", 0.05},     {"lcnn.mu-b", 0.05}};
     }
 
-    std::vector<double> param_lbounds() const override
+    std::map<std::string, double> named_param_lbounds() const override
     {
-        return {-1.1, -1.1, -1.1, -1.1, -0.1, -0.1, -0.1, -1.1};
+        return {{"lcnn.sigma-res", -1.1}, {"lcnn.mu-res", -1.1},   {"lcnn.in-weight", -1.1},
+                {"lcnn.fb-weight", -1.1}, {"lcnn.sparsity", -0.1}, {"lcnn.leakage", -0.1},
+                {"lcnn.noise", -0.1},     {"lcnn.mu-b", -1.1}};
     }
 
-    std::vector<double> param_ubounds() const override
+    std::map<std::string, double> named_param_ubounds() const override
     {
-        return {1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1, 1.1};
-    }
-};
-
-/// LCNN optimizer without noise.
-class lcnn_noiseless_optimizer : public lcnn_optimizer {
-public:
-    using lcnn_optimizer::lcnn_optimizer;
-
-    po::variables_map to_variables_map(const std::vector<double>& params) const override
-    {
-        std::vector<double> params_ = params;
-        params_.insert(params_.begin() + 6, std::numeric_limits<double>::infinity());
-        return lcnn_optimizer::to_variables_map(params_);
-    }
-
-    std::vector<double> param_x0() const override
-    {
-        std::vector<double> x0 = lcnn_optimizer::param_x0();
-        x0.erase(x0.begin() + 6);
-        return x0;
-    }
-
-    std::vector<double> param_sigmas() const override
-    {
-        std::vector<double> sigmas = lcnn_optimizer::param_sigmas();
-        sigmas.erase(sigmas.begin() + 6);
-        return sigmas;
-    }
-
-    std::vector<double> param_lbounds() const override
-    {
-        std::vector<double> lbounds = lcnn_optimizer::param_lbounds();
-        lbounds.erase(lbounds.begin() + 6);
-        return lbounds;
-    }
-
-    std::vector<double> param_ubounds() const override
-    {
-        std::vector<double> ubounds = lcnn_optimizer::param_ubounds();
-        ubounds.erase(ubounds.begin() + 6);
-        return ubounds;
-    }
-};
-
-/// LCNN optimizer without feedback weights.
-class lcnn_nofb_optimizer : public lcnn_optimizer {
-public:
-    using lcnn_optimizer::lcnn_optimizer;
-
-    po::variables_map to_variables_map(const std::vector<double>& params) const override
-    {
-        std::vector<double> params_ = params;
-        params_.insert(params_.begin() + 3, 0.0);
-        return lcnn_optimizer::to_variables_map(params_);
-    }
-
-    std::vector<double> param_x0() const override
-    {
-        std::vector<double> x0 = lcnn_optimizer::param_x0();
-        x0.erase(x0.begin() + 3);
-        return x0;
-    }
-
-    std::vector<double> param_sigmas() const override
-    {
-        std::vector<double> sigmas = lcnn_optimizer::param_sigmas();
-        sigmas.erase(sigmas.begin() + 3);
-        return sigmas;
-    }
-
-    std::vector<double> param_lbounds() const override
-    {
-        std::vector<double> lbounds = lcnn_optimizer::param_lbounds();
-        lbounds.erase(lbounds.begin() + 3);
-        return lbounds;
-    }
-
-    std::vector<double> param_ubounds() const override
-    {
-        std::vector<double> ubounds = lcnn_optimizer::param_ubounds();
-        ubounds.erase(ubounds.begin() + 3);
-        return ubounds;
+        return {{"lcnn.sigma-res", 1.1}, {"lcnn.mu-res", 1.1},   {"lcnn.in-weight", 1.1},
+                {"lcnn.fb-weight", 1.1}, {"lcnn.sparsity", 1.1}, {"lcnn.leakage", 1.1},
+                {"lcnn.noise", 1.1},     {"lcnn.mu-b", 1.1}};
     }
 };
 
@@ -481,7 +525,7 @@ public:
     using net_optimizer::net_optimizer;
 
     std::unique_ptr<net_base>
-    make_net(const std::vector<double>& params, std::mt19937& prng) const override
+    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const override
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
@@ -489,24 +533,34 @@ public:
           random_esn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
     }
 
-    std::vector<double> param_x0() const override
+    std::set<std::string> available_params() const override
     {
-        return {0.12, 0.0, 0.1, 0.0, 0.5, 0.9};
+        return {"esn.sigma-res", "esn.mu-res",   "esn.in-weight",
+                "esn.fb-weight", "esn.sparsity", "esn.leakage"};
     }
 
-    std::vector<double> param_sigmas() const override
+    std::map<std::string, double> named_param_x0() const override
     {
-        return std::vector<double>(6, 0.01);
+        return {{"esn.sigma-res", 0.12}, {"esn.mu-res", 0.0},   {"esn.in-weight", 0.1},
+                {"esn.fb-weight", 0.0},  {"esn.sparsity", 0.5}, {"esn.leakage", 0.9}};
     }
 
-    std::vector<double> param_lbounds() const override
+    std::map<std::string, double> named_param_sigmas() const override
     {
-        return std::vector<double>(6, -1.1);
+        return {{"esn.sigma-res", 0.01}, {"esn.mu-res", 0.01},   {"esn.in-weight", 0.01},
+                {"esn.fb-weight", 0.01}, {"esn.sparsity", 0.01}, {"esn.leakage", 0.01}};
     }
 
-    std::vector<double> param_ubounds() const override
+    std::map<std::string, double> named_param_lbounds() const override
     {
-        return std::vector<double>(6, 1.1);
+        return {{"esn.sigma-res", -1.1}, {"esn.mu-res", -1.1},   {"esn.in-weight", -1.1},
+                {"esn.fb-weight", -1.1}, {"esn.sparsity", -1.1}, {"esn.leakage", -1.1}};
+    }
+
+    std::map<std::string, double> named_param_ubounds() const override
+    {
+        return {{"esn.sigma-res", 1.1}, {"esn.mu-res", 1.1},   {"esn.in-weight", 1.1},
+                {"esn.fb-weight", 1.1}, {"esn.sparsity", 1.1}, {"esn.leakage", 1.1}};
     }
 };
 
@@ -540,7 +594,11 @@ po::options_description optimizer_arg_description()
        "till improvement, 3 -> restart if the best encountered solution "                   //
        "is not the final solution.")                                                        //
       ("opt.no-multithreading", po::bool_switch(),                                          //
-       "Do not evaluate the individuals in the population in parallel.");                   //
+       "Do not evaluate the individuals in the population in parallel.")                    //
+      ("opt.exclude-params",                                                                //
+       po::value<std::vector<std::string>>()->multitoken()->default_value(                  //
+         DEFAULT_EXCLUDED_PARAMS, DEFAULT_EXCLUDED_PARAMS_STR),                             //
+       "The list of parameters that should be excluded from optimization.");                //
     return optimizer_arg_desc;
 }
 
@@ -550,12 +608,6 @@ std::unique_ptr<net_optimizer> make_optimizer(
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn") {
             return std::make_unique<lcnn_optimizer>(args, std::move(bench), prng);
-        }
-        if (args.at("gen.optimizer-type").as<std::string>() == "lcnn-nofb") {
-            return std::make_unique<lcnn_nofb_optimizer>(args, std::move(bench), prng);
-        }
-        if (args.at("gen.optimizer-type").as<std::string>() == "lcnn-noiseless") {
-            return std::make_unique<lcnn_noiseless_optimizer>(args, std::move(bench), prng);
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
