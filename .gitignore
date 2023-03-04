@@ -132,3 +132,4 @@ ENV/
 log/
 compare_plot.pdf
 visual.csv
+fplot.dat
