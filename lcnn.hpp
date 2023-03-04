@@ -706,12 +706,14 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
     // distributed uniformly from [0, in_weight].
     bool input_to_all = args.at("lcnn.input-to-all").as<bool>();
 
+    if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
+        throw std::invalid_argument{"Kernel size has to be odd."};
+
     lcnn_config cfg{args};
     af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
     int neurons = state_height * state_width;
     // generate the reservoir weights based on topology
     if (topology == "sparse") {
-        // TODO check if randu better
         cfg.reservoir_w_full = sigma_res * af::randn({neurons, neurons}, DType, af_prng) + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
