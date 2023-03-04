@@ -14,6 +14,8 @@
 
 namespace esn {
 
+constexpr af::dtype DEFAULT_AF_DTYPE = af::dtype::f64;
+
 class net_base {
 public:
     struct on_state_change_data {

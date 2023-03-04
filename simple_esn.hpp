@@ -15,7 +15,7 @@ namespace esn {
 namespace po = boost::program_options;
 
 /// Echo state network.
-template <af::dtype DType = af::dtype::f64>
+template <af::dtype DType = DEFAULT_AF_DTYPE>
 class simple_esn : public net_base {
     // the number of reservoir neurons
     long n_;
@@ -330,7 +330,7 @@ public:
 /// \param n_ins The number of inputs.
 /// \param n_outs The number of outputs.
 /// \param args The parameters by which is the network constructed.
-template <af::dtype DType = af::dtype::f64>
+template <af::dtype DType = DEFAULT_AF_DTYPE>
 simple_esn<DType>
 random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937& prng)
 {

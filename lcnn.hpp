@@ -88,7 +88,7 @@ struct lcnn_config {
 };
 
 /// Advanced Echo State Networks with various reservoir topologies.
-template <af::dtype DType = af::dtype::f64>
+template <af::dtype DType = DEFAULT_AF_DTYPE>
 class lcnn : public net_base {
 protected:
     long n_ins_;
@@ -686,7 +686,7 @@ public:
 /// \param n_ins The number of inputs.
 /// \param n_outs The number of outputs.
 /// \param args The parameters by which is the network constructed.
-template <af::dtype DType = af::dtype::f64>
+template <af::dtype DType = DEFAULT_AF_DTYPE>
 lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937& prng)
 {
     // The number of rows of the state matrix.
@@ -986,10 +986,10 @@ std::unique_ptr<net_base>
 make_net(long n_ins, long n_outs, const po::variables_map& args, std::mt19937& prng)
 {
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
-        return std::make_unique<lcnn<af::dtype::f64>>(random_lcnn(n_ins, n_outs, args, prng));
+        return std::make_unique<lcnn<>>(random_lcnn(n_ins, n_outs, args, prng));
     }
     if (args.at("gen.net-type").as<std::string>() == "simple-esn") {
-        return std::make_unique<simple_esn<af::dtype::f64>>(random_esn(n_ins, n_outs, args, prng));
+        return std::make_unique<simple_esn<>>(random_esn(n_ins, n_outs, args, prng));
     }
     throw std::runtime_error{
       "Unknown net type \"" + args.at("gen.net-type").as<std::string>() + "\"."};

@@ -483,8 +483,7 @@ public:
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
-        return std::make_unique<lcnn<af::dtype::f64>>(
-          random_lcnn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
+        return std::make_unique<lcnn<>>(random_lcnn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
     }
 
     std::map<std::string, double> named_param_x0() const override
@@ -529,7 +528,7 @@ public:
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
-        return std::make_unique<simple_esn<af::dtype::f64>>(
+        return std::make_unique<simple_esn<>>(
           random_esn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
     }
 
