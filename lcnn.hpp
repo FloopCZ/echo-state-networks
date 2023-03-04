@@ -92,6 +92,7 @@ protected:
     af::array state_;
     af::array last_output_;  // the last output of the net
     af::array reservoir_w_;
+    std::vector<std::vector<af::array>> kernel_channels_;
     af::array reservoir_w_full_;
     af::array reservoir_b_;
     af::array input_w_;
@@ -128,27 +129,6 @@ protected:
         return false;
     }
 
-    /// Unwrap local area of each neuron on a grid.
-    ///
-    /// Every row of the resulting matrix is the local area of one neuron.
-    /// See arrayfire unwrap() function for more info.
-    ///
-    /// \param state The rectangular state matrix to unwrap.
-    /// \returns Unwrapped state of shape [neurons, kernel_height * kernel_width].
-    af::array unwrap_state(const af::array& state) const
-    {
-        int kernel_height = reservoir_w_.dims(2);
-        int kernel_width = reservoir_w_.dims(3);
-        // make the state matrix periodic with large enough borders
-        af::array cyclic_state = af_utils::periodic(state, kernel_height / 2, kernel_width / 2);
-        // unwrap the state so that each neuron perception field is in a single row
-        af::array unwrapped_state = af::unwrap(
-          std::move(cyclic_state), kernel_height, kernel_width, 1, 1,  // stride
-          0, 0,    // padding is already done by cyclic state
-          false);  // each window to a row
-        return unwrapped_state;
-    }
-
     af::array update_via_weights_matmul_impl(const af::array& state) const
     {
         af::array new_state = af::matmul(reservoir_w_full_, af::flat(state));
@@ -163,10 +143,24 @@ protected:
 
     af::array update_via_weights_impl(const af::array& state)
     {
-        af::array unwrapped_state = unwrap_state(state);
-        af::array unwrapped_weights = af::moddims(reservoir_w_, unwrapped_state.dims());
-        af::array new_state = af::sum(unwrapped_weights * unwrapped_state, 1);
-        return af::moddims(std::move(new_state), state.dims());
+        int kernel_height = reservoir_w_.dims(2);
+        int kernel_width = reservoir_w_.dims(3);
+
+        af::array new_state = af::constant(0, state.dims(), state.type());
+        // for each kernel coordinate
+        for (int i = 0; i < kernel_height; ++i) {
+            for (int j = 0; j < kernel_width; ++j) {
+                af::array shifted_state =
+                  af::shift(state, -i + kernel_height / 2, -j + kernel_width / 2);
+                af::array channel_state = kernel_channels_.at(i).at(j) * std::move(shifted_state);
+                // Multiply the kernel channel and the activations
+                // from the periodic state matrix. Append it to the new_state of the
+                // corresponding neurons.
+                new_state += std::move(channel_state);
+            }
+        }
+
+        return new_state;
     }
 
     /// Update the state matrix from the unwrapped weights and previous state.
@@ -556,12 +550,24 @@ public:
         reservoir_w_ = std::move(new_weights);
         force_matmul_ = false;
 
-        // Prepare the fully connected weight matrix.
+        // Precalculate kernel channels.
+        // Channel is the 2D matrix made only of the kernel
+        // elements on the fixed coordinate i, j for each neuron.
+        // It has the same shape as the state.
+        int kernel_height = reservoir_w_.dims(2);
+        int kernel_width = reservoir_w_.dims(3);
+        kernel_channels_.resize(kernel_height);
+        for (int i = 0; i < kernel_height; ++i) {
+            for (int j = 0; j < kernel_width; ++j) {
+                kernel_channels_.at(i).push_back(reservoir_w_(af::span, af::span, i, j));
+                kernel_channels_.at(i).at(j).eval();
+            }
+        }
+
+        // Precalculate the fully connected weight matrix.
         if (do_matmul_step()) {
             int state_height = reservoir_w_.dims(0);
             int state_width = reservoir_w_.dims(1);
-            int kernel_height = reservoir_w_.dims(2);
-            int kernel_width = reservoir_w_.dims(3);
 
             // Convert the reservoir matrices on host for performance.
             std::vector<double> reservoir_w(
