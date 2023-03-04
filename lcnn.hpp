@@ -13,11 +13,13 @@
 
 namespace esn {
 
-// The size of the height or width of the kernel above which the matrix multiplication
-// will be used instead of unwrapping.
-// For the matrix sizes we use, the matrix multiplication is more efficient, so
-// the threshold is intentionally set to zero.
-constexpr int KERNEL_SIZE_MATMUL_THRESHOLD = 0;
+// The size of the state vs the size of the kernel determine whether
+// the library uses matrix multiplication or the shifting method.
+constexpr double KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD = 0.04;
+
+// The shifting method creates a long JIT function which has to be limited
+// to avoid a failed nvcc compilation.
+constexpr int SHIFT_STEP_MAX_JIT_SIZE = 20;
 
 namespace po = boost::program_options;
 
@@ -124,8 +126,10 @@ protected:
     bool do_matmul_step() const
     {
         if (force_matmul_) return true;
-        if (reservoir_w_.dims(2) >= KERNEL_SIZE_MATMUL_THRESHOLD) return true;
-        if (reservoir_w_.dims(3) >= KERNEL_SIZE_MATMUL_THRESHOLD) return true;
+        int state_size = reservoir_w_.dims(0) * reservoir_w_.dims(1);
+        int kernel_size = reservoir_w_.dims(2) * reservoir_w_.dims(3);
+        if ((double)kernel_size / state_size >= KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD)
+            return true;
         return false;
     }
 
@@ -145,7 +149,7 @@ protected:
     {
         int kernel_height = reservoir_w_.dims(2);
         int kernel_width = reservoir_w_.dims(3);
-
+        af::eval(state);
         af::array new_state = af::constant(0, state.dims(), state.type());
         // for each kernel coordinate
         for (int i = 0; i < kernel_height; ++i) {
@@ -157,9 +161,10 @@ protected:
                 // from the periodic state matrix. Append it to the new_state of the
                 // corresponding neurons.
                 new_state += std::move(channel_state);
+                if ((i * kernel_height + j) % SHIFT_STEP_MAX_JIT_SIZE == 0) af::eval(new_state);
             }
         }
-
+        af::eval(new_state);
         return new_state;
     }
 
