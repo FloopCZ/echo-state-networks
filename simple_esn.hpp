@@ -369,23 +369,23 @@ random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937&
 po::options_description esn_arg_description()
 {
     po::options_description esn_arg_desc{"Echo state network options"};
-    esn_arg_desc.add_options()                                                       //
-      ("esn.neurons", po::value<long>()->default_value(128),                         //
-       "The number of neurons.")                                                     //
-      ("esn.sigma-res", po::value<double>()->default_value(0.19762725044833218),     //
-       "See random_esn().")                                                          //
-      ("esn.mu-res", po::value<double>()->default_value(-0.0068959284626413861),     //
-       "See random_esn().")                                                          //
-      ("esn.in-weight", po::value<double>()->default_value(-0.004004819844231784),   //
-       "See random_esn().")                                                          //
-      ("esn.fb-weight", po::value<double>()->default_value(3.8736953058739977e-05),  //
-       "See random_esn().")                                                          //
-      ("esn.sparsity", po::value<double>()->default_value(0.81627753813108161),      //
-       "See random_esn().")                                                          //
-      ("esn.noise", po::value<double>()->default_value(1e-8),                        //
-       "Standard deviation of the noise added to the states of the network.")        //
-      ("esn.leakage", po::value<double>()->default_value(0.96129431689957912),       //
-       "See random_esn().");                                                         //
+    esn_arg_desc.add_options()                                                      //
+      ("esn.neurons", po::value<long>()->default_value(128),                        //
+       "The number of neurons.")                                                    //
+      ("esn.sigma-res", po::value<double>()->default_value(0.19762725044833218),    //
+       "See random_esn().")                                                         //
+      ("esn.mu-res", po::value<double>()->default_value(-0.0068959284626413861),    //
+       "See random_esn().")                                                         //
+      ("esn.in-weight", po::value<double>()->default_value(-0.004004819844231784),  //
+       "See random_esn().")                                                         //
+      ("esn.fb-weight", po::value<double>()->default_value(0),                      //
+       "See random_esn().")                                                         //
+      ("esn.sparsity", po::value<double>()->default_value(0),                       //
+       "See random_esn().")                                                         //
+      ("esn.noise", po::value<double>()->default_value(0),                          //
+       "Standard deviation of the noise added to the states of the network.")       //
+      ("esn.leakage", po::value<double>()->default_value(1),                        //
+       "See random_esn().");                                                        //
     return esn_arg_desc;
 }
 

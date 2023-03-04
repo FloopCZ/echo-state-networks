@@ -899,29 +899,29 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
 po::options_description lcnn_arg_description()
 {
     po::options_description lcnn_arg_desc{"Locally connected network options"};
-    lcnn_arg_desc.add_options()                                                     //
-      ("lcnn.state-height", po::value<long>()->default_value(11),                   //
-       "The fixed height of the kernel.")                                           //
-      ("lcnn.state-width", po::value<long>()->default_value(11),                    //
-       "The width of the state matrix.")                                            //
-      ("lcnn.kernel-height", po::value<long>()->default_value(5),                   //
-       "The height of the kernel.")                                                 //
-      ("lcnn.kernel-width", po::value<long>()->default_value(5),                    //
-       "The width of the kernel.")                                                  //
-      ("lcnn.sigma-res", po::value<double>()->default_value(0.18282597654191446),   //
-       "See random_lcnn().")                                                        //
-      ("lcnn.mu-res", po::value<double>()->default_value(-0.008182614281959771),    //
-       "See random_lcnn().")                                                        //
-      ("lcnn.in-weight", po::value<double>()->default_value(0.096420048082640264),  //
-       "See random_lcnn().")                                                        //
-      ("lcnn.fb-weight", po::value<double>()->default_value(0.087346208897765704),  //
-       "See random_lcnn().")                                                        //
-      ("lcnn.sigma-b", po::value<double>()->default_value(0),                       //
-       "See random_lcnn().")                                                        //
-      ("lcnn.mu-b", po::value<double>()->default_value(0),                          //
-       "See random_lcnn().")                                                        //
-      ("lcnn.sparsity", po::value<double>()->default_value(0.092256797467520246),   //
-       "See random_lcnn().")                                                        //
+    lcnn_arg_desc.add_options()                                    //
+      ("lcnn.state-height", po::value<long>()->default_value(11),  //
+       "The fixed height of the kernel.")                          //
+      ("lcnn.state-width", po::value<long>()->default_value(11),   //
+       "The width of the state matrix.")                           //
+      ("lcnn.kernel-height", po::value<long>()->default_value(5),  //
+       "The height of the kernel.")                                //
+      ("lcnn.kernel-width", po::value<long>()->default_value(5),   //
+       "The width of the kernel.")                                 //
+      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),  //
+       "See random_lcnn().")                                       //
+      ("lcnn.mu-res", po::value<double>()->default_value(0),       //
+       "See random_lcnn().")                                       //
+      ("lcnn.in-weight", po::value<double>()->default_value(0.1),  //
+       "See random_lcnn().")                                       //
+      ("lcnn.fb-weight", po::value<double>()->default_value(0),    //
+       "See random_lcnn().")                                       //
+      ("lcnn.sigma-b", po::value<double>()->default_value(0),      //
+       "See random_lcnn().")                                       //
+      ("lcnn.mu-b", po::value<double>()->default_value(0),         //
+       "See random_lcnn().")                                       //
+      ("lcnn.sparsity", po::value<double>()->default_value(0),     //
+       "See random_lcnn().")                                       //
 
       // Learning is not available at the moment.
       // ("lcnn.learning-rate", po::value<double>()->default_value(0),
@@ -939,18 +939,18 @@ po::options_description lcnn_arg_description()
       // ("lcnn.state-ema-decay", po::value<double>()->default_value(0),
       //    "See random_lcnn().")
 
-      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),       //
-       "See random_lcnn().")                                                     //
-      ("lcnn.input-to-all", po::value<bool>()->default_value(false),             //
-       "See random_lcnn().")                                                     //
-      ("lcnn.random-spike-prob", po::value<double>()->default_value(0),          //
-       "See lcnn_config class.")                                                 //
-      ("lcnn.random-spike-std", po::value<double>()->default_value(0),           //
-       "See lcnn_config class.")                                                 //
-      ("lcnn.noise", po::value<double>()->default_value(1e-8),                   //
-       "See lcnn_config class.")                                                 //
-      ("lcnn.leakage", po::value<double>()->default_value(0.98589345058490285),  //
-       "See lcnn_config class.")                                                 //
+      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),  //
+       "See random_lcnn().")                                                //
+      ("lcnn.input-to-all", po::value<bool>()->default_value(false),        //
+       "See random_lcnn().")                                                //
+      ("lcnn.random-spike-prob", po::value<double>()->default_value(0),     //
+       "See lcnn_config class.")                                            //
+      ("lcnn.random-spike-std", po::value<double>()->default_value(0),      //
+       "See lcnn_config class.")                                            //
+      ("lcnn.noise", po::value<double>()->default_value(0),                 //
+       "See lcnn_config class.")                                            //
+      ("lcnn.leakage", po::value<double>()->default_value(1),               //
+       "See lcnn_config class.")                                            //
       ;
     return lcnn_arg_desc;
 }
