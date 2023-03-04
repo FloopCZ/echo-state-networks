@@ -83,7 +83,9 @@ template <typename T>
 T mse(const af::array& ys_predict, const af::array& ys_truth)
 {
     assert(ys_predict.dims() == ys_truth.dims());
-    return (mse(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */).scalar<double>();
+    return (mse(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */)
+      .as(af::dtype::f64)
+      .scalar<double>();
 }
 
 /// Normalized mean squared error of two arrays.
@@ -96,7 +98,9 @@ af::array nmse(const af::array& ys_predict, const af::array& ys_truth, long dim 
 template <typename T>
 T nmse(const af::array& ys_predict, const af::array& ys_truth)
 {
-    return (nmse(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */).scalar<double>();
+    return (nmse(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */)
+      .as(af::dtype::f64)
+      .scalar<double>();
 }
 
 /// Normalized root mean squared error of two arrays.
@@ -109,7 +113,9 @@ af::array nrmse(const af::array& ys_predict, const af::array& ys_truth, long dim
 template <typename T>
 T nrmse(const af::array& ys_predict, const af::array& ys_truth)
 {
-    return (nrmse(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */).scalar<double>();
+    return (nrmse(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */)
+      .as(af::dtype::f64)
+      .scalar<double>();
 }
 
 /// Add a row/column of ones to a matrix.
