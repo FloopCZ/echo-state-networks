@@ -3,7 +3,7 @@ if [ $# != 2 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 TAU="$2"
 
-outdir="./log/compare-${TOPO}-kernels-gallancchio-mg${TAU}/"
+outdir="./log/compare-${TOPO}-20-25-kernels-gallancchio-mg${TAU}/"
 mkdir -p "${outdir}"
 ./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \

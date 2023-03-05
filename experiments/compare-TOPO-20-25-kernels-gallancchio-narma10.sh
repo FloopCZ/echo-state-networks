@@ -2,15 +2,15 @@
 if [ $# != 1 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 
-outdir="./log/compare-${TOPO}-8000-kernels-gallancchio-narma10/"
+outdir="./log/compare-${TOPO}-20-25-kernels-gallancchio-narma10/"
 mkdir -p "${outdir}"
-./build/compare_lcnn_kernels_cuda \
+./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \
   --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \
   --lcnn.topology="${TOPO}" \
   --lcnn.input-to-all=true \
-  --gen.state-heights=80 \
-  --gen.state-widths=100 \
+  --gen.state-heights=20 \
+  --gen.state-widths=25 \
   --gen.benchmark-set=narma10 \
   --bench.init-steps=1000 \
   --bench.train-steps=5000 \

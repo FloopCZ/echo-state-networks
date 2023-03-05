@@ -7,7 +7,7 @@
 if [ $# != 1 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 
-outdir="./log/compare-${TOPO}-kernels-cerina-mg10-17/"
+outdir="./log/compare-${TOPO}-20-25-kernels-cerina-mg10-17/"
 mkdir -p "${outdir}"
 ./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \
