@@ -5,9 +5,12 @@
 #include "argument_utils.hpp"
 #include "benchmarks.hpp"
 
+#include <filesystem>
 #include <iostream>
 
 using namespace esn;
+
+namespace fs = std::filesystem;
 
 int main(int argc, char* argv[])
 {
@@ -21,9 +24,9 @@ int main(int argc, char* argv[])
        "The type of the optimizer (e.g., lcnn, simple-esn).")                      //
       ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),    //
        "Benchmark set to be evaluated.")                                           //
-      ("gen.output-csv",                                                           //
-       po::value<std::string>()->default_value("./log/optimization_results.csv"),  //
-       "Output csv file with the results.")                                        //
+      ("gen.output-dir",                                                           //
+       po::value<std::string>()->default_value("./log/optimization/"),             //
+       "Output directory with the results.")                                       //
       ("gen.n-runs", po::value<long>()->default_value(10),                         //
        "The number of full optimization runs of the provided set of parameters.")  //
       ("gen.n-trials", po::value<long>()->default_value(100),                      //
@@ -43,7 +46,9 @@ int main(int argc, char* argv[])
     af::info();
     std::cout << std::endl;
 
-    std::ofstream fout{args.at("gen.output-csv").as<std::string>()};
+    fs::path output_dir = args.at("gen.output-dir").as<std::string>();
+    fs::create_directories(output_dir.parent_path());
+    std::ofstream fout{output_dir / "optimization_results.csv"};
     std::string net_type = args.at("gen.net-type").as<std::string>();
     std::vector<std::string> param_names = {
       "run",
@@ -59,15 +64,19 @@ int main(int argc, char* argv[])
       net_type + ".noise",
       net_type + ".sigma-b",
       net_type + ".mu-b"};
+    if (net_type == "lcnn") {
+        param_names.push_back("lcnn.state-height");
+        param_names.push_back("lcnn.state-width");
+        param_names.push_back("lcnn.kernel-height");
+        param_names.push_back("lcnn.kernel-width");
+    }
     fout << (rgv::join(param_names, ',') | rg::to<std::string>()) << std::endl;
-    std::string cmaes_fplot = args.at("opt.cmaes-fplot").as<std::string>();
 
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
         std::cout << "Run " << run << std::endl;
 
         // Store cmaes fplot data to a separate file for each run.
-        std::string cmaes_fplot_run =
-          std::regex_replace(cmaes_fplot, std::regex("@RUN@"), std::to_string(run));
+        std::string cmaes_fplot_run = output_dir / ("fplot-run" + std::to_string(run) + ".dat");
         args.insert_or_assign("opt.cmaes-fplot", po::variable_value{cmaes_fplot_run, false});
 
         std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
@@ -95,6 +104,10 @@ int main(int argc, char* argv[])
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << f_value;
                 } else if (param == net_type + ".topology") {
                     fout << args.at(net_type + ".topology").as<std::string>();
+                } else if (typeid(int) == params.at(param).value().type()) {
+                    fout << params.at(param).as<int>();
+                } else if (typeid(long) == params.at(param).value().type()) {
+                    fout << params.at(param).as<long>();
                 } else {
                     double value = params.at(param).as<double>();
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << value;

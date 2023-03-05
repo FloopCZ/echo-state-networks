@@ -12,7 +12,7 @@ mkdir -p ./log/
     --gen.grid-stop=10000 \
     --gen.net-type=lcnn \
     --gen.param=bench.train-steps \
-    --gen.output-csv=./log/train_steps_sensitivity.csv \
+    --gen.output-dir=./log/train_steps_sensitivity/ \
     --lcnn.fb-weight=6.2648011134027403e-05 \
     --lcnn.in-weight=0.00051516737276618573 \
     --lcnn.input-to-all=1 \

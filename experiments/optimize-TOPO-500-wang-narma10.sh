@@ -6,10 +6,11 @@
 if [ $# != 1 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 
-mkdir -p ./log/
+outdir="./log/optimize-${TOPO}-500-wang-narma10/"
+mkdir -p "${outdir}"
 ./build/optimize_cpu \
   --gen.net-type=lcnn \
-  --lcnn.topology=${TOPO} \
+  --lcnn.topology="${TOPO}" \
   --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
   --lcnn.state-width=25 \
@@ -19,6 +20,5 @@ mkdir -p ./log/
   --bench.train-steps=1200 \
   --bench.valid-steps=1200 \
   --gen.af-device=1 \
-  --gen.output-csv=./log/optimize-${TOPO}-500-wang-narma10.csv \
-  --opt.cmaes-fplot=./log/optimize-${TOPO}-500-wang-narma10-run@RUN@.dat \
-  2>&1 | tee ./log/optimize-${TOPO}-500-wang-narma10.log
+  --gen.output-dir="${outdir}" \
+  2>&1 | tee "${outdir}/out.txt"

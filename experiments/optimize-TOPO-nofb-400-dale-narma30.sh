@@ -7,13 +7,14 @@ TOPO="$1"
 
 # Note: in this case, the no-feedback version ends up better, not sure why.
 
-mkdir -p ./log/
+outdir="./log/optimize-${TOPO}-nofb-400-dale-narma30/"
+mkdir -p "${outdir}"
 ./build/optimize_cpu \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.fb-weight \
-  --lcnn.topology=${TOPO} \
+  --lcnn.topology="${TOPO}" \
   --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
   --lcnn.state-width=20 \
@@ -23,6 +24,5 @@ mkdir -p ./log/
   --bench.train-steps=2000 \
   --bench.valid-steps=3000 \
   --gen.af-device=0 \
-  --gen.output-csv=./log/optimize-${TOPO}-nofb-400-dale-narma30.csv \
-  --opt.cmaes-fplot=./log/optimize-${TOPO}-nofb-400-dale-narma30-run@RUN@.dat \
-  2>&1 | tee ./log/optimize-${TOPO}-nofb-400-dale-narma30.log
+  --gen.output-dir="${outdir}" \
+  2>&1 | tee "${outdir}/out.txt"

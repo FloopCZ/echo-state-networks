@@ -6,12 +6,15 @@
 #include <arrayfire.h>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <range/v3/all.hpp>
 #include <thread>
 
 namespace esn {
+
+namespace fs = std::filesystem;
 
 class visualizer {
 private:
@@ -205,8 +208,9 @@ private:
 public:
     file_saver() = default;
 
-    file_saver(const std::string& csv_out)
+    file_saver(const fs::path& csv_out)
     {
+        fs::create_directories(csv_out.parent_path());
         csv_out_.exceptions(std::ios_base::failbit | std::ios_base::badbit);
         csv_out_.open(csv_out);
     }

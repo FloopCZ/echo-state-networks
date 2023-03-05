@@ -12,7 +12,7 @@ mkdir -p ./log/
     --gen.grid-stop=0.012 \
     --gen.net-type=lcnn \
     --gen.param=lcnn.sigma-res \
-    --gen.output-csv=./log/sigma_res_sensitivity.csv \
+    --gen.output-dir=./log/sigma_res_sensitivity/ \
     --lcnn.fb-weight=6.2648011134027403e-05 \
     --lcnn.in-weight=0.00051516737276618573 \
     --lcnn.input-to-all=1 \

@@ -5,10 +5,11 @@ TOPO="$1"
 # Parameters inspired by Matthew Dale, GECCO '18
 # Neuroevolution of Hierarchical Reservoir Computers
 
-mkdir -p ./log/
+outdir="./log/optimize-${TOPO}-200-dale-narma30/"
+mkdir -p "${outdir}"
 ./build/optimize_cpu \
   --gen.net-type=lcnn \
-  --lcnn.topology=${TOPO} \
+  --lcnn.topology="${TOPO}" \
   --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
   --lcnn.state-width=10 \
@@ -18,6 +19,5 @@ mkdir -p ./log/
   --bench.train-steps=2000 \
   --bench.valid-steps=3000 \
   --gen.af-device=1 \
-  --gen.output-csv=./log/optimize-${TOPO}-200-dale-narma30.csv \
-  --opt.cmaes-fplot=./log/optimize-${TOPO}-200-dale-narma30-run@RUN@.dat \
-  2>&1 | tee ./log/optimize-${TOPO}-200-dale-narma30.log
+  --gen.output-dir="${outdir}" \
+  2>&1 | tee "${outdir}/out.txt"

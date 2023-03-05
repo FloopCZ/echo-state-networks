@@ -9,34 +9,36 @@
 #include "simple_esn.hpp"
 
 #include <chrono>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <thread>
 
 namespace po = boost::program_options;
+namespace fs = std::filesystem;
 
 int main(int argc, char* argv[])
 {
     po::options_description arg_desc{"Generic options"};
-    arg_desc.add_options()                                                       //
-      ("help",                                                                   //
-       "Produce help message.")                                                  //
-      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),          //
-       "Network type, one of {simple-esn, lcnn}.")                               //
-      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),  //
-       "Benchmark set to be evaluated.")                                         //
-      ("gen.plot-size", po::value<long>()->default_value(800),                   //
-       "The size (i.e., the height and the width) of each plot.")                //
-      ("gen.sleep", po::value<long>()->default_value(0),                         //
-       "The number of milliseconds to sleep between steps.")                     //
-      ("gen.history", po::value<long>()->default_value(500),                     //
-       "The length of the plot history.")                                        //
-      ("gen.csv-out", po::value<std::string>()->default_value("visual.csv"),     //
-       "CSV file where to save the inputs, outputs and other statistics.")       //
-      ("gen.skip", po::value<long>()->default_value(0),                          //
-       "Do not plot until this number of steps has passed.")                     //
-      ("gen.af-device", po::value<int>()->default_value(0),                      //
-       "ArrayFire device to be used.");                                          //
+    arg_desc.add_options()                                                        //
+      ("help",                                                                    //
+       "Produce help message.")                                                   //
+      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),           //
+       "Network type, one of {simple-esn, lcnn}.")                                //
+      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),   //
+       "Benchmark set to be evaluated.")                                          //
+      ("gen.plot-size", po::value<long>()->default_value(800),                    //
+       "The size (i.e., the height and the width) of each plot.")                 //
+      ("gen.sleep", po::value<long>()->default_value(0),                          //
+       "The number of milliseconds to sleep between steps.")                      //
+      ("gen.history", po::value<long>()->default_value(500),                      //
+       "The length of the plot history.")                                         //
+      ("gen.output-dir", po::value<std::string>()->default_value("log/visual/"),  //
+       "Directory where to save the inputs, outputs and other statistics.")       //
+      ("gen.skip", po::value<long>()->default_value(0),                           //
+       "Do not plot until this number of steps has passed.")                      //
+      ("gen.af-device", po::value<int>()->default_value(0),                       //
+       "ArrayFire device to be used.");                                           //
     arg_desc.add(esn::benchmark_arg_description());
     po::variables_map args = esn::parse_conditional(
       argc, argv, arg_desc,
@@ -57,12 +59,11 @@ int main(int argc, char* argv[])
       args.at("gen.plot-size").as<long>(), args.at("gen.skip").as<long>()};
     plt.register_callback(*net);
 
-    esn::file_saver csv_writer;
-    if (args.contains("gen.csv-out")) {
-        std::string csv_out = args.at("gen.csv-out").as<std::string>();
-        csv_writer = esn::file_saver{csv_out};
-        csv_writer.register_callback(*net);
-    }
+    fs::path output_dir = args.at("gen.output-dir").as<std::string>();
+    fs::create_directories(output_dir.parent_path());
+
+    esn::file_saver csv_writer{output_dir / "trace.txt"};
+    csv_writer.register_callback(*net);
 
     bench->evaluate(*net, esn::global_prng);
     plt.wait_for_close();

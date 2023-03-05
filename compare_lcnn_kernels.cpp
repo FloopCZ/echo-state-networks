@@ -5,10 +5,13 @@
 #include "optimize.hpp"
 
 #include <boost/program_options.hpp>
+#include <filesystem>
 #include <iostream>
 #include <regex>
 
 using namespace esn;
+
+namespace fs = std::filesystem;
 
 int main(int argc, char* argv[])
 {
@@ -22,13 +25,17 @@ int main(int argc, char* argv[])
        "The type of the optimizer (e.g., lcnn).")                                     //
       ("gen.benchmark-set", po::value<std::string>()->default_value("narma-memory"),  //
        "Benchmark set to be evaluated.")                                              //
-      ("gen.output-csv",                                                              //
-       po::value<std::string>()->default_value("./log/lcnn_kernels_comparison.csv"),  //
-       "Output csv file with the results.")                                           //
+      ("gen.output-dir",                                                              //
+       po::value<std::string>()->default_value("./log/lcnn_kernel_comparison/"),      //
+       "Directory to store the results.")                                             //
       ("gen.n-runs", po::value<long>()->default_value(10),                            //
        "The number of full optimization runs of one kernel size setting.")            //
       ("gen.kernel-sizes", po::value<std::vector<long>>()->multitoken(),              //
        "The sizes of the kernel to be tested.")                                       //
+      ("gen.state-heights", po::value<std::vector<long>>()->multitoken(),             //
+       "The heights of the reservoir to be tested.")                                  //
+      ("gen.state-widths", po::value<std::vector<long>>()->multitoken(),              //
+       "The corresponding widths of the reservoir to be tested.")                     //
       ("gen.n-trials", po::value<long>()->default_value(100),                         //
        "The number of evaluations of the best network. "                              //
        "Also the number of lines in CSV for each optimized kernel size.")             //
@@ -51,52 +58,95 @@ int main(int argc, char* argv[])
     af::info();
     std::cout << std::endl;
 
-    std::ofstream fout{args.at("gen.output-csv").as<std::string>()};
-    std::vector<std::string> param_names = {"run",           "kernel-size",    "trial",
-                                            "f-value",       "lcnn.topology",  "lcnn.sigma-res",
-                                            "lcnn.mu-res",   "lcnn.in-weight", "lcnn.fb-weight",
-                                            "lcnn.sparsity", "lcnn.leakage",   "lcnn.noise",
-                                            "lcnn.sigma-b",  "lcnn.mu-b"};
+    fs::path output_dir = args.at("gen.output-dir").as<std::string>();
+    fs::create_directories(output_dir.parent_path());
+    std::ofstream fout{output_dir / "kernel_comparison.csv"};
+    std::vector<std::string> param_names = {
+      "run",
+      "kernel-size",
+      "trial",
+      "f-value",
+      "lcnn.state-height",
+      "lcnn.state-width",
+      "lcnn.kernel-height",
+      "lcnn.kernel-width",
+      "lcnn.topology",
+      "lcnn.sigma-res",
+      "lcnn.mu-res",
+      "lcnn.in-weight",
+      "lcnn.fb-weight",
+      "lcnn.sparsity",
+      "lcnn.leakage",
+      "lcnn.noise",
+      "lcnn.sigma-b",
+      "lcnn.mu-b"};
     fout << (rgv::join(param_names, ',') | rg::to<std::string>()) << std::endl;
-    std::string cmaes_fplot = args.at("opt.cmaes-fplot").as<std::string>();
+
+    if (!args.contains("gen.state-heights"))
+        throw std::invalid_argument{"lcnn.state-heights not set."};
+    if (!args.contains("gen.state-widths"))
+        throw std::invalid_argument{"lcnn.state-widths not set."};
+    if (!args.contains("gen.kernel-sizes"))
+        throw std::invalid_argument{"lcnn.kernel-sizes not set."};
+    long n_sizes = args.at("gen.state-heights").as<std::vector<long>>().size();
+    if (n_sizes != args.at("gen.state-widths").as<std::vector<long>>().size())
+        throw std::invalid_argument{"State heights and widths arguments have different length."};
+
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
-        // Store cmaes fplot data to a separate file for each run.
-        std::string cmaes_fplot_run =
-          std::regex_replace(cmaes_fplot, std::regex("@RUN@"), std::to_string(run));
-        for (long kernel_size : args.at("gen.kernel-sizes").as<std::vector<long>>()) {
-            std::cout << "Evaluating kernel size " << kernel_size << "." << std::endl;
-            std::cout << std::endl;
-            args.insert_or_assign("lcnn.kernel-height", po::variable_value{kernel_size, false});
-            args.insert_or_assign("lcnn.kernel-width", po::variable_value{kernel_size, false});
-            args.insert_or_assign("opt.cmaes-fplot", po::variable_value{cmaes_fplot_run, false});
-            auto opt =
-              std::make_unique<lcnn_optimizer>(args, esn::make_benchmark(args), esn::global_prng);
-            cma::CMASolutions cmasols = opt->optimize();
-            dVec mean = cmasols.xmean();
-            po::variables_map params = opt->to_variables_map(opt->pheno_candidate(mean));
-            for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {
-                double f_value = opt->f_value(mean, esn::global_prng);
-                std::cout << "Best f-value: " << f_value << std::endl << std::endl;
-                for (const std::string& param : param_names) {
-                    if (param == "run") {
-                        fout << run;
-                    } else if (param == "trial") {
-                        fout << trial;
-                    } else if (param == "kernel-size") {
-                        fout << kernel_size;
-                    } else if (param == "lcnn.topology") {
-                        fout << args.at("lcnn.topology").as<std::string>();
-                    } else if (param == "f-value") {
-                        fout << std::setprecision(std::numeric_limits<double>::max_digits10)
-                             << f_value;
-                    } else {
-                        double value = params.at(param).as<double>();
-                        fout << std::setprecision(std::numeric_limits<double>::max_digits10)
-                             << value;
+        for (long isize = 0; isize < n_sizes; ++isize) {
+            for (long kernel_size : args.at("gen.kernel-sizes").as<std::vector<long>>()) {
+                long state_height = args.at("gen.state-heights").as<std::vector<long>>().at(isize);
+                long state_width = args.at("gen.state-widths").as<std::vector<long>>().at(isize);
+                std::string state_size_str =
+                  std::to_string(state_height) + "x" + std::to_string(state_width);
+                std::cout << "Evaluating parameters:\n";
+                std::cout << "state size: " << state_size_str << "\n";
+                std::cout << "kernel size: " << kernel_size << std::endl;
+                std::cout << std::endl;
+                args.insert_or_assign("lcnn.state-height", po::variable_value{state_height, false});
+                args.insert_or_assign("lcnn.state-width", po::variable_value{state_width, false});
+                args.insert_or_assign("lcnn.kernel-height", po::variable_value{kernel_size, false});
+                args.insert_or_assign("lcnn.kernel-width", po::variable_value{kernel_size, false});
+                // Store cmaes fplot data to a separate file for each run.
+                std::string cmaes_fplot_run = output_dir
+                  / ("fplot-" + state_size_str + "-k" + std::to_string(kernel_size) + "-run"
+                     + std::to_string(run) + ".dat");
+                args.insert_or_assign(
+                  "opt.cmaes-fplot", po::variable_value{cmaes_fplot_run, false});
+
+                auto opt = std::make_unique<lcnn_optimizer>(
+                  args, esn::make_benchmark(args), esn::global_prng);
+                cma::CMASolutions cmasols = opt->optimize();
+                dVec mean = cmasols.xmean();
+                po::variables_map params = opt->to_variables_map(opt->pheno_candidate(mean));
+                for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {
+                    double f_value = opt->f_value(mean, esn::global_prng);
+                    std::cout << "Best f-value: " << f_value << std::endl << std::endl;
+                    for (const std::string& param : param_names) {
+                        if (param == "run") {
+                            fout << run;
+                        } else if (param == "trial") {
+                            fout << trial;
+                        } else if (param == "kernel-size") {
+                            fout << kernel_size;
+                        } else if (param == "lcnn.topology") {
+                            fout << args.at("lcnn.topology").as<std::string>();
+                        } else if (param == "f-value") {
+                            fout << std::setprecision(std::numeric_limits<double>::max_digits10)
+                                 << f_value;
+                        } else if (typeid(int) == params.at(param).value().type()) {
+                            fout << params.at(param).as<int>();
+                        } else if (typeid(long) == params.at(param).value().type()) {
+                            fout << params.at(param).as<long>();
+                        } else {
+                            double value = params.at(param).as<double>();
+                            fout << std::setprecision(std::numeric_limits<double>::max_digits10)
+                                 << value;
+                        }
+                        if (param != param_names.back()) fout << ",";
                     }
-                    if (param != param_names.back()) fout << ",";
+                    fout << std::endl;
                 }
-                fout << std::endl;
             }
         }
     }
