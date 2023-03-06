@@ -6,7 +6,7 @@ WIDTH="$3"
 
 outdir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-kernels-gallancchio-narma10/"
 mkdir -p "${outdir}"
-./build/compare_lcnn_kernels_cpu \
+./build/compare_lcnn_kernels_cuda \
   --gen.net-type=lcnn \
   --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \
   --lcnn.topology="${TOPO}" \
