@@ -50,7 +50,7 @@ For instance, executing
 ```
 will generate various results in the `log/` folder that can be visualized using
 ```
-./compare_plot.py --param="lcnn.topology" log/optimize-*-500-gallancchio-narma10.csv
+./compare_plot.py --param="lcnn.topology" log/optimize-*-500-gallancchio-narma10/optimization_results.csv
 ```
 
 ## Citation
