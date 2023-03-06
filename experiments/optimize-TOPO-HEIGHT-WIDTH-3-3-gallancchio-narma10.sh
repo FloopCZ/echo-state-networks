@@ -6,7 +6,7 @@ WIDTH="$3"
 
 outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-3-3-gallancchio-narma10.csv"
 mkdir -p "${outdir}"
-./build/optimize_cpu \
+./build/optimize_cuda \
   --gen.net-type=lcnn \
   --lcnn.topology="${TOPO}" \
   --lcnn.kernel-height=3 \
