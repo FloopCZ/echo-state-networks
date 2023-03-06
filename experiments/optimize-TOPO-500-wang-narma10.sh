@@ -19,6 +19,6 @@ mkdir -p "${outdir}"
   --bench.init-steps=200 \
   --bench.train-steps=1200 \
   --bench.valid-steps=1200 \
-  --gen.af-device=1 \
+  --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
   2>&1 | tee "${outdir}/out.txt"

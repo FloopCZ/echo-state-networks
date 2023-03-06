@@ -12,7 +12,7 @@ mkdir -p ./log/
     --gen.net-type=lcnn \
     --gen.param=bench.init-steps \
     --gen.output-dir=./log/init_steps_sensitivity/ \
-    --gen.af-device=1 \
+    --gen.af-device=0 \
     --lcnn.fb-weight=6.2648011134027403e-05 \
     --lcnn.in-weight=0.00051516737276618573 \
     --lcnn.input-to-all=1 \

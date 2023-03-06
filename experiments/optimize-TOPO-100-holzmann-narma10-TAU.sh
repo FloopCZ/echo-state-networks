@@ -20,6 +20,6 @@ mkdir -p "${outdir}"
   --bench.init-steps=2000 \
   --bench.train-steps=5000 \
   --bench.valid-steps=2000 \
-  --gen.af-device=1 \
+  --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
   2>&1 | tee "${outdir}/out.txt"
