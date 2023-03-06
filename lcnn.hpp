@@ -13,12 +13,17 @@
 
 namespace esn {
 
+// The following thresholds were based on experiments on NVIDIA GTX 2080 Ti.
+
 // The size of the state vs the size of the kernel determine whether
 // the library uses matrix multiplication or the shifting method.
 constexpr double KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD = 0.04;
 
-// Use matrix multiplication also for states under 1000 neurons.
+// Use matrix multiplication also for states under this threshold.
 constexpr double STATE_SIZE_MATMUL_THRESHOLD = 1000;
+
+// Do not use matrix multiplication for states above this threshold.
+constexpr double STATE_SIZE_NO_MATMUL_THRESHOLD = 5000;
 
 // The shifting method creates a long JIT function which has to be limited
 // to avoid a failed nvcc compilation.
@@ -129,11 +134,17 @@ protected:
     bool do_matmul_step() const
     {
         if (force_matmul_) return true;
+
+        // Decide based on state size.
         int state_size = reservoir_w_.dims(0) * reservoir_w_.dims(1);
+        if (state_size <= STATE_SIZE_MATMUL_THRESHOLD) return true;
+        if (state_size >= STATE_SIZE_NO_MATMUL_THRESHOLD) return false;
+
+        // Decide based on kernel size.
         int kernel_size = reservoir_w_.dims(2) * reservoir_w_.dims(3);
         double kernel_to_size_ratio = (double)kernel_size / state_size;
-        if (state_size <= STATE_SIZE_MATMUL_THRESHOLD) return true;
         if (kernel_to_size_ratio >= KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD) return true;
+
         return false;
     }
 
@@ -175,6 +186,7 @@ protected:
     /// Update the state matrix from the unwrapped weights and previous state.
     virtual void update_via_weights()
     {
+        assert(!force_matmul_);
         state_delta_ = update_via_weights_impl(state_);
     }
 

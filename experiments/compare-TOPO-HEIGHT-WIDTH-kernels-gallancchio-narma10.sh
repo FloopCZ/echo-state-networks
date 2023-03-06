@@ -1,16 +1,18 @@
 #!/bin/bash -e
-if [ $# != 1 ]; then echo "Invalid usage"; exit 1; fi
+if [ $# != 3 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
+HEIGHT="$2"
+WIDTH="$3"
 
-outdir="./log/compare-${TOPO}-20-25-kernels-gallancchio-narma10/"
+outdir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-kernels-gallancchio-narma10/"
 mkdir -p "${outdir}"
 ./build/compare_lcnn_kernels_cpu \
   --gen.net-type=lcnn \
   --gen.kernel-sizes 3 5 7 9 11 13 15 17 19 \
   --lcnn.topology="${TOPO}" \
   --lcnn.input-to-all=true \
-  --gen.state-heights=20 \
-  --gen.state-widths=25 \
+  --gen.state-heights=${HEIGHT} \
+  --gen.state-widths=${WIDTH} \
   --gen.benchmark-set=narma10 \
   --bench.init-steps=1000 \
   --bench.train-steps=5000 \
