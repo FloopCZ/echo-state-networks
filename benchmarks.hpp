@@ -548,7 +548,10 @@ protected:
 public:
     semaphore_benchmark_set(
       po::variables_map config, long period = 100, long n_ins = 1, long n_outs = 1)
-      : benchmark_set_base{std::move(config)}, period_{period}, n_ins_{n_ins}, n_outs_{n_outs}
+      : benchmark_set_base{std::move(config)}
+      , period_{config_.at("bench.period").as<long>()}
+      , n_ins_{n_ins}
+      , n_outs_{n_outs}
     {
     }
 
@@ -557,7 +560,7 @@ public:
         assert(net.n_ins() == n_ins_ && net.n_outs() == n_outs_);
         for (long time = 0;; ++time) {
             double in = 2 * (time / period_ % 2) - 1;
-            net.step_constant(in, -in);
+            net.step_constant(-in, -in);
         }
     }
 

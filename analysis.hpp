@@ -149,6 +149,8 @@ po::options_description benchmark_arg_description()
        "The number of test time steps.")                                        //
       ("bench.teacher-force-steps", po::value<long>()->default_value(1000),     //
        "The number of teacher-force steps in sequence prediction benchmarks.")  //
+      ("bench.period", po::value<long>()->default_value(100),                   //
+       "The period of flipping the semaphore sign.")                            //
       ;
     return benchmark_arg_desc;
 }
