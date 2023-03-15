@@ -116,6 +116,8 @@ public:
           x0, config_.at("opt.sigma").as<double>(), config_.at("opt.lambda").as<int>()};
         cmaparams_.set_gp(genopheno_);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::TOLHISTFUN, false);
+        cmaparams_.set_stopping_criteria(cma::CMAStopCritType::TOLX, false);
+        cmaparams_.set_stopping_criteria(cma::CMAStopCritType::TOLUPSIGMA, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::STAGNATION, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::NOEFFECTAXIS, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::NOEFFECTCOOR, false);
