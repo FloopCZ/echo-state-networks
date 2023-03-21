@@ -24,7 +24,7 @@ if __name__ == "__main__":
         df = df.replace([np.inf, -np.inf], np.nan)
         # TODO this is dirty, how to get rid of the extreme values at the source?
         df.loc[df["f-value"] > 1e1, "f-value"] = np.nan
-        df = df.iloc[::int(len(df) / 1000), :]
+        df = df.iloc[::max(1, int(len(df) / 1000)), :]
         sns.scatterplot(data=df, x=args.param, y="f-value", marker="+", linewidth=1)
 
     plt.yscale('log')
