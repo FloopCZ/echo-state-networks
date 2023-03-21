@@ -31,13 +31,23 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--param", type=str, help="The parameter on the X-axis.")
+    parser.add_argument("--sort-by", type=str, help="The parameter by which should the plot be sorted.")
     parser.add_argument("csvs", nargs='+', help="The csvs to be concatenated and plotted.")
     args = parser.parse_args()
 
     df = pd.concat(pd.read_csv(csv) for csv in args.csvs)
+    if ("lcnn.state-height" in df.columns and "lcnn.state-width" in df.columns):
+        df["lcnn.state-area"] = df["lcnn.state-height"] * df["lcnn.state-width"]
+        df["lcnn.state-size"] = df["lcnn.state-height"].astype(str) + "x" + df["lcnn.state-width"].astype(str)
+    if ("lcnn.kernel-height" in df.columns and "lcnn.kernel-width" in df.columns):
+        df["lcnn.kernel-area"] = df["lcnn.kernel-height"] * df["lcnn.kernel-width"]
+        df["lcnn.kernel-size"] = df["lcnn.kernel-height"].astype(str) + "x" + df["lcnn.kernel-width"].astype(str)
     # TODO this is dirty, the stats object should not replace nans by infs.
     df = df.replace([np.inf, -np.inf], np.nan)
     df = best_run(df, args.param)
+
+    if args.sort_by:
+        df = df.sort_values(args.sort_by)
 
     # Print some useful statistics.
     best_df = df.sort_values(args.param)
