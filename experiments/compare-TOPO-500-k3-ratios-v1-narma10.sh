@@ -2,8 +2,8 @@
 if [ $# != 1 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 
-trap "exit 1" INT TERM
-trap "kill 0" EXIT
+trap "exit \$exit_code" INT TERM
+trap "exit_code=\$?; kill 0" EXIT
 
 CUDA_VISIBLE_DEVICES="0" ./experiments/optimize-TOPO-HEIGHT-WIDTH-KERNEL-TRAIN-v1-narma10.sh "${TOPO}" 500 1 3 6000 &
 CUDA_VISIBLE_DEVICES="0" ./experiments/optimize-TOPO-HEIGHT-WIDTH-KERNEL-TRAIN-v1-narma10.sh "${TOPO}" 167 3 3 6000 &
