@@ -4,7 +4,7 @@ TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
 
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-3-3-gallancchio-narma10"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k3-gallancchio-narma10"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \

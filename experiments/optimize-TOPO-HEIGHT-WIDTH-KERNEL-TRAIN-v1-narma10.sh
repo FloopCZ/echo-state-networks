@@ -1,19 +1,21 @@
 #!/bin/bash -e
-if [ $# != 4 ]; then echo "Invalid usage"; exit 1; fi
+if [ $# != 5 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
-TRAIN="$4"
+KERNEL="$4"
+TRAIN="$5"
 
-outdir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-train${TRAIN}-kernels-v1-narma10/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-narma10"
 mkdir -p "${outdir}"
-./build/compare_lcnn_kernels_cuda \
+./build/optimize_cuda \
   --gen.net-type=lcnn \
-  --gen.kernel-sizes 3 5 7 11 15 19 \
   --lcnn.topology="${TOPO}" \
+  --lcnn.kernel-height="${KERNEL}" \
+  --lcnn.kernel-width="${KERNEL}" \
   --lcnn.input-to-all=true \
-  --gen.state-heights="${HEIGHT}" \
-  --gen.state-widths="${WIDTH}" \
+  --lcnn.state-height="${HEIGHT}" \
+  --lcnn.state-width="${WIDTH}" \
   --gen.benchmark-set=narma10 \
   --bench.init-steps=1000 \
   --bench.train-steps="${TRAIN}" \
