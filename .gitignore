@@ -129,6 +129,7 @@ ENV/
 # VSCode
 .vscode/settings.json
 
+build/
 log/
 compare_plot.pdf
 visual.csv
