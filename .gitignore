@@ -2,11 +2,10 @@
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
+*.pyc
+*.pyo
+*.pyd
+*py.class
 
 # Distribution / packaging
 .Python
@@ -129,7 +128,6 @@ ENV/
 # VSCode
 .vscode/settings.json
 
-build/
 log/
 compare_plot.pdf
 visual.csv
