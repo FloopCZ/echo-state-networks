@@ -7,16 +7,18 @@ RUN ${HOME}/bin/aur-install libcmaes --noconfirm --needed
 
 RUN pacman -U --noconfirm https://archive.archlinux.org/packages/c/cuda/cuda-11.2.2-2-x86_64.pkg.tar.zst \
                           https://archive.archlinux.org/packages/c/cudnn/cudnn-8.1.0.77-1-x86_64.pkg.tar.zst
+RUN echo "IgnorePkg = cuda cudnn" >> /etc/pacman.conf
 RUN ln -s /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
 RUN pacman -S --noconfirm --needed graphviz doxygen
+RUN ${HOME}/bin/aur-install gcc10 --noconfirm --needed
 RUN mkdir "/tmp/arrayfire" \
     && cd "/tmp/arrayfire" \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/PKGBUILD \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/arrayfire-boost-1.76.0.patch \
     && sed -i 's/\(architecture_build_targets=\).*/\1"6.0;6.1;7.0;7.5;8.0;8.6" \\/' PKGBUILD \
     && chown -Rv nobody "/tmp/arrayfire" \
-    && sudo -u nobody XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg \
+    && sudo -u nobody GCC_HOST_COMPILER_PATH="/usr/bin/gcc-10" XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg \
     && sudo pacman -U --noconfirm "$@" "arrayfire"-*.pkg.tar.* \
     && cd /tmp \
     && sudo rm -rf "/tmp/.nobody_cache" "/tmp/arrayfire"
