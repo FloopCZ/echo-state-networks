@@ -9,7 +9,6 @@ RUN pacman -U --noconfirm https://archive.archlinux.org/packages/c/cuda/cuda-11.
                           https://archive.archlinux.org/packages/c/cudnn/cudnn-8.1.0.77-1-x86_64.pkg.tar.zst
 RUN ln -s /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
-
 RUN pacman -S --noconfirm --needed graphviz doxygen
 RUN mkdir "/tmp/arrayfire" \
     && cd "/tmp/arrayfire" \
@@ -34,7 +33,7 @@ RUN pacman --noconfirm --needed -Syu \
     && rm -rvf /opt/cuda/*nvvp* \
     && rm -rvf /opt/cuda/samples/ \
     && ln -s /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1 \
-    && source /etc/profile.d/cuda.sh \
+    && source /etc/profile.d/cuda.sh
 
 ADD ./* ${HOME}/echo-state-networks/
 WORKDIR echo-state-networks
