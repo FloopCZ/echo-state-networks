@@ -5,6 +5,7 @@ HEIGHT="$2"
 WIDTH="$3"
 TRAIN="$4"
 
+# Name output folder using kenels (replace space with comma) 
 outdir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-kernels-train${TRAIN}-v1-narma10/"
 mkdir -p "${outdir}"
 ./build/compare_lcnn_kernels_cuda \

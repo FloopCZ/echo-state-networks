@@ -11,13 +11,18 @@ RUN echo "IgnorePkg = cuda cudnn" >> /etc/pacman.conf
 
 RUN pacman -S --noconfirm --needed graphviz doxygen dejagnu inetutils
 
-RUN cd "/tmp/" \
-    && sudo -u nobody git clone "https://aur.archlinux.org/gcc10.git" "/tmp/gcc10" \
-    && cd "/tmp/gcc10" \
-    && sudo -u nobody XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg --skippgpcheck \
-    && sudo pacman -U --noconfirm "$@" "gcc10"-*.pkg.tar.* \
-    && cd /tmp \
-    && sudo rm -rf "/tmp/.nobody_cache" "/tmp/gcc10"
+RUN curl -LO https://downloads.iterait.com/gcc8-libs-8.5.0-2-x86_64.pkg.tar.zst \
+    && pacman -U --noconfirm gcc8-libs-8.5.0-2-x86_64.pkg.tar.zst
+
+RUN curl -LO https://downloads.iterait.com/gcc8-8.5.0-2-x86_64.pkg.tar.zst \
+    && pacman -U --noconfirm gcc8-8.5.0-2-x86_64.pkg.tar.zst
+
+RUN curl -LO https://downloads.iterait.com/gcc8-fortran-8.5.0-2-x86_64.pkg.tar.zst \
+    && pacman -U --noconfirm gcc8-fortran-8.5.0-2-x86_64.pkg.tar.zst
+
+RUN rm /opt/cuda/bin/gcc /opt/cuda/bin/g++ \
+    && ln -s /usr/bin/gcc-8 /opt/cuda/bin/gcc \
+    && ln -s /usr/bin/g++-8 /opt/cuda/bin/g++
 
 RUN mkdir "/tmp/arrayfire" \
     && cd "/tmp/arrayfire" \
@@ -25,7 +30,7 @@ RUN mkdir "/tmp/arrayfire" \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/arrayfire-boost-1.76.0.patch \
     && sed -i 's/\(architecture_build_targets=\).*/\1"6.0;6.1;7.0;7.5;8.0;8.6" \\/' PKGBUILD \
     && chown -Rv nobody "/tmp/arrayfire" \
-    && sudo -u nobody GCC_HOST_COMPILER_PATH="/usr/bin/gcc-10" XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg \
+    && sudo -u nobody XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg \
     && sudo pacman -U --noconfirm "$@" "arrayfire"-*.pkg.tar.* \
     && cd /tmp \
     && sudo rm -rf "/tmp/.nobody_cache" "/tmp/arrayfire"
