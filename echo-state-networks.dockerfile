@@ -8,10 +8,17 @@ RUN ${HOME}/bin/aur-install libcmaes --noconfirm --needed
 RUN pacman -U --noconfirm https://archive.archlinux.org/packages/c/cuda/cuda-11.2.2-2-x86_64.pkg.tar.zst \
                           https://archive.archlinux.org/packages/c/cudnn/cudnn-8.1.0.77-1-x86_64.pkg.tar.zst
 RUN echo "IgnorePkg = cuda cudnn" >> /etc/pacman.conf
-RUN ln -s /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
 RUN pacman -S --noconfirm --needed graphviz doxygen dejagnu inetutils
-RUN ${HOME}/bin/aur-install gcc10 --noconfirm --needed
+
+RUN cd "/tmp/" \
+    && sudo -u nobody git clone "https://aur.archlinux.org/gcc10.git" "/tmp/gcc10" \
+    && cd "/tmp/gcc10" \
+    && sudo -u nobody XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg --skippgpcheck \
+    && sudo pacman -U --noconfirm "$@" "gcc10"-*.pkg.tar.* \
+    && cd /tmp \
+    && sudo rm -rf "/tmp/.nobody_cache" "/tmp/gcc10"
+
 RUN mkdir "/tmp/arrayfire" \
     && cd "/tmp/arrayfire" \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/PKGBUILD \
