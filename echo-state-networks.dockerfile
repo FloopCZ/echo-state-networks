@@ -10,7 +10,7 @@ RUN pacman -U --noconfirm https://archive.archlinux.org/packages/c/cuda/cuda-11.
 RUN echo "IgnorePkg = cuda cudnn" >> /etc/pacman.conf
 RUN ln -s /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so /opt/cuda/targets/x86_64-linux/lib/stubs/libcuda.so.1
 
-RUN pacman -S --noconfirm --needed graphviz doxygen
+RUN pacman -S --noconfirm --needed graphviz doxygen dejagnu inetutils
 RUN ${HOME}/bin/aur-install gcc10 --noconfirm --needed
 RUN mkdir "/tmp/arrayfire" \
     && cd "/tmp/arrayfire" \
