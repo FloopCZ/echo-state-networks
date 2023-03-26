@@ -883,6 +883,21 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
         throw std::runtime_error{"Unknown topology `" + topology + "`."};
     }
 
+    if (topo_params.contains("nowrap") && !cfg.reservoir_w.isempty()) {
+        for (int i = 0; i < kernel_width / 2; ++i) {
+            cfg.reservoir_w(af::span, i, af::span, af::seq(0, kernel_width / 2 - i - 1)) = 0;
+            cfg.reservoir_w(
+              af::span, state_width - i - 1, af::span, af::seq(kernel_width / 2 + i + 1, af::end)) =
+              0;
+        }
+        for (int i = 0; i < kernel_height / 2; ++i) {
+            cfg.reservoir_w(i, af::span, af::seq(0, kernel_height / 2 - i - 1), af::span) = 0;
+            cfg.reservoir_w(
+              state_height - i - 1, af::span, af::seq(kernel_height / 2 + i + 1, af::end),
+              af::span) = 0;
+        }
+    }
+
     // generate reservoir biases
     cfg.reservoir_b = sigma_b * af::randn({state_height, state_width}, DType, af_prng) + mu_b;
 
