@@ -15,11 +15,13 @@ RUN mkdir "/tmp/arrayfire" \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/PKGBUILD \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/arrayfire-boost-1.76.0.patch \
     && sed -i 's/\(architecture_build_targets=\).*/\1"6.0;6.1;7.0;7.5;8.0;8.6" \\/' PKGBUILD \
+    && sed -i 's/ctest/# ctest/' PKGBUILD \
     && chown -Rv nobody "/tmp/arrayfire" \
     && sudo -u nobody XDG_CACHE_HOME="/tmp/.nobody_cache" makepkg \
     && sudo pacman -U --noconfirm "$@" "arrayfire"-*.pkg.tar.* \
     && cd /tmp \
     && sudo rm -rf "/tmp/.nobody_cache" "/tmp/arrayfire"
+RUN echo "IgnorePkg = arrayfire" >> /etc/pacman.conf
 
 RUN pacman --noconfirm --needed -Syu \
       cuda \
