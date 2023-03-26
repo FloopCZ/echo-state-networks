@@ -5,25 +5,11 @@ MAINTAINER Filip Matzner <docker@floop.cz>
 RUN pacman -Syu --noconfirm --needed arrayfire ninja cmake boost eigen openmp tbb clang range-v3
 RUN ${HOME}/bin/aur-install libcmaes --noconfirm --needed
 
-RUN pacman -U --noconfirm https://archive.archlinux.org/packages/c/cuda/cuda-11.2.2-2-x86_64.pkg.tar.zst \
-                          https://archive.archlinux.org/packages/c/cudnn/cudnn-8.1.0.77-1-x86_64.pkg.tar.zst
+RUN pacman -U --noconfirm https://archive.archlinux.org/packages/c/cuda/cuda-11.8.0-1-x86_64.pkg.tar.zst \
+                          https://archive.archlinux.org/packages/c/cudnn/cudnn-8.5.0.96-1-x86_64.pkg.tar.zst
 RUN echo "IgnorePkg = cuda cudnn" >> /etc/pacman.conf
 
-RUN pacman -S --noconfirm --needed graphviz doxygen dejagnu inetutils
-
-RUN curl -LO https://downloads.iterait.com/gcc8-libs-8.5.0-2-x86_64.pkg.tar.zst \
-    && pacman -U --noconfirm gcc8-libs-8.5.0-2-x86_64.pkg.tar.zst
-
-RUN curl -LO https://downloads.iterait.com/gcc8-8.5.0-2-x86_64.pkg.tar.zst \
-    && pacman -U --noconfirm gcc8-8.5.0-2-x86_64.pkg.tar.zst
-
-RUN curl -LO https://downloads.iterait.com/gcc8-fortran-8.5.0-2-x86_64.pkg.tar.zst \
-    && pacman -U --noconfirm gcc8-fortran-8.5.0-2-x86_64.pkg.tar.zst
-
-RUN rm /opt/cuda/bin/gcc /opt/cuda/bin/g++ \
-    && ln -s /usr/bin/gcc-8 /opt/cuda/bin/gcc \
-    && ln -s /usr/bin/g++-8 /opt/cuda/bin/g++
-
+RUN pacman -Syu --noconfirm --needed gcc11 graphviz doxygen
 RUN mkdir "/tmp/arrayfire" \
     && cd "/tmp/arrayfire" \
     && curl -LO https://raw.githubusercontent.com/archlinux/svntogit-community/packages/arrayfire/trunk/PKGBUILD \
