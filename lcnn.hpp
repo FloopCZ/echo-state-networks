@@ -7,6 +7,7 @@
 #include "simple_esn.hpp"
 
 #include <arrayfire.h>
+#include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <cassert>
 #include <random>
@@ -728,6 +729,8 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
     double sparsity = args.at("lcnn.sparsity").as<double>();
     // The reservoir topology.
     std::string topology = args.at("lcnn.topology").as<std::string>();
+    std::set<std::string> topo_params;
+    boost::split(topo_params, topology, boost::is_any_of("-"));
     // Put input to all neurons. In such a case, the input weights are
     // distributed uniformly from [0, in_weight].
     bool input_to_all = args.at("lcnn.input-to-all").as<bool>();
@@ -739,16 +742,16 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
     af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
     int neurons = state_height * state_width;
     // generate the reservoir weights based on topology
-    if (topology == "sparse") {
+    if (topo_params.contains("sparse")) {
         cfg.reservoir_w_full = sigma_res * af::randn({neurons, neurons}, DType, af_prng) + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
           af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) >= sparsity;
-    } else if (topology.starts_with("conv")) {
+    } else if (topo_params.contains("conv")) {
         // generate kernel
         af::array kernel =
           sigma_res * af::randn({kernel_height, kernel_width}, DType, af_prng) + mu_res;
-        if (topology == "conv-od") {
+        if (topo_params.contains("od")) {
             kernel(af::span, af::seq(kernel_width / 2, af::end)) = 0.;
         }
         // generate reservoir weights
@@ -757,21 +760,23 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
           af::moddims(cfg.reservoir_w, {state_height, state_width, kernel_height, kernel_width});
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
-    } else if (topology.starts_with("lcnn")) {
+    } else if (topo_params.contains("lcnn")) {
         // generate reservoir weights
         cfg.reservoir_w = sigma_res
             * af::randn({state_height, state_width, kernel_height, kernel_width}, DType, af_prng)
           + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
-        if (topology == "lcnn-noself") {
+        if (topo_params.contains("noself")) {
             cfg.reservoir_w(
               af::span, af::span, cfg.reservoir_w.dims(2) / 2, cfg.reservoir_w.dims(3) / 2) = 0.;
-        } else if (topology == "lcnn-od") {
+        }
+        if (topo_params.contains("od")) {
             // only allow connections going to the right
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-        } else if (topology == "lcnn-a1") {
+        }
+        if (topo_params.contains("a1")) {
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
             cfg.reservoir_w(
@@ -782,7 +787,8 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
             assert(
               af::count<int>(cfg.reservoir_w)
               <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
-        } else if (topology == "lcnn-a3") {
+        }
+        if (topo_params.contains("a3")) {
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2 + 1, af::end)) = 0.;
             cfg.reservoir_w(
@@ -793,7 +799,8 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
             assert(
               af::count<int>(cfg.reservoir_w)
               <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
-        } else if (topology == "lcnn-a4") {
+        }
+        if (topo_params.contains("a4")) {
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2 + 1, af::end)) = 0.;
             cfg.reservoir_w(
@@ -810,7 +817,8 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
             assert(
               af::count<int>(cfg.reservoir_w)
               <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
-        } else if (topology == "lcnn-a5") {
+        }
+        if (topo_params.contains("a5")) {
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
             cfg.reservoir_w(
@@ -821,7 +829,7 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
               af::count<int>(cfg.reservoir_w)
               <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
         }
-    } else if (topology.starts_with("const")) {
+    } else if (topo_params.contains("const")) {
         // TODO what if we disable only self-connections?
         double c = std::normal_distribution{mu_res, sigma_res}(prng);
         // generate reservoir weights
@@ -830,10 +838,11 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
         // only allow connections going to the right
-        if (topology == "const-od") {
+        if (topo_params.contains("od")) {
             cfg.reservoir_w(
               af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-        } else if (topology == "const-lindiscount") {
+        }
+        if (topo_params.contains("lindiscount")) {
             af::array mask;
             if (kernel_width == 3)
                 mask = af::constant(1, 1);
@@ -843,20 +852,8 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
             mask = af::tile(mask, state_height * state_width * kernel_height);
             mask = af::moddims(mask, state_height, state_width, kernel_height, kernel_width);
             cfg.reservoir_w *= mask;
-        } else if (topology == "const-od-lindiscount") {
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-            af::array mask;
-            if (kernel_width == 3)
-                mask = af::constant(1, 1);
-            else
-                mask = af::transpose(1. / af::seq(kernel_width / 2, 1, -1));
-            mask = af::tile(mask, state_height * state_width * kernel_height);
-            mask = af::moddims(mask, state_height, state_width, kernel_height, kernel_width / 2);
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(0, cfg.reservoir_w.dims(3) / 2 - 1)) *= mask;
         }
-    } else if (topology == "permutation") {
+    } else if (topo_params.contains("permutation")) {
         // only allow one connection to each neuron
         std::vector<int> perm(neurons, 0);
         std::iota(perm.begin(), perm.end(), 0);
@@ -871,10 +868,10 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
           af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) >= sparsity;
-    } else if (topology == "ring" || topology == "chain") {
+    } else if (topo_params.contains("ring") || topo_params.contains("chain")) {
         cfg.reservoir_w_full = af::constant(0, neurons, neurons, DType);
         for (int i = 0; i < neurons; ++i) cfg.reservoir_w_full(i, (i + 1) % neurons) = 1;
-        if (topology == "chain") cfg.reservoir_w_full(neurons - 1, 0) = 0;
+        if (topo_params.contains("chain")) cfg.reservoir_w_full(neurons - 1, 0) = 0;
         // Assign random weights to the ring matrix.
         cfg.reservoir_w_full = cfg.reservoir_w_full * sigma_res
             * af::randn({cfg.reservoir_w_full.dims()}, DType, af_prng)
