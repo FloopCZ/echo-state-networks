@@ -46,6 +46,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--param", type=str, help="The parameter on the X-axis.")
     parser.add_argument("--sort-by", type=str, help="The parameter by which should the plot be sorted.")
+    parser.add_argument("--connect", type=str, help="The parameter by which should the individual violins "
+                                                    "be connected using a line.")
     parser.add_argument("csvs", nargs='+', help="The csvs to be concatenated and plotted.")
     args = parser.parse_args()
 
@@ -80,10 +82,12 @@ if __name__ == "__main__":
     pprint(pvals)
 
     # Plot the boxplot for the best runs.
-    log_y = np.log10(df["f-value"])
-    ax = sns.violinplot(data=df, x=args.param, y=log_y, palette="deep")
-    set_log_y(ax)
+    df["f-value"] = np.log10(df["f-value"])
+    if args.connect:
+        sns.lineplot(data=df, x=args.param, y="f-value", hue=args.connect, palette="deep", zorder=1)
+    ax = sns.violinplot(data=df, x=args.param, y="f-value", palette="deep", zorder=2)
 
+    set_log_y(ax)
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
     plt.savefig("compare_plot.pdf")
