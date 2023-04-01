@@ -41,7 +41,6 @@ def set_log_y(ax):
 
 def log_plot(df, param, color=None, connect_label=None):
     # Print some useful statistics.
-    df = df.sort_values(param)
     stats_df = df.groupby(["run", param]).agg({'f-value': ['mean','std']})
     stats_df = stats_df.reset_index().sort_values(param)
     print(stats_df)
