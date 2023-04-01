@@ -39,6 +39,32 @@ def set_log_y(ax):
     ax.grid(which='minor', color='whitesmoke')
     return ax
 
+def log_plot(df, param, color=None, connect_label=None):
+    # Print some useful statistics.
+    best_df = df.sort_values(param)
+    stats_df = best_df.groupby(["run", param]).agg({'f-value': ['mean','std']})
+    stats_df = stats_df.reset_index().sort_values(param)
+    print(stats_df)
+
+    # Print p-values.
+    pvals = defaultdict(lambda: {})
+    for param1 in stats_df[param]:
+        for param2 in stats_df[param]:
+            if param1 == param2: continue
+            a = best_df[best_df[param] == param1]["f-value"]
+            b = best_df[best_df[param] == param2]["f-value"]
+            pvals[param1][param2] = scipy.stats.ttest_ind(a, b, equal_var=False, alternative='less')
+    pprint(pvals)
+
+    # Plot the boxplot for the best runs.
+    df["f-value"] = np.log10(df["f-value"])
+
+    palette = None if color else "deep"
+    ax = sns.violinplot(data=df, x=param, y="f-value", color=color, palette=palette, zorder=2)
+    sns.lineplot(data=df, x=param, y="f-value", color=color, palette=palette, zorder=1, label=connect_label)
+
+    return ax
+
 if __name__ == "__main__":
     sns.set_context("paper")
     sns.set_style("whitegrid")
@@ -60,34 +86,21 @@ if __name__ == "__main__":
         df["lcnn.kernel-size"] = df["lcnn.kernel-height"].astype(str) + "x" + df["lcnn.kernel-width"].astype(str)
     # TODO this is dirty, the stats object should not replace nans by infs.
     df = df.replace([np.inf, -np.inf], np.nan)
-    df = best_run(df, args.param)
-
     if args.sort_by:
         df = df.sort_values(args.sort_by)
-
-    # Print some useful statistics.
-    best_df = df.sort_values(args.param)
-    stats_df = best_df.groupby(["run", args.param]).agg({'f-value': ['mean','std']})
-    stats_df = stats_df.reset_index().sort_values(args.param)
-    print(stats_df)
-
-    # Print p-values.
-    pvals = defaultdict(lambda: {})
-    for param1 in stats_df[args.param]:
-        for param2 in stats_df[args.param]:
-            if param1 == param2: continue
-            a = best_df[best_df[args.param] == param1]["f-value"]
-            b = best_df[best_df[args.param] == param2]["f-value"]
-            pvals[param1][param2] = scipy.stats.ttest_ind(a, b, equal_var=False, alternative='less')
-    pprint(pvals)
-
-    # Plot the boxplot for the best runs.
-    df["f-value"] = np.log10(df["f-value"])
     if args.connect:
-        sns.lineplot(data=df, x=args.param, y="f-value", hue=args.connect, palette="deep", zorder=1)
-    ax = sns.violinplot(data=df, x=args.param, y="f-value", palette="deep", zorder=2)
+        # Plot violins.
+        connect_unique = df[args.connect].unique()
+        for connect_value, color in zip(connect_unique, sns.color_palette("deep", len(connect_unique))):
+            df_exp_set = df[df[args.connect] == connect_value]
+            df_best = best_run(df_exp_set, args.param).copy()
+            log_plot(df_best, param=args.param, color=color, connect_label=connect_value)
+            plt.legend(title=args.connect)
+    else:
+        df_best = best_run(df, args.param).copy()
+        log_plot(df_best, param=args.param)
+    set_log_y(ax=plt.gca())
 
-    set_log_y(ax)
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
     plt.savefig("compare_plot.pdf")
