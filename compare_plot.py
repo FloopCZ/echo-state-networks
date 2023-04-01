@@ -4,6 +4,7 @@ matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
 matplotlib.rcParams['figure.figsize'] = 4, 3
 import matplotlib.pyplot as plt
+from matplotlib import ticker as pltticker
 import numpy as np
 import pandas as pd
 import seaborn as sns
@@ -16,7 +17,7 @@ from collections import defaultdict
 def best_run(df, param):
     # Get the mean f-value for each net of each run.
     groupers = [param, "run"]
-    fv_for_run = df.groupby(groupers).mean()["f-value"].reset_index()
+    fv_for_run = df.groupby(groupers).mean(numeric_only=True)["f-value"].reset_index()
     # Choose the best net for each parameter value.
     fv_best_run = fv_for_run.loc[fv_for_run.groupby([param])["f-value"].idxmin()]
     best_selector = False
@@ -24,6 +25,19 @@ def best_run(df, param):
         best_selector = (df["run"] == r) & (df[param] == p) | best_selector
     return df[best_selector]
 
+# Seaborn's violinplot computes kernel before log transformation so the
+# violins have various artifacts. Use this function if the
+# data are transformed to logspace before plotting.
+def set_log_y(ax):
+    ax.yaxis.set_major_formatter(pltticker.StrMethodFormatter("$10^{{{x:.0f}}}$"))
+    ymin, ymax = ax.get_ylim()
+    major_ticks = np.arange(np.floor(ymin), ymax)
+    ax.yaxis.set_ticks(major_ticks)
+    minor_ticks = [np.log10(y) for t in major_ticks for y in np.linspace(10 ** t, 10 ** (t + 1), 10)]
+    minor_ticks = [y for y in minor_ticks if y < ymax]
+    ax.yaxis.set_ticks(minor_ticks, minor=True)
+    ax.grid(which='minor', color='whitesmoke')
+    return ax
 
 if __name__ == "__main__":
     sns.set_context("paper")
@@ -66,8 +80,10 @@ if __name__ == "__main__":
     pprint(pvals)
 
     # Plot the boxplot for the best runs.
-    sns.violinplot(data=df, x=args.param, y="f-value", palette="deep", bw=0.1, scale="count")
-    plt.yscale('log')
+    log_y = np.log10(df["f-value"])
+    ax = sns.violinplot(data=df, x=args.param, y=log_y, palette="deep")
+    set_log_y(ax)
+
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
     plt.savefig("compare_plot.pdf")
