@@ -66,7 +66,7 @@ def log_plot(df, param, color=None, connect_label=None):
 
     return ax
 
-if __name__ == "__main__":
+def main():
     sns.set_context("paper")
     sns.set_style("whitegrid")
 
@@ -106,3 +106,5 @@ if __name__ == "__main__":
     sns.despine(left=True, bottom=True)
     plt.savefig("compare_plot.pdf")
     plt.show()
+
+if __name__ == "__main__": main()
