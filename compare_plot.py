@@ -41,8 +41,8 @@ def set_log_y(ax):
 
 def log_plot(df, param, color=None, connect_label=None):
     # Print some useful statistics.
-    best_df = df.sort_values(param)
-    stats_df = best_df.groupby(["run", param]).agg({'f-value': ['mean','std']})
+    df = df.sort_values(param)
+    stats_df = df.groupby(["run", param]).agg({'f-value': ['mean','std']})
     stats_df = stats_df.reset_index().sort_values(param)
     print(stats_df)
 
@@ -51,8 +51,8 @@ def log_plot(df, param, color=None, connect_label=None):
     for param1 in stats_df[param]:
         for param2 in stats_df[param]:
             if param1 == param2: continue
-            a = best_df[best_df[param] == param1]["f-value"]
-            b = best_df[best_df[param] == param2]["f-value"]
+            a = df[df[param] == param1]["f-value"]
+            b = df[df[param] == param2]["f-value"]
             pvals[param1][param2] = scipy.stats.ttest_ind(a, b, equal_var=False, alternative='less')
     pprint(pvals)
 
