@@ -16,31 +16,35 @@ namespace fs = std::filesystem;
 int main(int argc, char* argv[])
 {
     po::options_description arg_desc{"Generic options"};
-    arg_desc.add_options()                                                            //
-      ("help",                                                                        //
-       "Produce help message.")                                                       //
-      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),               //
-       "Network type, one of {simple-esn, lcnn}.")                                    //
-      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),         //
-       "The type of the optimizer (e.g., lcnn).")                                     //
-      ("gen.benchmark-set", po::value<std::string>()->default_value("narma-memory"),  //
-       "Benchmark set to be evaluated.")                                              //
-      ("gen.output-dir",                                                              //
-       po::value<std::string>()->default_value("./log/lcnn_kernel_comparison/"),      //
-       "Directory to store the results.")                                             //
-      ("gen.n-runs", po::value<long>()->default_value(10),                            //
-       "The number of full optimization runs of one kernel size setting.")            //
-      ("gen.kernel-sizes", po::value<std::vector<long>>()->multitoken(),              //
-       "The sizes of the kernel to be tested.")                                       //
-      ("gen.state-heights", po::value<std::vector<long>>()->multitoken(),             //
-       "The heights of the reservoir to be tested.")                                  //
-      ("gen.state-widths", po::value<std::vector<long>>()->multitoken(),              //
-       "The corresponding widths of the reservoir to be tested.")                     //
-      ("gen.n-trials", po::value<long>()->default_value(100),                         //
-       "The number of evaluations of the best network. "                              //
-       "Also the number of lines in CSV for each optimized kernel size.")             //
-      ("gen.af-device", po::value<int>()->default_value(0),                           //
-       "ArrayFire device to be used.");                                               //
+    arg_desc.add_options()                                                                 //
+      ("help",                                                                             //
+       "Produce help message.")                                                            //
+      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),                    //
+       "Network type, one of {simple-esn, lcnn}.")                                         //
+      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),              //
+       "The type of the optimizer (e.g., lcnn).")                                          //
+      ("gen.benchmark-set", po::value<std::string>()->default_value("narma-memory"),       //
+       "Benchmark set to be evaluated.")                                                   //
+      ("gen.output-dir",                                                                   //
+       po::value<std::string>()->default_value("./log/lcnn_kernel_comparison/"),           //
+       "Directory to store the results.")                                                  //
+      ("gen.n-runs", po::value<long>()->default_value(10),                                 //
+       "The number of full optimization runs of one kernel size setting.")                 //
+      ("gen.kernel-sizes", po::value<std::vector<long>>()->multitoken(),                   //
+       "The sizes of the kernel to be tested.")                                            //
+      ("gen.state-heights", po::value<std::vector<long>>()->multitoken(),                  //
+       "The heights of the reservoir to be tested.")                                       //
+      ("gen.state-widths", po::value<std::vector<long>>()->multitoken(),                   //
+       "The corresponding widths of the reservoir to be tested.")                          //
+      ("gen.n-trials", po::value<long>()->default_value(100),                              //
+       "The number of evaluations of the best network. "                                   //
+       "Also the number of lines in CSV for each optimized kernel size.")                  //
+      ("gen.task-offset", po::value<long>()->default_value(0),                             //
+       "Cluster experiment parameter. Start evaluation from experiment in  ")              //
+      ("gen.n-tasks", po::value<long>()->default_value(std::numeric_limits<long>::max()),  //
+       "Cluster experiment parameter. Only do this up to this number of tasks.  ")         //
+      ("gen.af-device", po::value<int>()->default_value(0),                                //
+       "ArrayFire device to be used.");                                                    //
     arg_desc.add(esn::benchmark_arg_description());
     arg_desc.add(esn::lcnn_arg_description());
     arg_desc.add(esn::optimizer_arg_description());
@@ -58,9 +62,17 @@ int main(int argc, char* argv[])
     af::info();
     std::cout << std::endl;
 
+    long task_offset = args.at("gen.task-offset").as<long>();
+    long n_tasks = args.at("gen.n-tasks").as<long>();
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
     fs::create_directories(output_dir.parent_path());
-    std::ofstream fout{output_dir / "kernel_comparison.csv"};
+    std::ofstream fout;
+    if (task_offset == 0 && n_tasks == std::numeric_limits<long>::max())
+        fout.open(output_dir / "kernel_comparison.csv");
+    else
+        fout.open(
+          output_dir
+          / ("kernel_comparison_" + std::to_string(task_offset) + "_" + std::to_string(n_tasks) + ".csv"));
     std::vector<std::string> param_names = {
       "run",
       "kernel-size",
@@ -92,14 +104,21 @@ int main(int argc, char* argv[])
     if (n_sizes != args.at("gen.state-widths").as<std::vector<long>>().size())
         throw std::invalid_argument{"State heights and widths arguments have different length."};
 
+    long task = -1;
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
         for (long isize = 0; isize < n_sizes; ++isize) {
             for (long kernel_size : args.at("gen.kernel-sizes").as<std::vector<long>>()) {
+                // Check if we are in a valid task range.
+                ++task;
+                if (task < task_offset) continue;
+                if (task >= task_offset + n_tasks) continue;
+                // Prepare parameters.
                 long state_height = args.at("gen.state-heights").as<std::vector<long>>().at(isize);
                 long state_width = args.at("gen.state-widths").as<std::vector<long>>().at(isize);
                 std::string state_size_str =
                   std::to_string(state_height) + "x" + std::to_string(state_width);
                 std::cout << "Evaluating parameters:\n";
+                std::cout << "task: " << task << std::endl;
                 std::cout << "state size: " << state_size_str << "\n";
                 std::cout << "kernel size: " << kernel_size << std::endl;
                 std::cout << std::endl;
