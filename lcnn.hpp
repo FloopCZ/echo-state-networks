@@ -531,6 +531,8 @@ public:
         if (do_matmul_step()) {
             int state_height = reservoir_w_.dims(0);
             int state_width = reservoir_w_.dims(1);
+            int kernel_height = reservoir_w_.dims(2);
+            int kernel_width = reservoir_w_.dims(3);
 
             // Convert the reservoir matrices on host for performance.
             std::vector<double> reservoir_w = af_utils::to_vector(reservoir_w_);
