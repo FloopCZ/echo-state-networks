@@ -7,6 +7,11 @@ set(CMAKE_CXX_COMPILER "clang++")
 # Export compile commants to help VS Code.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# Enable all CUDA architectures by default.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  SET(CMAKE_CUDA_ARCHITECTURES all)
+endif()
+
 project(
   "lcnn"
   VERSION 0.2
@@ -63,7 +68,6 @@ add_library(lcnn_step_generic lcnn_step_generic.cpp)
 
 if (CUDAToolkit_FOUND)
   enable_language(CUDA)
-  SET(CMAKE_CUDA_ARCHITECTURES "all")
   add_library(lcnn_step_cuda lcnn_step_cuda.cu)
   target_include_directories(
     lcnn_step_cuda
