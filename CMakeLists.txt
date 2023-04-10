@@ -63,7 +63,7 @@ add_library(lcnn_step_generic lcnn_step_generic.cpp)
 
 if (CUDAToolkit_FOUND)
   enable_language(CUDA)
-  SET(CMAKE_CUDA_ARCHITECTURES "60" "61" "62" "70" "72" "75" "80" "86" "87" "89" "90")
+  SET(CMAKE_CUDA_ARCHITECTURES "all")
   add_library(lcnn_step_cuda lcnn_step_cuda.cu)
   target_include_directories(
     lcnn_step_cuda
