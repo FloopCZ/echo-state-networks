@@ -3,6 +3,7 @@
 // Locally connected Echo state network class and training functions. //
 
 #include "common.hpp"
+#include "lcnn_step.hpp"
 #include "net.hpp"
 #include "simple_esn.hpp"
 
@@ -13,22 +14,6 @@
 #include <random>
 
 namespace esn {
-
-// The following thresholds were based on experiments on NVIDIA GTX 2080 Ti.
-
-// The size of the state vs the size of the kernel determine whether
-// the library uses matrix multiplication or the shifting method.
-constexpr double KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD = 0.04;
-
-// Use matrix multiplication also for states under this threshold.
-constexpr double STATE_SIZE_MATMUL_THRESHOLD = 1000;
-
-// Do not use matrix multiplication for states above this threshold.
-constexpr double STATE_SIZE_NO_MATMUL_THRESHOLD = 5000;
-
-// The shifting method creates a long JIT function which has to be limited
-// to avoid a failed nvcc compilation.
-constexpr int SHIFT_STEP_MAX_JIT_SIZE = 20;
 
 namespace po = boost::program_options;
 
@@ -103,7 +88,6 @@ protected:
     af::array state_;
     af::array last_output_;  // the last output of the net
     af::array reservoir_w_;
-    std::vector<std::vector<af::array>> kernel_channels_;
     af::array reservoir_w_full_;
     af::array reservoir_b_;
     af::array input_w_;
@@ -131,21 +115,10 @@ protected:
     double noise_;
     double leakage_;
 
-    /// Return whether the step should be performed by matmul or by unwrapping.
+    /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
     {
         if (force_matmul_) return true;
-
-        // Decide based on state size.
-        int state_size = reservoir_w_.dims(0) * reservoir_w_.dims(1);
-        if (state_size <= STATE_SIZE_MATMUL_THRESHOLD) return true;
-        if (state_size >= STATE_SIZE_NO_MATMUL_THRESHOLD) return false;
-
-        // Decide based on kernel size.
-        int kernel_size = reservoir_w_.dims(2) * reservoir_w_.dims(3);
-        double kernel_to_size_ratio = (double)kernel_size / state_size;
-        if (kernel_to_size_ratio >= KERNEL_TO_STATE_SIZE_RATIO_MATMUL_THRESHOLD) return true;
-
         return false;
     }
 
@@ -163,28 +136,10 @@ protected:
 
     af::array update_via_weights_impl(const af::array& state)
     {
-        int kernel_height = reservoir_w_.dims(2);
-        int kernel_width = reservoir_w_.dims(3);
-        af::eval(state);
-        af::array new_state = af::constant(0, state.dims(), state.type());
-        // for each kernel coordinate
-        for (int i = 0; i < kernel_height; ++i) {
-            for (int j = 0; j < kernel_width; ++j) {
-                af::array shifted_state =
-                  af::shift(state, -i + kernel_height / 2, -j + kernel_width / 2);
-                af::array channel_state = kernel_channels_.at(i).at(j) * std::move(shifted_state);
-                // Multiply the kernel channel and the activations
-                // from the periodic state matrix. Append it to the new_state of the
-                // corresponding neurons.
-                new_state += std::move(channel_state);
-                if ((i * kernel_height + j) % SHIFT_STEP_MAX_JIT_SIZE == 0) af::eval(new_state);
-            }
-        }
-        af::eval(new_state);
-        return new_state;
+        return lcnn_step(state, reservoir_w_);
     }
 
-    /// Update the state matrix from the unwrapped weights and previous state.
+    /// Update the state matrix using the lcnn step function.
     virtual void update_via_weights()
     {
         assert(!force_matmul_);
@@ -571,20 +526,6 @@ public:
         assert(new_weights.dims(3) % 2 == 1);
         reservoir_w_ = std::move(new_weights);
         force_matmul_ = false;
-
-        // Precalculate kernel channels.
-        // Channel is the 2D matrix made only of the kernel
-        // elements on the fixed coordinate i, j for each neuron.
-        // It has the same shape as the state.
-        int kernel_height = reservoir_w_.dims(2);
-        int kernel_width = reservoir_w_.dims(3);
-        kernel_channels_.resize(kernel_height);
-        for (int i = 0; i < kernel_height; ++i) {
-            for (int j = 0; j < kernel_width; ++j) {
-                kernel_channels_.at(i).push_back(reservoir_w_(af::span, af::span, i, j));
-                kernel_channels_.at(i).at(j).eval();
-            }
-        }
 
         // Precalculate the fully connected weight matrix.
         if (do_matmul_step()) {

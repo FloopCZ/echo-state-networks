@@ -55,6 +55,22 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   set(CMAKE_CXX_FLAGS "-fmax-errors=2 ${CMAKE_CXX_FLAGS}")
 endif()
 
+# ---------------------
+# Compile CUDA code
+# ---------------------
+
+add_library(lcnn_step_generic lcnn_step_generic.cpp)
+
+if (CUDAToolkit_FOUND)
+  enable_language(CUDA)
+  SET(CMAKE_CUDA_ARCHITECTURES "60" "61" "62" "70" "72" "75" "80" "86" "87" "89" "90")
+  add_library(lcnn_step_cuda lcnn_step_cuda.cu)
+  target_include_directories(
+    lcnn_step_cuda
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+endif()
+
 # ---------------------------------------
 # Utility functions for multiple backends
 # ---------------------------------------
@@ -100,6 +116,7 @@ function(link_with_cpu EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cpu"
     PUBLIC ${ArrayFire_CPU_LIBRARIES}
+    PUBLIC lcnn_step_generic
   )
 endfunction(link_with_cpu)
 
@@ -109,6 +126,7 @@ function(link_with_cuda EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cuda"
     PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+    PUBLIC lcnn_step_cuda
   )
 endfunction(link_with_cuda)
 
@@ -118,6 +136,7 @@ function(link_with_cl EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cl"
     PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
+    PUBLIC lcnn_step_generic
   )
 endfunction(link_with_cl)
 
