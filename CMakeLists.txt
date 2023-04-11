@@ -9,7 +9,8 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 # Enable all CUDA architectures by default.
 if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
-  SET(CMAKE_CUDA_ARCHITECTURES all)
+  # Supported architectures for CUDA 11.2
+  SET(CMAKE_CUDA_ARCHITECTURES "52;53;60;61;62;70;72;75;80;86")
 endif()
 
 project(
