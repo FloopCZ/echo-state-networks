@@ -72,10 +72,14 @@ af::array lcnn_step(const af::array& state, const af::array& reservoir_w)
         throw std::invalid_argument(
           "CUDA kernel for lcnn step is only supported for 64bit arrays.");
 
-    // Prepare kernel parameters.
-    af::array output{state.dims(), state.type()};
+    // Evaluate input matrices.
+    state.eval();
     double* pstate = state.device<double>();
+    reservoir_w.eval();
     double* preservoir_w = reservoir_w.device<double>();
+
+    // Allocate output matrix.
+    af::array output{state.dims(), state.type()};
     double* poutput = output.device<double>();
 
     // Determine ArrayFire's CUDA stream.
@@ -91,6 +95,7 @@ af::array lcnn_step(const af::array& state, const af::array& reservoir_w)
     lcnn_step_kernel<<<grid, block, perimeter_bytes, af_cuda_stream>>>(
       pstate, preservoir_w, poutput, state.dims(0), state.dims(1), reservoir_w.dims(2),
       reservoir_w.dims(3));
+    cudaStreamSynchronize(af_cuda_stream);
 
     // Give matrices back to ArrayFire.
     state.unlock();
