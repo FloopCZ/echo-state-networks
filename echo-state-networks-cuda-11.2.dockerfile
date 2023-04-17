@@ -39,6 +39,7 @@ RUN git clone https://github.com/FloopCZ/linux-environment.git ${HOME}/linux-env
 # RUN /root/bin/aur-install clang-git --noconfirm
 RUN /root/bin/aur-install range-v3-git --noconfirm --needed
 RUN /root/bin/aur-install libcmaes --noconfirm --needed
+RUN /root/bin/aur-install googletest-git --noconfirm --needed
 
 # Compile echo-state-networks.
 ADD ./* ${HOME}/echo-state-networks/

@@ -9,6 +9,7 @@ High performance Echo State Network simulation, benchmarks and visualization in 
 - openmp (core)
 - python + python-matplotlib (core)
 - tbb (core)
+- gtest (core)
 - [libcmaes](https://github.com/beniz/libcmaes/) (AUR).
 
 ## Build
