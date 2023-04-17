@@ -7,23 +7,24 @@
 __global__ void
 lcnn_step_kernel(double* input, double* reservoir_w, double* output, int N, int M, int K, int L)
 {
-    int perimeter_height = blockDim.x + K - 1;
-    int perimeter_width = blockDim.y + L - 1;
-    int perimeter_size = perimeter_height * perimeter_width;
     int block_size = blockDim.x * blockDim.y;
     int kernel_radius_height = K / 2;
     int kernel_radius_width = L / 2;
-
-    extern __shared__ double perimeter[];
-    // TODO wrap in two grid for loops
-    // TODO add unit test
 
     // printf(
     //   "blockDim.x,y = %d,%d, blockIdx.x,y = %d,%d, threadIdx.x,y = %d,%d\n", blockDim.x,
     //   blockDim.y, blockIdx.x, blockIdx.y, threadIdx.x, threadIdx.y);
 
+    // TODO wrap in two grid for loops
+
+    // Allocate the perimeter (only what will really be used).
+    int perimeter_height = min(blockDim.x + K - 1, N - blockIdx.x * blockDim.x + K - 1);
+    int perimeter_width = min(blockDim.y + L - 1, M - blockIdx.y * blockDim.y + L - 1);
+    int perimeter_size = perimeter_height * perimeter_width;
+
     // Load the input matrix block with convolution perimeter to shared memory.
     // This sequentially uses all the available threads without regard to block size.
+    extern __shared__ double perimeter[];
     int flat_thread_idx = threadIdx.x + blockDim.y * threadIdx.y;
     for (int perimeter_idx = flat_thread_idx; perimeter_idx < perimeter_size;
          perimeter_idx += block_size) {
