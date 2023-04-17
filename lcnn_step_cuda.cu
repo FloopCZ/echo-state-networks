@@ -84,7 +84,7 @@ af::array lcnn_step(const af::array& state, const af::array& reservoir_w)
     cudaStream_t af_cuda_stream = afcu::getStream(cuda_id);
 
     // Call CUDA kernel.
-    dim3 block(64, 64);
+    dim3 block(32, 32);
     dim3 grid((state.dims(0) + block.x - 1) / block.x, (state.dims(1) + block.y - 1) / block.y);
     int perimeter_bytes =
       sizeof(double) * (block.x + reservoir_w.dims(2) - 1) * (block.y + reservoir_w.dims(3) - 1);
