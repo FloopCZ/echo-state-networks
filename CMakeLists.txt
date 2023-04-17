@@ -74,6 +74,10 @@ if (CUDAToolkit_FOUND)
     lcnn_step_cuda
     PUBLIC ${ArrayFire_INCLUDE_DIRS}
   )
+  target_link_libraries(
+    lcnn_step_cuda
+    PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+  )
 endif()
 
 # ---------------------------------------
@@ -167,3 +171,10 @@ add_with_all("visual")
 add_with_all("compare_lcnn_kernels")
 add_with_all("param_sensitivity_int")
 add_with_all("param_sensitivity_double")
+
+# ---------
+# Add tests
+# ---------
+
+enable_testing()
+add_subdirectory(test)
