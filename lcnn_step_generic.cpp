@@ -1,10 +1,10 @@
-#include "lcnn_step.hpp"
+#include "lcnn_step_generic.hpp"
 
 // The shifting method creates a long JIT function which has to be limited
 // to avoid a failed nvcc compilation.
 constexpr int SHIFT_STEP_MAX_JIT_SIZE = 20;
 
-af::array lcnn_step(const af::array& state, const af::array& reservoir_w)
+af::array lcnn_step_generic(const af::array& state, const af::array& reservoir_w)
 {
     af::eval(state);
     af::eval(reservoir_w);

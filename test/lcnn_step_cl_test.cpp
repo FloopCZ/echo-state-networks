@@ -2,12 +2,12 @@
 
 #include <gtest/gtest.h>
 
-TEST(LcnnStepCudaTest, ConstTest)
+TEST(LcnnStepClTest, ConstTest)
 {
     return const_test();
 }
 
-TEST(LcnnStepCudaTest, RandStressTest)
+TEST(LcnnStepClTest, RandStressTest)
 {
     return random_stress_test();
 }

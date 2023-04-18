@@ -61,11 +61,22 @@ elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
   set(CMAKE_CXX_FLAGS "-fmax-errors=2 ${CMAKE_CXX_FLAGS}")
 endif()
 
-# ---------------------
-# Compile CUDA code
-# ---------------------
+# ---------------------------------
+# Compile lcnn step implementations
+# ---------------------------------
 
 add_library(lcnn_step_generic lcnn_step_generic.cpp)
+
+add_library(lcnn_step_cpu lcnn_step_cpu.cpp)
+target_include_directories(
+  lcnn_step_cpu
+  PUBLIC ${ArrayFire_INCLUDE_DIRS}
+)
+target_link_libraries(
+  lcnn_step_cpu
+  PUBLIC lcnn_step_generic
+  PUBLIC ${ArrayFire_CPU_LIBRARIES}
+)
 
 if (CUDAToolkit_FOUND)
   enable_language(CUDA)
@@ -77,6 +88,19 @@ if (CUDAToolkit_FOUND)
   target_link_libraries(
     lcnn_step_cuda
     PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+  )
+endif()
+
+if (OpenCL_FOUND)
+  add_library(lcnn_step_cl lcnn_step_cl.cpp)
+  target_include_directories(
+    lcnn_step_cl
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_step_cl
+    PUBLIC lcnn_step_generic
+    PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
   )
 endif()
 
@@ -125,7 +149,7 @@ function(link_with_cpu EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cpu"
     PUBLIC ${ArrayFire_CPU_LIBRARIES}
-    PUBLIC lcnn_step_generic
+    PUBLIC lcnn_step_cpu
   )
 endfunction(link_with_cpu)
 
@@ -145,7 +169,7 @@ function(link_with_cl EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cl"
     PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
-    PUBLIC lcnn_step_generic
+    PUBLIC lcnn_step_cl
   )
 endfunction(link_with_cl)
 
