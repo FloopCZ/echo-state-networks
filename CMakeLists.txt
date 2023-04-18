@@ -36,7 +36,7 @@ find_package(Eigen3 REQUIRED)
 find_package(Forge REQUIRED)
 cmake_policy(SET CMP0072 NEW)
 find_package(OpenGL REQUIRED)
-find_package(OpenCL)
+# find_package(OpenCL)  # OpenCL in unsupported for now
 
 # --------------
 # Compiler Flags
