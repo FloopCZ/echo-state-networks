@@ -19,30 +19,36 @@ TEST(LcnnStepCudaTest, ConstTest)
     }
 }
 
-TEST(LcnnStepCudaTest, RandTest)
+static void test_step(int state_height, int state_width, int kernel_height, int kernel_width)
 {
-    int state_height = 17;
-    int state_width = 13;
     af::array state = af::randu(state_height, state_width, af::dtype::f64);
-    for (int kernel_height = 3; kernel_height < 10; kernel_height += 2) {
-        for (int kernel_width = 3; kernel_width < 10; kernel_width += 2) {
-            af::array reservoir_w =
-              af::randu(state_height, state_width, kernel_height, kernel_width, af::dtype::f64);
-            af::array new_state = lcnn_step(state, reservoir_w);
-            for (int i = 0; i < state_height; ++i) {
-                for (int j = 0; j < state_width; ++j) {
-                    double sum = 0;
-                    for (int k = -kernel_height / 2; k <= kernel_height / 2; ++k) {
-                        for (int l = -kernel_width / 2; l <= kernel_width / 2; ++l) {
-                            af::array s = state(
-                              (i + k + state_height) % state_height,
-                              (j + l + state_width) % state_width);
-                            af::array w =
-                              reservoir_w(i, j, k + kernel_height / 2, l + kernel_width / 2);
-                            sum += w.scalar<double>() * s.scalar<double>();
-                        }
-                    }
-                    ASSERT_NEAR(sum, new_state(i, j).scalar<double>(), 1e-12);
+    af::array reservoir_w =
+      af::randu(state_height, state_width, kernel_height, kernel_width, af::dtype::f64);
+    af::array new_state = lcnn_step(state, reservoir_w);
+    for (int i = 0; i < state_height; ++i) {
+        for (int j = 0; j < state_width; ++j) {
+            double sum = 0;
+            for (int k = -kernel_height / 2; k <= kernel_height / 2; ++k) {
+                for (int l = -kernel_width / 2; l <= kernel_width / 2; ++l) {
+                    af::array s = state(
+                      ((i + k) % state_height + state_height) % state_height,
+                      ((j + l) % state_width + state_width) % state_width);
+                    af::array w = reservoir_w(i, j, k + kernel_height / 2, l + kernel_width / 2);
+                    sum += w.scalar<double>() * s.scalar<double>();
+                }
+            }
+            ASSERT_NEAR(sum, new_state(i, j).scalar<double>(), 1e-12);
+        }
+    }
+}
+
+TEST(LcnnStepCudaTest, RandStressTest)
+{
+    for (int state_height = 3; state_height < 60; state_height += 23) {
+        for (int state_width = 5; state_width < 60; state_width += 29) {
+            for (int kernel_height = 3; kernel_height < 8; kernel_height += 2) {
+                for (int kernel_width = 3; kernel_width < 8; kernel_width += 2) {
+                    test_step(state_height, state_width, kernel_height, kernel_width);
                 }
             }
         }
