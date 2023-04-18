@@ -7,6 +7,7 @@
 
 void const_test()
 {
+    af::info();
     int state_height = 100;
     int state_width = 200;
     af::array state = af::constant(3, state_height, state_width, af::dtype::f64);
@@ -47,6 +48,7 @@ static void test_step(int state_height, int state_width, int kernel_height, int 
 
 void random_stress_test()
 {
+    af::info();
     for (int state_height = 3; state_height < 60; state_height += 23) {
         for (int state_width = 5; state_width < 60; state_width += 29) {
             for (int kernel_height = 3; kernel_height < 8; kernel_height += 2) {
