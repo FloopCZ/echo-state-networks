@@ -40,9 +40,11 @@ int main(int argc, char* argv[])
        "The number of evaluations of the best network. "                                   //
        "Also the number of lines in CSV for each optimized kernel size.")                  //
       ("gen.task-offset", po::value<long>()->default_value(0),                             //
-       "Cluster experiment parameter. Start evaluation from experiment in  ")              //
+       "Cluster experiment parameter. Start evaluation from task with this index.")        //
       ("gen.n-tasks", po::value<long>()->default_value(std::numeric_limits<long>::max()),  //
-       "Cluster experiment parameter. Only do this up to this number of tasks.  ")         //
+       "Cluster experiment parameter. Only do this up to this number of tasks.")           //
+      ("gen.overwrite", po::bool_switch(),                                                 //
+       "Overwrite existing files.")                                                        //
       ("gen.af-device", po::value<int>()->default_value(0),                                //
        "ArrayFire device to be used.");                                                    //
     arg_desc.add(esn::benchmark_arg_description());
@@ -65,14 +67,19 @@ int main(int argc, char* argv[])
     long task_offset = args.at("gen.task-offset").as<long>();
     long n_tasks = args.at("gen.n-tasks").as<long>();
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
-    fs::create_directories(output_dir.parent_path());
-    std::ofstream fout;
+    fs::path output_file;
     if (task_offset == 0 && n_tasks == std::numeric_limits<long>::max())
-        fout.open(output_dir / "kernel_comparison.csv");
+        output_file = output_dir / "kernel_comparison.csv";
     else
-        fout.open(
-          output_dir
-          / ("kernel_comparison_" + std::to_string(task_offset) + "_" + std::to_string(n_tasks) + ".csv"));
+        output_file = output_dir
+          / ("kernel_comparison_" + std::to_string(task_offset) + "_" + std::to_string(n_tasks)
+             + ".csv");
+    if (!args.contains("overwrite") && fs::exists(output_file)) {
+        std::cout << "Output file `" << output_file << "` exists, will not overwrite." << std::endl;
+        return 1;
+    }
+    fs::create_directories(output_dir);
+    std::ofstream fout{output_file};
     std::vector<std::string> param_names = {
       "run",
       "kernel-size",

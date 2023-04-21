@@ -47,7 +47,7 @@ int main(int argc, char* argv[])
     std::cout << std::endl;
 
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
-    fs::create_directories(output_dir.parent_path());
+    fs::create_directories(output_dir);
     std::ofstream fout{output_dir / "optimization_results.csv"};
     std::string net_type = args.at("gen.net-type").as<std::string>();
     std::vector<std::string> param_names = {

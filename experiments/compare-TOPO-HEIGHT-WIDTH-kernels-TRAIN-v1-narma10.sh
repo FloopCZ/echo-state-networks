@@ -26,4 +26,4 @@ mkdir -p "${outdir}"
   --gen.output-dir="${outdir}" \
   --gen.task-offset="${TASK_OFFSET}" \
   --gen.n-tasks="${N_TASKS}" \
-  2>&1 | tee "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
+  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"

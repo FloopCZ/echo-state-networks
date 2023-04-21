@@ -60,7 +60,7 @@ int main(int argc, char* argv[])
     plt.register_callback(*net);
 
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
-    fs::create_directories(output_dir.parent_path());
+    fs::create_directories(output_dir);
 
     esn::file_saver csv_writer{output_dir / "trace.txt"};
     csv_writer.register_callback(*net);

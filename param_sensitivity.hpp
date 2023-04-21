@@ -46,7 +46,7 @@ int param_sensitivity(int argc, char* argv[])
     std::cout << std::endl;
 
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
-    fs::create_directories(output_dir.parent_path());
+    fs::create_directories(output_dir);
     std::ofstream fout{output_dir / "sensitivity_grid.csv"};
     std::string net_type = args.at("gen.net-type").as<std::string>();
     T param_orig = args.at(args.at("gen.param").as<std::string>()).as<T>();

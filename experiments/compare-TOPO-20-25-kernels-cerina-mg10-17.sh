@@ -32,4 +32,4 @@ mkdir -p "${outdir}"
   --gen.af-device=0 \
   --opt.sigma=0.5 \
   --gen.output-dir="${outdir}" \
-  2>&1 | tee "${outdir}/out.txt"
+  2>&1 | tee -a "${outdir}/out.txt"
