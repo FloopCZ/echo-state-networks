@@ -1,4 +1,7 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
+set -o pipefail
+
 
 # Based on EchoBay: Design and Optimization of Echo State Networks under Memory and Time Constraints [2020]
 # L. Cerina, M. D. Santambrogio,

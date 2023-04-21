@@ -1,4 +1,7 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
+set -o pipefail
+
 
 mkdir -p ./log/
 ./build/param_sensitivity_double_cpu \

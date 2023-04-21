@@ -1,4 +1,7 @@
-#!/bin/bash -e
+#!/bin/bash
+set -e
+set -o pipefail
+
 
 # Based on Optimizing the echo state network with a binary particle swarm optimization algorithm
 # Heshan Wang, Xuefeng Yan [2015]
