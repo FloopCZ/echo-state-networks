@@ -85,8 +85,7 @@ af::array lcnn_step(const af::array& state, const af::array& reservoir_w)
 
     // Determine ArrayFire's CUDA stream.
     int af_id = af::getDevice();
-    int cuda_id = afcu::getNativeId(af_id);
-    cudaStream_t af_cuda_stream = afcu::getStream(cuda_id);
+    cudaStream_t af_cuda_stream = afcu::getStream(af_id);
 
     // Call CUDA kernel.
     dim3 block(32, 32);
@@ -96,14 +95,9 @@ af::array lcnn_step(const af::array& state, const af::array& reservoir_w)
     lcnn_step_kernel<<<grid, block, perimeter_bytes, af_cuda_stream>>>(
       pstate, preservoir_w, poutput, state.dims(0), state.dims(1), reservoir_w.dims(2),
       reservoir_w.dims(3));
-    cudaError_t err = cudaPeekAtLastError();
-    if (err != cudaSuccess)
+    if (cudaError_t err = cudaPeekAtLastError(); err != cudaSuccess)
         throw std::runtime_error{
           "CUDA Runtime Error in LCNN step kernel launch: " + std::string{cudaGetErrorString(err)}};
-    err = cudaStreamSynchronize(af_cuda_stream);
-    if (err != cudaSuccess)
-        throw std::runtime_error{
-          "CUDA Runtime Error on stream synchronization: " + std::string{cudaGetErrorString(err)}};
 
     // Give matrices back to ArrayFire.
     state.unlock();
