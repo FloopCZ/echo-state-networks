@@ -698,9 +698,12 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
             kernel(af::span, af::seq(kernel_width / 2, af::end)) = 0.;
         }
         // generate reservoir weights
-        cfg.reservoir_w = af::tile(kernel, state_height * state_width);
+        cfg.reservoir_w = af::tile(af::flat(kernel), state_height * state_width);
         cfg.reservoir_w =
-          af::moddims(cfg.reservoir_w, {state_height, state_width, kernel_height, kernel_width});
+          af::moddims(cfg.reservoir_w, {kernel_height, kernel_width, state_height, state_width});
+        cfg.reservoir_w = af::reorder(cfg.reservoir_w, 2, 3, 0, 1);
+        assert(af::allTrue<bool>(
+          cfg.reservoir_w(0, 0) == cfg.reservoir_w(state_height - 1, state_width - 1)));
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
     } else if (topo_params.contains("lcnn")) {
