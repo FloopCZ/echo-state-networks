@@ -8,7 +8,7 @@ mkdir -p ./log/
   --gen.param="bench.train-steps" \
   --gen.grid-start=-4900 \
   --gen.grid-step=50 \
-  --gen.grid-stop=20000 \
+  --gen.grid-stop=30000 \
   --bench.error-measure=mse \
   --bench.init-steps=1000 \
   --bench.mackey-glass-delta=0.10000000000000001 \
