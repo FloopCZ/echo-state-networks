@@ -108,7 +108,7 @@ int main(int argc, char* argv[])
     if (!args.contains("gen.kernel-sizes"))
         throw std::invalid_argument{"lcnn.kernel-sizes not set."};
     long n_sizes = args.at("gen.state-heights").as<std::vector<long>>().size();
-    if (n_sizes != args.at("gen.state-widths").as<std::vector<long>>().size())
+    if (n_sizes != (long)args.at("gen.state-widths").as<std::vector<long>>().size())
         throw std::invalid_argument{"State heights and widths arguments have different length."};
 
     long task = -1;
