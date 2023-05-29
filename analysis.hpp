@@ -87,7 +87,7 @@ af::array mackey_glass(long len, double tau, double delta, af::dtype dtype, std:
       | rgv::slice(long(tau / delta + 1), rg::end)  //
       | rgv::stride(long(1. / delta))               //
       | rg::to_vector;
-    assert(ys.size() == len);
+    assert((long)ys.size() == len);
     return af_utils::to_array(ys).as(dtype);
 }
 

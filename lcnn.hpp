@@ -547,10 +547,10 @@ public:
                             int from_j = (j + l - kernel_width / 2 + state_width) % state_width;
                             int full_index = i + j * state_height
                               + (from_i + from_j * state_height) * state_height * state_width;
-                            assert(full_index >= 0 && full_index < reservoir_w_full.size());
+                            assert(full_index >= 0 && full_index < (long)reservoir_w_full.size());
                             int sparse_index = i + j * state_height + k * state_height * state_width
                               + l * state_height * state_width * kernel_height;
-                            assert(sparse_index >= 0 && sparse_index < reservoir_w.size());
+                            assert(sparse_index >= 0 && sparse_index < (long)reservoir_w.size());
                             reservoir_w_full[full_index] += reservoir_w[sparse_index];
                         }
                     }
