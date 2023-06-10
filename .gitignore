@@ -136,3 +136,7 @@ log/
 compare_plot.pdf
 visual.csv
 fplot.dat
+
+# Metacentrum results
+run-gpu-experiment.o*
+cmake-build-singularity.o*
