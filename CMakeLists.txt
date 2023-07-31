@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
 # Use clang++ by default because with g++, we could accidentaly
 # fall into https://github.com/arrayfire/arrayfire/issues/2978.
@@ -30,7 +30,7 @@ execute_process(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(ArrayFire REQUIRED)
-find_package(Boost COMPONENTS program_options log log_setup REQUIRED)
+find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(CUDAToolkit)
 find_package(Eigen3 REQUIRED)
 find_package(Forge REQUIRED)
@@ -46,8 +46,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_FLAGS "-Wall -pedantic ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
-# Link all boost libraries dynamically.
-add_definitions("-DBOOST_ALL_DYN_LINK")
 
 # ----------------------
 # Shorter Error Messages
