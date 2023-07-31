@@ -7,7 +7,6 @@
 #include "net.hpp"
 
 #include <arrayfire.h>
-#include <boost/program_options.hpp>
 #include <cassert>
 #include <cmath>
 #include <execution>
@@ -16,7 +15,6 @@
 
 namespace esn {
 
-namespace po = boost::program_options;
 namespace rg = ranges;
 namespace rgv = ranges::views;
 
@@ -119,40 +117,6 @@ af::array memory_matrix(const af::array& xs, long history)
     af::array mem = af::constant(0, history, xs.dims(0), xs.type());
     for (long i = 0; i < history; ++i) mem(i, af::seq(i, af::end)) = xs(af::seq(-i - 1));
     return mem;
-}
-
-po::options_description benchmark_arg_description()
-{
-    // TODO move to benchmarks
-    po::options_description benchmark_arg_desc{"Benchmark options"};
-    benchmark_arg_desc.add_options()                                            //
-      ("bench.memory-history", po::value<long>()->default_value(0),             //
-       "The length of the memory to be evaluated.")                             //
-      ("bench.n-steps-ahead", po::value<long>()->default_value(84),             //
-       "The length of the valid sequence in sequence prediction benchmark.")    //
-      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),          //
-       "The length of the memory to be evaluated.")                             //
-      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),     //
-       "The time delta (and subsampling) for mackey glass equations.")          //
-      ("bench.narma-tau", po::value<long>()->default_value(1),                  //
-       "The time lag for narma series.")                                        //
-      ("bench.error-measure", po::value<std::string>()->default_value("mse"),   //
-       "The error function to be used. One of mse, nmse, nrmse.")               //
-      ("bench.n-trials", po::value<long>()->default_value(1),                   //
-       "The number of repeats of the [teacher-force, valid] step in the "       //
-       "sequence prediction benchmark.")                                        //
-      ("bench.init-steps", po::value<long>()->default_value(1000),              //
-       "The number of training time steps.")                                    //
-      ("bench.train-steps", po::value<long>()->default_value(5000),             //
-       "The number of valid time steps.")                                       //
-      ("bench.valid-steps", po::value<long>()->default_value(1000),             //
-       "The number of test time steps.")                                        //
-      ("bench.teacher-force-steps", po::value<long>()->default_value(1000),     //
-       "The number of teacher-force steps in sequence prediction benchmarks.")  //
-      ("bench.period", po::value<long>()->default_value(100),                   //
-       "The period of flipping the semaphore sign.")                            //
-      ;
-    return benchmark_arg_desc;
 }
 
 }  // end namespace esn
