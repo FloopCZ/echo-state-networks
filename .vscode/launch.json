@@ -60,6 +60,36 @@
                     "ignoreFailures": true
                 }
             ]
+        },
+        {
+            "name": "(gdb) Launch evaluate for ET Dataset",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/evaluate_cuda",
+            "args": [
+                "--gen.net-type=lcnn",
+                "--gen.benchmark-set=etth",
+                "--lcnn.topology=lcnn",
+                "--lcnn.input-to-all=true",
+                "--lcnn.state-height=10",
+                "--lcnn.state-width=10",
+                "--bench.init-steps=10",
+                "--bench.train-steps=100",
+                "--bench.valid-steps=100",
+                "--gen.af-device=0"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
         }
     ]
 }
