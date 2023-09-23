@@ -10,7 +10,10 @@
 
 namespace esn {
 
+namespace fs = std::filesystem;
 namespace po = boost::program_options;
+namespace rg = ranges;
+namespace rgv = ranges::views;
 
 /// Base class for echo state network benchmarking tasks.
 class benchmark_set_base {
@@ -27,6 +30,18 @@ protected:
     virtual af::array output_transform(const af::array& ys) const
     {
         return ys;
+    }
+
+    virtual double error_fnc(const af::array& predicted, const af::array& desired) const
+    {
+        assert(predicted.dims() == desired.dims());
+        assert(desired.numdims() == 2);
+        // assert(desired.dims(0) == n_outs());  // not true for loop benchmark set
+        assert(desired.dims(1) == split_sizes_.at(2));
+        if (error_measure_ == "mse") return af_utils::mse<double>(predicted, desired);
+        if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted, desired);
+        if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted, desired);
+        throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
     }
 
 public:
@@ -49,18 +64,6 @@ public:
 /// Base class for echo state network benchmarking tasks.
 class benchmark_set : public benchmark_set_base {
 protected:
-    virtual double error_fnc(const af::array& predicted, const af::array& desired) const
-    {
-        assert(predicted.dims() == desired.dims());
-        assert(desired.numdims() == 2);
-        assert(desired.dims(0) == n_outs());
-        assert(desired.dims(1) == split_sizes_.at(2));
-        if (error_measure_ == "mse") return af_utils::mse<double>(predicted, desired);
-        if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted, desired);
-        if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted, desired);
-        throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
-    }
-
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
     virtual std::tuple<af::array, af::array>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
@@ -102,10 +105,9 @@ public:
 /// calculated from the last output.
 class seq_prediction_benchmark_set : public benchmark_set_base {
 protected:
-    std::vector<long> split_sizes_;
     long n_trials_;
 
-    virtual double error_fnc(const af::array& predicted, const af::array& desired) const
+    double error_fnc(const af::array& predicted, const af::array& desired) const override
     {
         assert(predicted.dims() == desired.dims());
         assert(desired.numdims() == 2);
@@ -132,14 +134,13 @@ public:
     ///        bench.split_sizes: The split sizes [init, train, teacher-force, n-steps-ahead].
     ///        bench.n-trials: The number of repeats of the [teacher-force, n-steps-ahead].
     seq_prediction_benchmark_set(po::variables_map config)
-      : benchmark_set_base{std::move(config)}
-      , split_sizes_{
-          config_.at("bench.init-steps").as<long>(),
-          config_.at("bench.train-steps").as<long>(),
-          config_.at("bench.teacher-force-steps").as<long>(),
-          config_.at("bench.n-steps-ahead").as<long>()}
-      , n_trials_{config_.at("bench.n-trials").as<long>()}
+      : benchmark_set_base{std::move(config)}, n_trials_{config_.at("bench.n-trials").as<long>()}
     {
+        split_sizes_ = {
+          config_.at("bench.init-steps").as<long>(),           //
+          config_.at("bench.train-steps").as<long>(),          //
+          config_.at("bench.teacher-force-steps").as<long>(),  //
+          config_.at("bench.n-steps-ahead").as<long>()};
         // Repeat the [teacher-force, test] procedure n_trials times.
         for (long i = 1; i < n_trials_; ++i) {
             split_sizes_.push_back(split_sizes_.at(2));
