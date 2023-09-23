@@ -545,7 +545,7 @@ public:
         data_.values = af::moddims(af_utils::to_array(numbers), af::dim4{n_features, n_points});
 
         std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
-                  << "points.\n";
+                  << " points.\n";
     }
 
     long n_ins() const override
@@ -590,20 +590,20 @@ public:
 
         train_data_.keys = data_.keys;
         train_data_.values = data_.values(af::span, af::seq(0, 12 * 30 * 24));
-        std::cout << "ETT train has " << train_data_.values.dims(1) << "points.\n";
+        std::cout << "ETT train has " << train_data_.values.dims(1) << " points.\n";
 
         valid_data_.keys = data_.keys;
         valid_data_.values = data_.values(af::span, af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
-        std::cout << "ETT valid has " << valid_data_.values.dims(1) << "points.\n";
+        std::cout << "ETT valid has " << valid_data_.values.dims(1) << " points.\n";
 
         train_valid_data_.keys = data_.keys;
         train_valid_data_.values = data_.values(af::span, af::seq(0, (12 + 4) * 30 * 24));
-        std::cout << "ETT valid has " << train_valid_data_.values.dims(1) << "points.\n";
+        std::cout << "ETT train-valid has " << train_valid_data_.values.dims(1) << " points.\n";
 
         test_data_.keys = data_.keys;
         test_data_.values =
           data_.values(af::span, af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
-        std::cout << "ETT test has " << test_data_.values.dims(1) << "points.\n";
+        std::cout << "ETT test has " << test_data_.values.dims(1) << " points.\n";
     }
 
     std::vector<std::string> targets() const override
