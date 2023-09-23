@@ -4,8 +4,13 @@
 
 #include "analysis.hpp"
 #include "argument_utils.hpp"
+#include "misc.hpp"
 #include "net.hpp"
 
+#include <boost/algorithm/string.hpp>
+#include <filesystem>
+#include <fstream>
+#include <range/v3/view.hpp>
 #include <vector>
 
 namespace esn {
@@ -100,9 +105,65 @@ public:
 
 /// Evaluate the performance of the given network on sequence prediction.
 ///
+/// The network is trained on `train-steps` steps and simulated
+/// for `valid-steps` steps. The error is calculated from all the
+/// `valid-steps` steps.
+class loop_benchmark_set : public benchmark_set_base {
+protected:
+    struct DataType {
+        af::array values;
+        std::vector<std::string> keys;
+    };
+
+    // Generate the testing data. This should generate a sequence of dimensions [n_ins, len].
+    virtual const DataType& generate_data(af::dtype dtype, std::mt19937& prng) const = 0;
+
+public:
+    /// \param config The configuration parameters.
+    ///        bench.split_sizes: The split sizes [init, train, n-steps-ahead].
+    loop_benchmark_set(po::variables_map config) : benchmark_set_base{std::move(config)}
+    {
+        split_sizes_ = {
+          config_.at("bench.init-steps").as<long>(),   //
+          config_.at("bench.train-steps").as<long>(),  //
+          config_.at("bench.valid-steps").as<long>()};
+    }
+
+    double evaluate(net_base& net, std::mt19937& prng) const override
+    {
+        assert((long)split_sizes_.size() == 3);
+        // retrieve the data
+        const DataType& data = generate_data(net.state().type(), prng);
+        assert(data.values.type() == net.state().type());
+        assert(data.values.numdims() == 2);
+        assert(data.values.dims(0) == net.n_ins());
+        if (data.values.dims(1) < rg::accumulate(split_sizes_, 0L))
+            throw std::runtime_error{"Not enough data in the dataset for the given split sizes."};
+        // split the sequences into groups
+        std::vector<af::array> xs_groups = split_data(data.values, split_sizes_);
+        std::vector<af::array> ys_groups = split_data(af::shift(data.values, 0, -1), split_sizes_);
+        // initialize the network using the initial sequence
+        net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
+        // train the network on the training sequence with teacher forcing
+        net.train(input_transform(xs_groups.at(1)), input_transform(ys_groups.at(1)));
+        // evaluate the performance of the network on the validation sequence
+        af::array outputs =
+          net.loop(xs_groups.at(2).dims(1), input_transform(ys_groups.at(2))).outputs;
+        // extract the targets
+        af::array ys_predict = output_transform(extract_keys(data.keys, targets(), outputs));
+        af::array ys_desired = extract_keys(data.keys, targets(), ys_groups.at(2));
+        return error_fnc(ys_predict, ys_desired);
+    }
+
+    virtual std::vector<std::string> targets() const = 0;
+};
+
+/// Evaluate the performance of the given network on sequence prediction.
+///
 /// The n_ins and n_outs has to be equal to one.
-/// The network is simulated for len(xs_test) steps and the error is
-/// calculated from the last output.
+/// The network is trained on `train-steps` steps, and then repeatedly
+/// simulated for `teacher-force + n-steps-ahead` steps and the error is
+/// calculated only from the last output.
 class seq_prediction_benchmark_set : public benchmark_set_base {
 protected:
     long n_trials_;
@@ -435,6 +496,122 @@ public:
     }
 };
 
+class ett_benchmark_set : public loop_benchmark_set {
+protected:
+    fs::path data_path_;
+    std::vector<std::string> header_ = {"date", "HUFL", "HULL", "MUFL",
+                                        "MULL", "LUFL", "LULL", "OT"};
+    DataType data_;
+    std::string set_type_;  // train/valid/test
+
+    af::array input_transform(const af::array& xs) const override
+    {
+        return af::tanh(xs / 100.);
+    }
+
+    af::array output_transform(const af::array& ys) const override
+    {
+        return af::atanh(ys) * 100.;
+    }
+
+public:
+    ett_benchmark_set(po::variables_map config)
+      : loop_benchmark_set{std::move(config)}
+      , data_path_{config_.at("bench.ett-data-path").as<std::string>()}
+      , set_type_{config_.at("bench.ett-set-type").as<std::string>()}
+    {
+    }
+
+    void load_data(const fs::path& csv_path)
+    {
+        if (!fs::exists(data_path_)) throw std::runtime_error{"ETT data path does not exist."};
+        fs::path csv = data_path_ / csv_path;
+        if (!fs::exists(csv)) throw std::runtime_error{"ETT csv file does not exist."};
+        std::ifstream in{csv};
+        std::string line;
+        std::getline(in, line);
+        if (line != boost::join(header_, ",")) throw std::runtime_error{"Invalid header."};
+
+        std::vector<double> numbers;
+        while (std::getline(in, line)) {
+            std::vector<std::string> words;
+            boost::split(words, line, boost::is_any_of(","));
+            for (const std::string& v : words | rgv::drop(1)) numbers.push_back(std::stod(v));
+        };
+
+        long long n_features = header_.size() - 1;
+        long long n_points = numbers.size() / n_features;
+        data_.keys = header_ | rgv::drop(1) | rg::to_vector;
+        data_.values = af::moddims(af_utils::to_array(numbers), af::dim4{n_features, n_points});
+
+        std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
+                  << "points.\n";
+    }
+
+    long n_ins() const override
+    {
+        return header_.size() - 1;
+    }
+
+    long n_outs() const override
+    {
+        return header_.size() - 1;
+    }
+
+    std::vector<std::string> targets() const override
+    {
+        return header_ | rgv::drop(1) | rg::to_vector;
+    }
+};
+
+class etth_benchmark_set : public ett_benchmark_set {
+protected:
+    int variant_;
+
+    const DataType& generate_data(af::dtype dtype, std::mt19937& prng) const override
+    {
+        if (set_type_ == "train") return train_data_;
+        if (set_type_ == "valid") return valid_data_;
+        if (set_type_ == "train-valid") return valid_data_;
+        if (set_type_ == "test") return test_data_;
+        throw std::runtime_error{"Unknown dataset."};
+    }
+
+    DataType train_data_;
+    DataType valid_data_;
+    DataType train_valid_data_;
+    DataType test_data_;
+
+public:
+    etth_benchmark_set(po::variables_map config)
+      : ett_benchmark_set{std::move(config)}, variant_{config_.at("bench.etth-variant").as<int>()}
+    {
+        load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
+
+        train_data_.keys = data_.keys;
+        train_data_.values = data_.values(af::span, af::seq(0, 12 * 30 * 24));
+        std::cout << "ETT train has " << train_data_.values.dims(1) << "points.\n";
+
+        valid_data_.keys = data_.keys;
+        valid_data_.values = data_.values(af::span, af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
+        std::cout << "ETT valid has " << valid_data_.values.dims(1) << "points.\n";
+
+        train_valid_data_.keys = data_.keys;
+        train_valid_data_.values = data_.values(af::span, af::seq(0, (12 + 4) * 30 * 24));
+        std::cout << "ETT valid has " << train_valid_data_.values.dims(1) << "points.\n";
+
+        test_data_.keys = data_.keys;
+        test_data_.values =
+          data_.values(af::span, af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
+        std::cout << "ETT test has " << test_data_.values.dims(1) << "points.\n";
+    }
+
+    std::vector<std::string> targets() const override
+    {
+        return {"OT"};
+    }
+};
+
 class lyapunov_benchmark_set : public benchmark_set_base {
 protected:
     long init_len_;
@@ -602,6 +779,9 @@ std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args
     if (args.at("gen.benchmark-set").as<std::string>() == "semaphore") {
         return std::make_unique<semaphore_benchmark_set>(args);
     }
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth") {
+        return std::make_unique<etth_benchmark_set>(args);
+    }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
 }
@@ -610,32 +790,38 @@ po::options_description benchmark_arg_description()
 {
     // TODO move to benchmarks
     po::options_description benchmark_arg_desc{"Benchmark options"};
-    benchmark_arg_desc.add_options()                                            //
-      ("bench.memory-history", po::value<long>()->default_value(0),             //
-       "The length of the memory to be evaluated.")                             //
-      ("bench.n-steps-ahead", po::value<long>()->default_value(84),             //
-       "The length of the valid sequence in sequence prediction benchmark.")    //
-      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),          //
-       "The length of the memory to be evaluated.")                             //
-      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),     //
-       "The time delta (and subsampling) for mackey glass equations.")          //
-      ("bench.narma-tau", po::value<long>()->default_value(1),                  //
-       "The time lag for narma series.")                                        //
-      ("bench.error-measure", po::value<std::string>()->default_value("mse"),   //
-       "The error function to be used. One of mse, nmse, nrmse.")               //
-      ("bench.n-trials", po::value<long>()->default_value(1),                   //
-       "The number of repeats of the [teacher-force, valid] step in the "       //
-       "sequence prediction benchmark.")                                        //
-      ("bench.init-steps", po::value<long>()->default_value(1000),              //
-       "The number of training time steps.")                                    //
-      ("bench.train-steps", po::value<long>()->default_value(5000),             //
-       "The number of valid time steps.")                                       //
-      ("bench.valid-steps", po::value<long>()->default_value(1000),             //
-       "The number of test time steps.")                                        //
-      ("bench.teacher-force-steps", po::value<long>()->default_value(1000),     //
-       "The number of teacher-force steps in sequence prediction benchmarks.")  //
-      ("bench.period", po::value<long>()->default_value(100),                   //
-       "The period of flipping the semaphore sign.")                            //
+    benchmark_arg_desc.add_options()                                                             //
+      ("bench.memory-history", po::value<long>()->default_value(0),                              //
+       "The length of the memory to be evaluated.")                                              //
+      ("bench.n-steps-ahead", po::value<long>()->default_value(84),                              //
+       "The length of the valid sequence in sequence prediction benchmark.")                     //
+      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),                           //
+       "The length of the memory to be evaluated.")                                              //
+      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),                      //
+       "The time delta (and subsampling) for mackey glass equations.")                           //
+      ("bench.narma-tau", po::value<long>()->default_value(1),                                   //
+       "The time lag for narma series.")                                                         //
+      ("bench.error-measure", po::value<std::string>()->default_value("mse"),                    //
+       "The error function to be used. One of mse, nmse, nrmse.")                                //
+      ("bench.n-trials", po::value<long>()->default_value(1),                                    //
+       "The number of repeats of the [teacher-force, valid] step in the "                        //
+       "sequence prediction benchmark.")                                                         //
+      ("bench.init-steps", po::value<long>()->default_value(1000),                               //
+       "The number of training time steps.")                                                     //
+      ("bench.train-steps", po::value<long>()->default_value(5000),                              //
+       "The number of valid time steps.")                                                        //
+      ("bench.valid-steps", po::value<long>()->default_value(1000),                              //
+       "The number of test time steps.")                                                         //
+      ("bench.teacher-force-steps", po::value<long>()->default_value(1000),                      //
+       "The number of teacher-force steps in sequence prediction benchmarks.")                   //
+      ("bench.period", po::value<long>()->default_value(100),                                    //
+       "The period of flipping the semaphore sign.")                                             //
+      ("bench.ett-data-path", po::value<std::string>()->default_value("third_party/ETDataset"),  //
+       "Path to the ETT dataset.")                                                               //
+      ("bench.etth-variant", po::value<int>()->default_value(1),                                 //
+       "Variant of the ETTh dataset (1 or 2).")                                                  //
+      ("bench.ett-set-type", po::value<std::string>()->default_value("train"),                   //
+       "Part of the ETT dataset (train, valid, test).")                                          //
       ;
     return benchmark_arg_desc;
 }
