@@ -520,7 +520,7 @@ public:
     {
         std::map<std::string, double> params = {{"lcnn.sigma-res", 0.01}, {"lcnn.mu-res", 0.05},
                                                 {"lcnn.sparsity", 0.05},  {"lcnn.leakage", 0.05},
-                {"lcnn.noise", 0.05},     {"lcnn.mu-b", 0.05}};
+                                                {"lcnn.noise", 0.05},     {"lcnn.mu-b", 0.05}};
         for (int i = 0; i < bench_->n_ins(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
         for (int i = 0; i < bench_->n_outs(); ++i)
@@ -532,7 +532,7 @@ public:
     {
         std::map<std::string, double> params = {{"lcnn.sigma-res", -1.1}, {"lcnn.mu-res", -1.1},
                                                 {"lcnn.sparsity", -0.1},  {"lcnn.leakage", -0.1},
-                {"lcnn.noise", -0.1},     {"lcnn.mu-b", -1.1}};
+                                                {"lcnn.noise", -0.1},     {"lcnn.mu-b", -1.1}};
         for (int i = 0; i < bench_->n_ins(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), -1.1});
         for (int i = 0; i < bench_->n_outs(); ++i)
@@ -544,7 +544,7 @@ public:
     {
         std::map<std::string, double> params = {{"lcnn.sigma-res", 1.1}, {"lcnn.mu-res", 1.1},
                                                 {"lcnn.sparsity", 1.1},  {"lcnn.leakage", 1.1},
-                {"lcnn.noise", 1.1},     {"lcnn.mu-b", 1.1}};
+                                                {"lcnn.noise", 1.1},     {"lcnn.mu-b", 1.1}};
         for (int i = 0; i < bench_->n_ins(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 1.1});
         for (int i = 0; i < bench_->n_outs(); ++i)
