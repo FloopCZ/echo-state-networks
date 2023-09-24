@@ -330,6 +330,7 @@ public:
                 if (!param.starts_with(ep)) new_params.insert({param, value});
             params = std::move(new_params);
         }
+        return rgv::values(params) | rg::to_vector;
     }
 
     virtual std::set<std::string> available_params() const = 0;
@@ -574,32 +575,66 @@ public:
 
     std::set<std::string> available_params() const override
     {
-        return {"esn.sigma-res", "esn.mu-res",   "esn.in-weight",
-                "esn.fb-weight", "esn.sparsity", "esn.leakage"};
+        std::set<std::string> params = {
+          "esn.sigma-res", "esn.mu-res", "esn.sparsity", "esn.leakage"};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert("esn.in-weight-" + std::to_string(i));
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert("esn.fb-weight" + std::to_string(i));
+        return params;
     }
 
     std::map<std::string, double> named_param_x0() const override
     {
-        return {{"esn.sigma-res", 0.12}, {"esn.mu-res", 0.0},   {"esn.in-weight", 0.1},
-                {"esn.fb-weight", 0.0},  {"esn.sparsity", 0.5}, {"esn.leakage", 0.9}};
+        std::map<std::string, double> params = {
+          {"esn.sigma-res", 0.12},
+          {"esn.mu-res", 0.0},
+          {"esn.sparsity", 0.5},
+          {"esn.leakage", 0.9}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"esn.in-weight-" + std::to_string(i), 0.1});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"esn.fb-weight" + std::to_string(i), 0.0});
+        return params;
     }
 
     std::map<std::string, double> named_param_sigmas() const override
     {
-        return {{"esn.sigma-res", 0.01}, {"esn.mu-res", 0.01},   {"esn.in-weight", 0.01},
-                {"esn.fb-weight", 0.01}, {"esn.sparsity", 0.01}, {"esn.leakage", 0.01}};
+        std::map<std::string, double> params = {
+          {"esn.sigma-res", 0.01},
+          {"esn.mu-res", 0.01},
+          {"esn.sparsity", 0.01},
+          {"esn.leakage", 0.01}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"esn.in-weight-" + std::to_string(i), 0.01});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"esn.fb-weight" + std::to_string(i), 0.01});
+        return params;
     }
 
     std::map<std::string, double> named_param_lbounds() const override
     {
-        return {{"esn.sigma-res", -1.1}, {"esn.mu-res", -1.1},   {"esn.in-weight", -1.1},
-                {"esn.fb-weight", -1.1}, {"esn.sparsity", -1.1}, {"esn.leakage", -1.1}};
+        std::map<std::string, double> params = {
+          {"esn.sigma-res", -1.1},
+          {"esn.mu-res", -1.1},
+          {"esn.sparsity", -1.1},
+          {"esn.leakage", -1.1}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"esn.in-weight-" + std::to_string(i), -1.1});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"esn.fb-weight" + std::to_string(i), -1.1});
+        return params;
     }
 
     std::map<std::string, double> named_param_ubounds() const override
     {
-        return {{"esn.sigma-res", 1.1}, {"esn.mu-res", 1.1},   {"esn.in-weight", 1.1},
-                {"esn.fb-weight", 1.1}, {"esn.sparsity", 1.1}, {"esn.leakage", 1.1}};
+        std::map<std::string, double> params = {
+          {"esn.sigma-res", 1.1}, {"esn.mu-res", 1.1}, {"esn.sparsity", 1.1}, {"esn.leakage", 1.1}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"esn.in-weight-" + std::to_string(i), 1.1});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"esn.fb-weight" + std::to_string(i), 1.1});
+        return params;
     }
 };
 

@@ -342,10 +342,10 @@ random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937&
     double mu_res = args.at("esn.mu-res").as<double>();
     // The upper bound for the input weights.
     // Those are generated uniformly from [0, in_upper].
-    double in_upper = args.at("esn.in-weight").as<double>();
+    std::vector<double> in_upper = args.at("esn.in-weight").as<std::vector<double>>();
     // The upper bound for the feedback weights.
     // Those are generated uniformly from [0, fb_upper].
-    double fb_upper = args.at("esn.fb-weight").as<double>();
+    std::vector<double> fb_upper = args.at("esn.fb-weight").as<std::vector<double>>();
     // The sparsity of the reservoir weight matrix. For 0, the matrix is
     // fully connected. For 1, the matrix is completely zero.
     double sparsity = args.at("esn.sparsity").as<double>();
@@ -356,8 +356,10 @@ random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937&
 
     af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
     af::array reservoir_w = sigma_res * af::randn({n, n}, DType, af_prng) + mu_res;
-    af::array input_w = af::randu({n, n_ins}, DType, af_prng) * in_upper;
-    af::array feedback_w = af::randu({n, n_outs}, DType, af_prng) * fb_upper;
+    af::array input_w = af::randu({n, n_ins}, DType, af_prng);
+    for (long i = 0; i < n_ins; ++i) input_w(af::span, i) *= in_upper.at(i);
+    af::array feedback_w = af::randu({n, n_outs}, DType, af_prng);
+    for (long i = 0; i < n_outs; ++i) input_w(af::span, i) *= fb_upper.at(i);
     // make the reservoir sparse by the given coefficient
     reservoir_w *= af::randu({reservoir_w.dims()}, DType, af_prng) >= sparsity;
     return simple_esn<DType>{
@@ -369,23 +371,29 @@ random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937&
 po::options_description esn_arg_description()
 {
     po::options_description esn_arg_desc{"Echo state network options"};
-    esn_arg_desc.add_options()                                                      //
-      ("esn.neurons", po::value<long>()->default_value(128),                        //
-       "The number of neurons.")                                                    //
-      ("esn.sigma-res", po::value<double>()->default_value(0.19762725044833218),    //
-       "See random_esn().")                                                         //
-      ("esn.mu-res", po::value<double>()->default_value(-0.0068959284626413861),    //
-       "See random_esn().")                                                         //
-      ("esn.in-weight", po::value<double>()->default_value(-0.004004819844231784),  //
-       "See random_esn().")                                                         //
-      ("esn.fb-weight", po::value<double>()->default_value(0),                      //
-       "See random_esn().")                                                         //
-      ("esn.sparsity", po::value<double>()->default_value(0),                       //
-       "See random_esn().")                                                         //
-      ("esn.noise", po::value<double>()->default_value(0),                          //
-       "Standard deviation of the noise added to the states of the network.")       //
-      ("esn.leakage", po::value<double>()->default_value(1),                        //
-       "See random_esn().");                                                        //
+    esn_arg_desc.add_options()                                                    //
+      ("esn.neurons", po::value<long>()->default_value(128),                      //
+       "The number of neurons.")                                                  //
+      ("esn.sigma-res", po::value<double>()->default_value(0.19762725044833218),  //
+       "See random_esn().")                                                       //
+      ("esn.mu-res", po::value<double>()->default_value(-0.0068959284626413861),  //
+       "See random_esn().")                                                       //
+      ("esn.in-weight",                                                           //
+       po::value<std::vector<double>>()                                           //
+         ->multitoken()                                                           //
+         ->default_value({-0.004004819844231784}, "-0.004004819844231784"),       //
+       "See random_esn().")                                                       //
+      ("esn.fb-weight",                                                           //
+       po::value<std::vector<double>>()                                           //
+         ->multitoken()                                                           //
+         ->default_value({0}, "0"),                                               //
+       "See random_esn().")                                                       //
+      ("esn.sparsity", po::value<double>()->default_value(0),                     //
+       "See random_esn().")                                                       //
+      ("esn.noise", po::value<double>()->default_value(0),                        //
+       "Standard deviation of the noise added to the states of the network.")     //
+      ("esn.leakage", po::value<double>()->default_value(1),                      //
+       "See random_esn().");                                                      //
     return esn_arg_desc;
 }
 
