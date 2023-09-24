@@ -4,6 +4,7 @@
 #include "net.hpp"
 
 #include <arrayfire.h>
+#include <boost/algorithm/string.hpp>
 #include <cassert>
 #include <cmath>
 #include <filesystem>
@@ -15,6 +16,8 @@
 namespace esn {
 
 namespace fs = std::filesystem;
+namespace rg = ranges;
+namespace rgv = ranges::views;
 
 class visualizer {
 private:
@@ -196,12 +199,29 @@ private:
 
     void on_state_change(net_base& net, const esn::net_base::on_state_change_data& data)
     {
-        if (!data.input.isscalar())
-            throw std::runtime_error{"Only scalar inputs are supported in file output."};
-        if (!data.output.isscalar())
-            throw std::runtime_error{"Only scalar outputs are supported in file output."};
-        if (time_ == 0) csv_out_ << "time,input,output\n";
-        csv_out_ << data.input.scalar<double>() << "," << data.output.scalar<double>() << "\n";
+        if (time_ == 0) {
+            std::vector<std::string> header{"time,"};
+            assert(data.input.numdims() == 1);
+            assert(data.output.numdims() == 1);
+            assert(!data.desired || data.desired->numdims() == 1);
+            for (long i = 0; i < data.input.dims(0); ++i)
+                header.push_back("input-" + std::to_string(i));
+            for (long i = 0; i < data.output.dims(0); ++i)
+                header.push_back("output-" + std::to_string(i));
+            if (data.desired)
+                for (long i = 0; i < data.desired->dims(0); ++i)
+                    header.push_back("desired-" + std::to_string(i));
+            csv_out_ << boost::join(header, ",") << "\n";
+        }
+        std::vector<std::string> values{std::to_string(time_)};
+        for (long i = 0; i < data.input.dims(0); ++i)
+            values.push_back(std::to_string(data.input(i).scalar<double>()));
+        for (long i = 0; i < data.output.dims(0); ++i)
+            values.push_back(std::to_string(data.output(i).scalar<double>()));
+        if (data.desired)
+            for (long i = 0; i < data.desired->dims(0); ++i)
+                values.push_back(std::to_string((*data.desired)(i).scalar<double>()));
+        csv_out_ << boost::join(values, ",") << "\n";
         ++time_;
     }
 

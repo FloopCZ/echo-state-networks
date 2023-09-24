@@ -5,6 +5,7 @@
 #include "argument_utils.hpp"
 #include "benchmarks.hpp"
 
+#include <boost/algorithm/string.hpp>
 #include <filesystem>
 #include <iostream>
 
@@ -70,7 +71,7 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.kernel-height");
         param_names.push_back("lcnn.kernel-width");
     }
-    fout << (rgv::join(param_names, ',') | rg::to<std::string>()) << std::endl;
+    fout << boost::join(param_names, ",") << std::endl;
 
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
         std::cout << "Run " << run << std::endl;
