@@ -42,7 +42,7 @@ protected:
         assert(predicted.dims() == desired.dims());
         assert(desired.numdims() == 2);
         // assert(desired.dims(0) == n_outs());  // not true for loop benchmark set
-        assert(desired.dims(1) == split_sizes_.at(2));
+        // assert(desired.dims(1) == split_sizes_.at(2));
         if (error_measure_ == "mse") return af_utils::mse<double>(predicted, desired);
         if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted, desired);
         if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted, desired);
@@ -138,7 +138,10 @@ public:
         assert(data.values.numdims() == 2);
         assert(data.values.dims(0) == net.n_ins());
         if (data.values.dims(1) < rg::accumulate(split_sizes_, 0L))
-            throw std::runtime_error{"Not enough data in the dataset for the given split sizes."};
+            throw std::runtime_error{
+              "Not enough data in the dataset for the given split sizes. Data have "
+              + std::to_string(data.values.dims(1)) + " and split sizes "
+              + std::to_string(rg::accumulate(split_sizes_, 0L)) + "."};
         // split the sequences into groups
         std::vector<af::array> xs_groups = split_data(data.values, split_sizes_);
         std::vector<af::array> ys_groups = split_data(af::shift(data.values, 0, -1), split_sizes_);
@@ -152,6 +155,9 @@ public:
         // extract the targets
         af::array ys_predict = output_transform(extract_keys(data.keys, targets(), outputs));
         af::array ys_desired = extract_keys(data.keys, targets(), ys_groups.at(2));
+        // the last step has unknown desired value answer
+        ys_predict = ys_predict(af::span, af::seq(0, af::end - 1));
+        ys_desired = ys_desired(af::span, af::seq(0, af::end - 1));
         return error_fnc(ys_predict, ys_desired);
     }
 
@@ -572,7 +578,7 @@ protected:
     {
         if (set_type_ == "train") return train_data_;
         if (set_type_ == "valid") return valid_data_;
-        if (set_type_ == "train-valid") return valid_data_;
+        if (set_type_ == "train-valid") return train_valid_data_;
         if (set_type_ == "test") return test_data_;
         throw std::runtime_error{"Unknown dataset."};
     }
@@ -820,8 +826,8 @@ po::options_description benchmark_arg_description()
        "Path to the ETT dataset.")                                                               //
       ("bench.etth-variant", po::value<int>()->default_value(1),                                 //
        "Variant of the ETTh dataset (1 or 2).")                                                  //
-      ("bench.ett-set-type", po::value<std::string>()->default_value("train"),                   //
-       "Part of the ETT dataset (train, valid, test).")                                          //
+      ("bench.ett-set-type", po::value<std::string>()->default_value("train-valid"),             //
+       "Part of the ETT dataset (train, valid, train-valid, test).")                             //
       ;
     return benchmark_arg_desc;
 }
