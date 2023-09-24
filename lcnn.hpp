@@ -659,10 +659,10 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
     double sigma_res = args.at("lcnn.sigma-res").as<double>();
     // The mean of the normal distribution generating the reservoir.
     double mu_res = args.at("lcnn.mu-res").as<double>();
-    // The input weight.
-    double in_weight = args.at("lcnn.in-weight").as<double>();
+    // The input weight for each input.
+    std::vector<double> in_weight = args.at("lcnn.in-weight").as<std::vector<double>>();
     // The feedback weights will be generated from [0, fb_weight].
-    double fb_weight = args.at("lcnn.fb-weight").as<double>();
+    std::vector<double> fb_weight = args.at("lcnn.fb-weight").as<std::vector<double>>();
     // Standard deviation of the normal distribution generating the biases.
     double sigma_b = args.at("lcnn.sigma-b").as<double>();
     // The mean of the normal distribution generating the biases.
@@ -862,26 +862,32 @@ lcnn<DType> random_lcnn(long n_ins, long n_outs, const po::variables_map& args, 
 
     if (input_to_all) {
         // put input and feedback into all the neurons
-        cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng) * in_weight;
-        cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng) * fb_weight;
+        cfg.input_w = af::array{{state_height, state_width, n_ins}, DType};
+        for (long i = 0; i < n_ins; ++i)
+            cfg.input_w(af::span, af::span, i) =
+              af::randu({state_height, state_width, 1}, DType, af_prng) * in_weight.at(i);
+        cfg.feedback_w = af::array{{state_height, state_width, n_outs}, DType};
+        for (long i = 0; i < n_outs; ++i)
+            cfg.feedback_w(af::span, af::span, i) =
+              af::randu({state_height, state_width, 1}, DType, af_prng) * fb_weight.at(i);
     } else {
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
         for (long i = 0; i < n_ins; ++i) {
             if (free_position != nice_positions.end()) {
-                cfg.input_w(free_position->first, free_position->second, i) = in_weight;
+                cfg.input_w(free_position->first, free_position->second, i) = in_weight.at(i);
                 ++free_position;
             } else {
-                cfg.input_w(vert_dist(prng), horiz_dist(prng), i) = in_weight;
+                cfg.input_w(vert_dist(prng), horiz_dist(prng), i) = in_weight.at(i);
             }
         }
         cfg.feedback_w = af::constant(0, state_height, state_width, n_outs, DType);
         for (long i = 0; i < n_outs; ++i) {
             if (free_position != nice_positions.end()) {
-                cfg.feedback_w(free_position->first, free_position->second, i) = fb_weight;
+                cfg.feedback_w(free_position->first, free_position->second, i) = fb_weight.at(i);
                 ++free_position;
             } else {
-                cfg.feedback_w(vert_dist(prng), horiz_dist(prng), i) = fb_weight;
+                cfg.feedback_w(vert_dist(prng), horiz_dist(prng), i) = fb_weight.at(i);
             }
         }
     }
@@ -911,9 +917,15 @@ po::options_description lcnn_arg_description()
        "See random_lcnn().")                                       //
       ("lcnn.mu-res", po::value<double>()->default_value(0),       //
        "See random_lcnn().")                                       //
-      ("lcnn.in-weight", po::value<double>()->default_value(0.1),  //
+      ("lcnn.in-weight",                                           //
+       po::value<std::vector<double>>()                            //
+         ->multitoken()                                            //
+         ->default_value(std::vector<double>{0.1}, "0.1"),         //
        "See random_lcnn().")                                       //
-      ("lcnn.fb-weight", po::value<double>()->default_value(0),    //
+      ("lcnn.fb-weight",                                           //
+       po::value<std::vector<double>>()                            //
+         ->multitoken()                                            //
+         ->default_value(std::vector<double>{0}, "0"),             //
        "See random_lcnn().")                                       //
       ("lcnn.sigma-b", po::value<double>()->default_value(0),      //
        "See random_lcnn().")                                       //

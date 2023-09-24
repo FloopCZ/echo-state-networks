@@ -95,6 +95,11 @@ std::ostream& operator<<(std::ostream& out, const po::variables_map& m)
               << (v.as<std::vector<long>>()
                   | rgv::transform([](long i) { return std::to_string(i); }) | rgv::join(" ")
                   | rg::to<std::string>());
+        } else if (typeid(std::vector<double>) == v.value().type()) {
+            out
+              << (v.as<std::vector<double>>()
+                  | rgv::transform([](double i) { return std::to_string(i); }) | rgv::join(" ")
+                  | rg::to<std::string>());
         } else {
             out << "[UNPRINTABLE]";
         }

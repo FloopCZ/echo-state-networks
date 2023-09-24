@@ -292,7 +292,7 @@ public:
     named_optimizer() = default;
 
     named_optimizer(po::variables_map config, std::mt19937& prng)
-      : optimizer<EvaluationResult>{std::move(config), prng}
+      : optimizer<EvaluationResult>(std::move(config), prng)
     {
         if (this->config_.contains("opt.exclude-params")) {
             std::vector<std::string>& excluded_params_arg =
@@ -312,16 +312,24 @@ public:
     std::map<std::string, double> name_and_filter_params(const std::vector<double>& params) const
     {
         std::set<std::string> param_names = available_params();
-        for (const std::string& ep : excluded_params_) param_names.erase(ep);
-        assert(params.size() == param_names.size());
+        for (const std::string& ep : excluded_params_) {
+            std::set<std::string> new_param_names;
+            for (const std::string& p : param_names)
+                if (!p.starts_with(ep)) new_param_names.insert(p);
+            param_names = std::move(new_param_names);
+        }
         return rgv::zip(param_names, params) | rg::to<std::map>();
     }
 
     std::vector<double> unname_and_filter_params(std::map<std::string, double> params) const
     {
         assert(params.size() == available_params().size());
-        for (const std::string& ep : excluded_params_) params.erase(ep);
-        return rgv::values(params) | rg::to_vector;
+        for (const std::string& ep : excluded_params_) {
+            std::map<std::string, double> new_params;
+            for (const auto& [param, value] : params)
+                if (!param.starts_with(ep)) new_params.insert({param, value});
+            params = std::move(new_params);
+        }
     }
 
     virtual std::set<std::string> available_params() const = 0;
@@ -381,6 +389,17 @@ public:
         auto val = [](double v) { return po::variable_value{v, false}; };
         auto expval = [&](double v) { return val(exp_transform(v)); };
         auto powval = [&](double v) { return val(pow_transform(v)); };
+        auto vector_powval = [&params, this](const std::string& name) {
+            std::vector<double> values;
+            for (int i = 0; true; ++i) {
+                std::string param_name = name + "-" + std::to_string(i);
+                if (params.contains(param_name))
+                    values.push_back(pow_transform(params.at(param_name)));
+                else
+                    break;
+            }
+            return values;
+        };
 
         const std::string& p = arg_prefix_();
         po::variables_map cfg = config_;
@@ -391,11 +410,13 @@ public:
         if (params.contains(p + "mu-res")) {
             cfg.insert_or_assign(p + "mu-res", powval(params.at(p + "mu-res")));
         }
-        if (params.contains(p + "in-weight")) {
-            cfg.insert_or_assign(p + "in-weight", powval(params.at(p + "in-weight")));
+        std::vector<double> in_weight = vector_powval(p + "in-weight");
+        if (!in_weight.empty()) {
+            cfg.insert_or_assign(p + "in-weight", po::variable_value{in_weight, false});
         }
-        if (params.contains(p + "fb-weight")) {
-            cfg.insert_or_assign(p + "fb-weight", powval(params.at(p + "fb-weight")));
+        std::vector<double> fb_weight = vector_powval(p + "fb-weight");
+        if (!fb_weight.empty()) {
+            cfg.insert_or_assign(p + "fb-weight", po::variable_value(fb_weight, false));
         }
         if (params.contains(p + "sparsity")) {
             cfg.insert_or_assign(
@@ -456,15 +477,12 @@ public:
     {
         // Deduce initial sigma-res from the number of connections to each neuron.
         double unit_sigma = inv_exp_transform(1.0);
-        param_x0_ = {
-          {"lcnn.sigma-res", unit_sigma},
-          {"lcnn.mu-res", 0.0},
-          {"lcnn.in-weight", 0.1},
-          {"lcnn.fb-weight", 0.0},
-          {"lcnn.sparsity", 0.1},
-          {"lcnn.leakage", 0.9},
-          {"lcnn.noise", 0.2},
-          {"lcnn.mu-b", 0.0}};
+        param_x0_ = {{"lcnn.sigma-res", unit_sigma}, {"lcnn.mu-res", 0.0}, {"lcnn.sparsity", 0.1},
+                     {"lcnn.leakage", 0.9},          {"lcnn.noise", 0.2},  {"lcnn.mu-b", 0.0}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            param_x0_.insert({"lcnn.fb-weight-" + std::to_string(i), 0.0});
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
@@ -476,8 +494,13 @@ public:
 
     std::set<std::string> available_params() const override
     {
-        return {"lcnn.sigma-res", "lcnn.mu-res",  "lcnn.in-weight", "lcnn.fb-weight",
-                "lcnn.sparsity",  "lcnn.leakage", "lcnn.noise",     "lcnn.mu-b"};
+        std::set<std::string> params = {"lcnn.sigma-res", "lcnn.mu-res", "lcnn.sparsity",
+                                        "lcnn.leakage",   "lcnn.noise",  "lcnn.mu-b"};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert("lcnn.in-weight-" + std::to_string(i));
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert("lcnn.fb-weight" + std::to_string(i));
+        return params;
     }
 
     std::unique_ptr<net_base>
@@ -495,23 +518,38 @@ public:
 
     std::map<std::string, double> named_param_sigmas() const override
     {
-        return {{"lcnn.sigma-res", 0.01}, {"lcnn.mu-res", 0.05},   {"lcnn.in-weight", 0.05},
-                {"lcnn.fb-weight", 0.01}, {"lcnn.sparsity", 0.05}, {"lcnn.leakage", 0.05},
+        std::map<std::string, double> params = {{"lcnn.sigma-res", 0.01}, {"lcnn.mu-res", 0.05},
+                                                {"lcnn.sparsity", 0.05},  {"lcnn.leakage", 0.05},
                 {"lcnn.noise", 0.05},     {"lcnn.mu-b", 0.05}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"lcnn.fb-weight-" + std::to_string(i), 0.01});
+        return params;
     }
 
     std::map<std::string, double> named_param_lbounds() const override
     {
-        return {{"lcnn.sigma-res", -1.1}, {"lcnn.mu-res", -1.1},   {"lcnn.in-weight", -1.1},
-                {"lcnn.fb-weight", -1.1}, {"lcnn.sparsity", -0.1}, {"lcnn.leakage", -0.1},
+        std::map<std::string, double> params = {{"lcnn.sigma-res", -1.1}, {"lcnn.mu-res", -1.1},
+                                                {"lcnn.sparsity", -0.1},  {"lcnn.leakage", -0.1},
                 {"lcnn.noise", -0.1},     {"lcnn.mu-b", -1.1}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"lcnn.in-weight-" + std::to_string(i), -1.1});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"lcnn.fb-weight-" + std::to_string(i), -1.1});
+        return params;
     }
 
     std::map<std::string, double> named_param_ubounds() const override
     {
-        return {{"lcnn.sigma-res", 1.1}, {"lcnn.mu-res", 1.1},   {"lcnn.in-weight", 1.1},
-                {"lcnn.fb-weight", 1.1}, {"lcnn.sparsity", 1.1}, {"lcnn.leakage", 1.1},
+        std::map<std::string, double> params = {{"lcnn.sigma-res", 1.1}, {"lcnn.mu-res", 1.1},
+                                                {"lcnn.sparsity", 1.1},  {"lcnn.leakage", 1.1},
                 {"lcnn.noise", 1.1},     {"lcnn.mu-b", 1.1}};
+        for (int i = 0; i < bench_->n_ins(); ++i)
+            params.insert({"lcnn.in-weight-" + std::to_string(i), 1.1});
+        for (int i = 0; i < bench_->n_outs(); ++i)
+            params.insert({"lcnn.fb-weight-" + std::to_string(i), 1.1});
+        return params;
     }
 };
 
