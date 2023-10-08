@@ -93,8 +93,9 @@ std::ostream& operator<<(std::ostream& out, const po::variables_map& m)
             out << "--" << k << '=';
             out << v.as<int>();
         } else if (typeid(std::vector<std::string>) == v.value().type()) {
-            out << "--" << k << '=';
-            out << (rgv::join(v.as<std::vector<std::string>>(), " ") | rg::to<std::string>());
+            for (const std::string& sv : v.as<std::vector<std::string>>()) {
+                out << "--" << k << '=' << sv << " ";
+            }
         } else if (typeid(std::vector<long>) == v.value().type()) {
             for (long sv : v.as<std::vector<long>>()) {
                 out << "--" << k << '=' << sv << " ";
