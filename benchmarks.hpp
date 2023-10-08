@@ -40,7 +40,7 @@ protected:
     virtual double error_fnc(const af::array& predicted, const af::array& desired) const
     {
         assert(predicted.dims() == desired.dims());
-        assert(desired.numdims() == 2);
+        assert(desired.numdims() <= 3);
         // assert(desired.dims(0) == n_outs());  // not true for loop benchmark set
         // assert(desired.dims(1) == split_sizes_.at(2));
         if (error_measure_ == "mse") return af_utils::mse<double>(predicted, desired);
@@ -98,18 +98,23 @@ public:
         net.train(input_transform(xs_groups[1]), input_transform(ys_groups[1]));
         // evaluate the performance of the network on the validation sequence
         // note no teacher forcing
-        af::array ys_predict = net.feed(input_transform(xs_groups[2])).outputs;
-        return error_fnc(output_transform(ys_predict), ys_groups[2]);
+        feed_result_t feed_result =
+          net.feed(input_transform(xs_groups[2]), std::nullopt, input_transform(ys_groups[2]));
+        return error_fnc(output_transform(feed_result.outputs), ys_groups[2]);
     }
 };
 
 /// Evaluate the performance of the given network on sequence prediction.
 ///
 /// The network is trained on `train-steps` steps and simulated
-/// for `valid-steps` steps. The error is calculated from all the
-/// `valid-steps` steps.
+/// for `n-steps-ahead`. Then it is trained on one more item and again
+/// validated for `n-steps-ahead` until the end of `valid-steps` steps.
+/// The error is calculated from all the validation steps.
 class loop_benchmark_set : public benchmark_set_base {
 protected:
+    long n_steps_ahead_;
+    long validation_stride_;
+
     struct DataType {
         af::array values;
         std::vector<std::string> keys;
@@ -121,12 +126,16 @@ protected:
 public:
     /// \param config The configuration parameters.
     ///        bench.split_sizes: The split sizes [init, train, n-steps-ahead].
-    loop_benchmark_set(po::variables_map config) : benchmark_set_base{std::move(config)}
+    loop_benchmark_set(po::variables_map config)
+      : benchmark_set_base{std::move(config)}
+      , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
+      , validation_stride_{config_.at("bench.validation-stride").as<long>()}
     {
         split_sizes_ = {
           config_.at("bench.init-steps").as<long>(),   //
           config_.at("bench.train-steps").as<long>(),  //
           config_.at("bench.valid-steps").as<long>()};
+        assert(n_steps_ahead_ <= split_sizes_.at(2));
     }
 
     double evaluate(net_base& net, std::mt19937& prng) const override
@@ -145,20 +154,53 @@ public:
         // split the sequences into groups
         std::vector<af::array> xs_groups = split_data(data.values, split_sizes_);
         std::vector<af::array> ys_groups = split_data(af::shift(data.values, 0, -1), split_sizes_);
+        ys_groups.back()(af::span, af::end) = af::NaN;
         // initialize the network using the initial sequence
         net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
         // train the network on the training sequence with teacher forcing
-        net.train(input_transform(xs_groups.at(1)), input_transform(ys_groups.at(1)));
-        // evaluate the performance of the network on the validation sequence
-        af::array outputs =
-          net.loop(xs_groups.at(2).dims(1), input_transform(ys_groups.at(2))).outputs;
-        // extract the targets
-        af::array ys_predict = output_transform(extract_keys(data.keys, targets(), outputs));
-        af::array ys_desired = extract_keys(data.keys, targets(), ys_groups.at(2));
-        // the last step has unknown desired value answer
-        ys_predict = ys_predict(af::span, af::seq(0, af::end - 1));
-        ys_desired = ys_desired(af::span, af::seq(0, af::end - 1));
-        return error_fnc(ys_predict, ys_desired);
+        feed_result_t train_data = [&]() {
+            af::array tr_input = input_transform(xs_groups.at(1));
+            af::array tr_desired = input_transform(ys_groups.at(1));
+            return net.feed(tr_input, tr_desired, tr_desired);
+        }();
+        // evaluate the performance of the network on all continuous intervals of the validation
+        // sequence of length n_steps_ahead_ (except the last such interval)
+        long n_validations =
+          (xs_groups.at(2).dims(1) - n_steps_ahead_ + validation_stride_ - 1) / validation_stride_;
+        af::array all_tr_predicted{
+          af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
+        af::array all_desired{
+          af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
+        long i;
+        // the last step in the sequence has an unknown desired value, so we skip the
+        // last sequence of n_steps_ahead_ (i.e., < instead of <=)
+        for (i = 0; i < xs_groups.at(2).dims(1) - n_steps_ahead_; i += validation_stride_) {
+            assert(i / validation_stride_ < n_validations);
+            // train the network on the original train data plus the additional items
+            // from the validation data before the validation subsequence
+            if (i > 0) {
+                af::array tr_input = input_transform(xs_groups.at(2)(af::span, i - 1));
+                af::array tr_desired = input_transform(ys_groups.at(2)(af::span, i - 1));
+                feed_result_t extra_train_data = net.feed(tr_input, tr_desired, tr_desired);
+                train_data = concatenate(std::move(train_data), std::move(extra_train_data));
+            }
+            net.train(train_data);
+            // create a copy of the network before the validation so that we can simply
+            // continue training of the original net in the next iteration
+            std::unique_ptr<net_base> net_copy = net.clone();
+            // evaluate the performance of the network on the validation subsequence
+            af::array desired = ys_groups.at(2)(af::span, af::seq(i, i + n_steps_ahead_ - 1));
+            af::array tr_desired = input_transform(desired);
+            af::array predicted = net_copy->loop(n_steps_ahead_, tr_desired).outputs;
+            net_copy = nullptr;  // free memory
+            // extract the targets
+            all_tr_predicted(af::span, af::span, i / validation_stride_) =
+              extract_keys(data.keys, targets(), predicted);
+            all_desired(af::span, af::span, i / validation_stride_) =
+              extract_keys(data.keys, targets(), desired);
+        }
+        assert(i / validation_stride_ == n_validations);
+        return error_fnc(output_transform(all_tr_predicted), all_desired);
     }
 
     virtual std::vector<std::string> targets() const = 0;
@@ -242,20 +284,24 @@ public:
         // train the network on the training sequence
         net.train(input_transform(xs_groups.at(1)), input_transform(ys_groups.at(1)));
         // the rest are pairs (teacher-force, test)
-        af::array predicted = af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
-        af::array desired = af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
+        af::array all_tr_predicted =
+          af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
+        af::array all_desired = af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
         for (long trial = 0; trial < n_trials_; ++trial) {
-            // teacher-force the tf sequence
-            net.feed(
-              input_transform(xs_groups.at(2 * trial + 2)),
-              input_transform(ys_groups.at(2 * trial + 2)));
-            // predict and evaluate, note no teacher forcing
-            predicted(trial, af::span) =
-              net.loop(split_sizes_.at(3), input_transform(ys_groups.at(2 * trial + 3))).outputs;
-            desired(trial, af::span) = ys_groups.at(2 * trial + 3);
+            {
+                // teacher-force the tf sequence
+                af::array tr_input = input_transform(xs_groups.at(2 * trial + 2));
+                af::array tr_desired = input_transform(ys_groups.at(2 * trial + 2));
+                net.feed(tr_input, tr_desired, tr_desired);
+            }
+            // predict and evaluate the validation sequence, note no teacher forcing
+            af::array desired = ys_groups.at(2 * trial + 3);
+            all_tr_predicted(trial, af::span) =
+              net.loop(split_sizes_.at(3), input_transform(desired)).outputs;
+            all_desired(trial, af::span) = desired;
         }
         // invoke the error function
-        return error_fnc(output_transform(predicted), desired);
+        return error_fnc(output_transform(all_tr_predicted), all_desired);
     }
 };
 
@@ -512,12 +558,12 @@ protected:
 
     af::array input_transform(const af::array& xs) const override
     {
-        return af::tanh(xs / 100.);
+        return af::tanh(xs / 50. - 0.2);
     }
 
     af::array output_transform(const af::array& ys) const override
     {
-        return af::atanh(ys) * 100.;
+        return (af::atanh(ys) + 0.2) * 50.;
     }
 
 public:
@@ -801,6 +847,8 @@ po::options_description benchmark_arg_description()
        "The length of the memory to be evaluated.")                                              //
       ("bench.n-steps-ahead", po::value<long>()->default_value(84),                              //
        "The length of the valid sequence in sequence prediction benchmark.")                     //
+      ("bench.validation-stride", po::value<long>()->default_value(1),                           //
+       "Stride of validation subsequences (of length n-steps-ahead).")                           //
       ("bench.mackey-glass-tau", po::value<long>()->default_value(30),                           //
        "The length of the memory to be evaluated.")                                              //
       ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),                      //

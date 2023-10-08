@@ -3,6 +3,7 @@
 // Argument parsing related utilites. //
 
 #include <boost/program_options.hpp>
+#include <iomanip>
 #include <iostream>
 #include <range/v3/all.hpp>
 #include <unordered_map>
@@ -76,30 +77,33 @@ po::variables_map parse_conditional(
 std::ostream& operator<<(std::ostream& out, const po::variables_map& m)
 {
     for (auto& [k, v] : m) {
-        out << "--" << k << '=';
-        out.flush();
         if (typeid(std::string) == v.value().type()) {
+            out << "--" << k << '=';
             out << v.as<std::string>();
         } else if (typeid(double) == v.value().type()) {
-            out << v.as<double>();
+            out << "--" << k << '=';
+            out << std::setprecision(std::numeric_limits<double>::max_digits10) << v.as<double>();
         } else if (typeid(bool) == v.value().type()) {
+            out << "--" << k << '=';
             out << v.as<bool>();
         } else if (typeid(long) == v.value().type()) {
+            out << "--" << k << '=';
             out << v.as<long>();
         } else if (typeid(int) == v.value().type()) {
+            out << "--" << k << '=';
             out << v.as<int>();
         } else if (typeid(std::vector<std::string>) == v.value().type()) {
+            out << "--" << k << '=';
             out << (rgv::join(v.as<std::vector<std::string>>(), " ") | rg::to<std::string>());
         } else if (typeid(std::vector<long>) == v.value().type()) {
-            out
-              << (v.as<std::vector<long>>()
-                  | rgv::transform([](long i) { return std::to_string(i); }) | rgv::join(" ")
-                  | rg::to<std::string>());
+            for (long sv : v.as<std::vector<long>>()) {
+                out << "--" << k << '=' << sv << " ";
+            }
         } else if (typeid(std::vector<double>) == v.value().type()) {
-            out
-              << (v.as<std::vector<double>>()
-                  | rgv::transform([](double i) { return std::to_string(i); }) | rgv::join(" ")
-                  | rg::to<std::string>());
+            for (double sv : v.as<std::vector<double>>()) {
+                out << "--" << k << '='
+                    << std::setprecision(std::numeric_limits<double>::max_digits10) << sv << " ";
+            }
         } else {
             out << "[UNPRINTABLE]";
         }

@@ -109,6 +109,18 @@ int main(int argc, char* argv[])
                     fout << params.at(param).as<int>();
                 } else if (typeid(long) == params.at(param).value().type()) {
                     fout << params.at(param).as<long>();
+                } else if (typeid(std::vector<long>) == params.at(param).value().type()) {
+                    const std::vector<long>& vec = params.at(param).as<std::vector<long>>();
+                    for (auto it = vec.begin(); it != vec.end(); ++it) {
+                        if (it != vec.begin()) fout << " ";
+                        fout << *it;
+                    }
+                } else if (typeid(std::vector<double>) == params.at(param).value().type()) {
+                    const std::vector<double>& vec = params.at(param).as<std::vector<double>>();
+                    for (auto it = vec.begin(); it != vec.end(); ++it) {
+                        if (it != vec.begin()) fout << " ";
+                        fout << std::setprecision(std::numeric_limits<double>::max_digits10) << *it;
+                    }
                 } else {
                     double value = params.at(param).as<double>();
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << value;

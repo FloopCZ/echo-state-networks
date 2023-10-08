@@ -67,6 +67,7 @@
             "request": "launch",
             "program": "${workspaceFolder}/build/evaluate_cuda",
             "args": [
+                "--gen.n-evals=1",
                 "--gen.net-type=lcnn",
                 "--gen.benchmark-set=etth",
                 "--lcnn.topology=lcnn",
@@ -76,8 +77,10 @@
                 "--lcnn.in-weight=0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01",
                 "--lcnn.fb-weight=0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01",
                 "--bench.init-steps=10",
-                "--bench.train-steps=100",
-                "--bench.valid-steps=100",
+                "--bench.train-steps=500",
+                "--bench.valid-steps=223",
+                "--bench.n-steps-ahead=33",
+                "--bench.validation-stride=20",
                 "--gen.af-device=0"
             ],
             "stopAtEntry": false,

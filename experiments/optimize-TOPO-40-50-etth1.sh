@@ -23,7 +23,9 @@ mkdir -p "${outdir}"
   --bench.init-steps=100 \
   --bench.train-steps=8540 \
   --bench.valid-steps=2881 \
-  --opt.max-fevals=10000 \
+  --bench.n-steps-ahead=336 \
+  --bench.validation-stride=100 \
+  --opt.max-fevals=15000 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
   2>&1 | tee -a "${outdir}/out.txt"

@@ -128,14 +128,12 @@ public:
     /// \param feedback The teacher-forced feedback to be used instead
     ///                 of the network's output of size [n_outs].
     /// \param desired The desired output. This is only used for callbacks.
-    ///                This is only allowed if no feedback is provided.
     ///                Has to be of size [n_outs].
     void step(
       const af::array& input,
       const std::optional<af::array>& feedback = std::nullopt,
       const std::optional<af::array>& desired = std::nullopt) override
     {
-        assert(!desired || !feedback);
         assert((input.dims() == af::dim4{n_ins_}));
         assert((!feedback || feedback->dims() == af::dim4{n_outs_}));
         assert((!desired || desired->dims() == af::dim4{n_outs_}));
@@ -158,7 +156,11 @@ public:
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
-              .state = state_, .input = input, .output = last_output_, .desired = desired};
+              .state = state_,
+              .input = input,
+              .output = last_output_,
+              .feedback = feedback,
+              .desired = desired};
             fnc(*this, std::move(data));
         }
     }
@@ -168,7 +170,6 @@ public:
     /// \param feedback The desired output sequences to be teacher-forced into the net.
     ///                 Needs to have dimensions [n_outs, time]
     /// \param desired The desired output. This is only used for callbacks.
-    ///                This is only allowed if no feedback is provided.
     ///                Has to be of size [n_outs, time].
     /// \return The array of intermediate states of dimensions [n, time] and the array
     ///         of intermediate outputs of dimensions [n_outs, time].
@@ -177,7 +178,6 @@ public:
       const std::optional<af::array>& feedback = std::nullopt,
       const std::optional<af::array>& desired = std::nullopt) override
     {
-        assert(!desired || !feedback);
         assert(input.type() == DType);
         assert(input.numdims() == 2);
         assert(input.dims(0) == n_ins_);
@@ -219,12 +219,27 @@ public:
         assert(desired.numdims() <= 2);
         assert(desired.dims(0) == n_outs_);
         assert(desired.dims(1) == input.dims(1));
-        feed_result_t feed_result = feed(input, desired);
-        af::array states = feed_result.states;
-        assert((states.dims() == af::dim4{state_.elements(), input.dims(1)}));
-        output_w_ = af_utils::lstsq_train(states.T(), desired.T()).T();
-        assert((output_w_.dims() == af::dim4{n_outs_, state_.elements() + 1}));
+        feed_result_t feed_result = feed(input, desired, desired);
+        train(feed_result);
         return feed_result;
+    }
+
+    /// Train the network on already processed feed data.
+    /// \param data Training data.
+    void train(const feed_result_t& data) override
+    {
+        assert(data.states.type() == DType);
+        assert((data.states.dims() == af::dim4{state_.dims(0), data.outputs.dims(1)}));
+        assert(data.outputs.type() == DType);
+        assert(data.outputs.numdims() <= 2);
+        assert(data.outputs.dims(0) == n_outs_);
+        if (!data.desired) throw std::runtime_error{"No desired data to train to."};
+        assert(data.outputs.dims(1) == data.desired->dims(1));
+        assert(data.desired->type() == DType);
+        assert(data.desired->numdims() <= 2);
+        assert(data.desired->dims(0) == n_outs_);
+        output_w_ = af_utils::lstsq_train(data.states.T(), data.desired->T()).T();
+        assert((output_w_.dims() == af::dim4{n_outs_, state_.elements() + 1}));
     }
 
     /// Perform multiple steps using self's output as input.

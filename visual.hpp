@@ -199,28 +199,38 @@ private:
 
     void on_state_change(net_base& net, const esn::net_base::on_state_change_data& data)
     {
+        assert((data.input.dims() == af::dim4{net.n_ins()}));
+        assert((data.output.dims() == af::dim4{net.n_outs()}));
+        assert((!data.feedback || data.feedback->dims() == af::dim4{net.n_outs()}));
+        assert((!data.desired || data.desired->dims() == af::dim4{net.n_outs()}));
         if (time_ == 0) {
             std::vector<std::string> header{"time,"};
-            assert(data.input.numdims() == 1);
-            assert(data.output.numdims() == 1);
             assert(!data.desired || data.desired->numdims() == 1);
-            for (long i = 0; i < data.input.dims(0); ++i)
-                header.push_back("input-" + std::to_string(i));
-            for (long i = 0; i < data.output.dims(0); ++i)
-                header.push_back("output-" + std::to_string(i));
-            if (data.desired)
-                for (long i = 0; i < data.desired->dims(0); ++i)
-                    header.push_back("desired-" + std::to_string(i));
+            for (long i = 0; i < net.n_ins(); ++i) header.push_back("input-" + std::to_string(i));
+            for (long i = 0; i < net.n_outs(); ++i) header.push_back("output-" + std::to_string(i));
+            for (long i = 0; i < net.n_outs(); ++i)
+                header.push_back("feedback-" + std::to_string(i));
+            for (long i = 0; i < net.n_outs(); ++i)
+                header.push_back("desired-" + std::to_string(i));
             csv_out_ << boost::join(header, ",") << "\n";
         }
         std::vector<std::string> values{std::to_string(time_)};
-        for (long i = 0; i < data.input.dims(0); ++i)
+        for (long i = 0; i < net.n_ins(); ++i)
             values.push_back(std::to_string(data.input(i).scalar<double>()));
-        for (long i = 0; i < data.output.dims(0); ++i)
+        for (long i = 0; i < net.n_outs(); ++i)
             values.push_back(std::to_string(data.output(i).scalar<double>()));
-        if (data.desired)
-            for (long i = 0; i < data.desired->dims(0); ++i)
+        for (long i = 0; i < net.n_outs(); ++i) {
+            if (data.feedback)
+                values.push_back(std::to_string((*data.feedback)(i).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        for (long i = 0; i < net.n_outs(); ++i) {
+            if (data.desired)
                 values.push_back(std::to_string((*data.desired)(i).scalar<double>()));
+            else
+                values.push_back("");
+        }
         csv_out_ << boost::join(values, ",") << "\n";
         ++time_;
     }
