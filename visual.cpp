@@ -37,6 +37,8 @@ int main(int argc, char* argv[])
        "Directory where to save the inputs, outputs and other statistics.")       //
       ("gen.skip", po::value<long>()->default_value(0),                           //
        "Do not plot until this number of steps has passed.")                      //
+      ("gen.real-time-visual", po::bool_switch(),                                 //
+       "Do real-time visualization.")                                             //
       ("gen.af-device", po::value<int>()->default_value(0),                       //
        "ArrayFire device to be used.");                                           //
     arg_desc.add(esn::benchmark_arg_description());
@@ -54,18 +56,21 @@ int main(int argc, char* argv[])
     std::unique_ptr<esn::net_base> net =
       esn::make_net(bench->n_ins(), bench->n_outs(), args, esn::global_prng);
 
-    esn::visualizer plt{
-      args.at("gen.sleep").as<long>(), args.at("gen.history").as<long>(),
-      args.at("gen.plot-size").as<long>(), args.at("gen.skip").as<long>()};
-    plt.register_callback(*net);
+    std::optional<esn::visualizer> plt;
+    if (args.at("gen.real-time-visual").as<bool>()) {
+        plt.emplace(
+          args.at("gen.sleep").as<long>(), args.at("gen.history").as<long>(),
+          args.at("gen.plot-size").as<long>(), args.at("gen.skip").as<long>());
+        plt->register_callback(*net);
+    }
 
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
     fs::create_directories(output_dir);
 
-    esn::file_saver csv_writer{output_dir / "trace.txt"};
+    esn::file_saver csv_writer{output_dir / "trace.csv"};
     csv_writer.register_callback(*net);
 
     bench->evaluate(*net, esn::global_prng);
-    plt.wait_for_close();
+    if (plt) plt->wait_for_close();
     return 0;
 }

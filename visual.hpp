@@ -204,7 +204,7 @@ private:
         assert((!data.feedback || data.feedback->dims() == af::dim4{net.n_outs()}));
         assert((!data.desired || data.desired->dims() == af::dim4{net.n_outs()}));
         if (time_ == 0) {
-            std::vector<std::string> header{"time,"};
+            std::vector<std::string> header{"time"};
             assert(!data.desired || data.desired->numdims() == 1);
             for (long i = 0; i < net.n_ins(); ++i) header.push_back("input-" + std::to_string(i));
             for (long i = 0; i < net.n_outs(); ++i) header.push_back("output-" + std::to_string(i));
