@@ -26,6 +26,7 @@ protected:
     po::variables_map config_;
     std::vector<long> split_sizes_;
     std::string error_measure_;
+    long n_epochs_;
 
     virtual af::array input_transform(const af::array& xs) const
     {
@@ -57,6 +58,7 @@ public:
           , config_.at("bench.train-steps").as<long>()
           , config_.at("bench.valid-steps").as<long>()}
       , error_measure_{config_.at("bench.error-measure").as<std::string>()}
+      , n_epochs_{config_.at("bench.n-epochs").as<long>()}
     {
     }
 
@@ -92,15 +94,27 @@ public:
         // split both input and output to init, train, test
         std::vector<af::array> xs_groups = split_data(xs, split_sizes_);
         std::vector<af::array> ys_groups = split_data(ys, split_sizes_);
-        // initialize the network using the initial sequence
-        net.feed(input_transform(xs_groups[0]), input_transform(ys_groups[0]));
-        // train the network on the training sequence
-        net.train(input_transform(xs_groups[1]), input_transform(ys_groups[1]));
-        // evaluate the performance of the network on the validation sequence
-        // note no teacher forcing
-        feed_result_t feed_result =
-          net.feed(input_transform(xs_groups[2]), std::nullopt, input_transform(ys_groups[2]));
-        return error_fnc(output_transform(feed_result.outputs), ys_groups[2]);
+        double error = std::numeric_limits<double>::quiet_NaN();
+        for (long epoch = 0; epoch < n_epochs_; ++epoch) {
+            // initialize the network using the initial sequence
+            net.feed(input_transform(xs_groups[0]), input_transform(ys_groups[0]));
+            // train the network on the training sequence
+            // teacher-force the first epoch, but not the others
+            if (epoch == 0) {
+                net.train(input_transform(xs_groups[1]), input_transform(ys_groups[1]));
+            } else {
+                feed_result_t train_data = net.feed(
+                  input_transform(xs_groups[1]), std::nullopt, input_transform(ys_groups[1]));
+                net.train(std::move(train_data));
+            }
+            // evaluate the performance of the network on the validation sequence
+            // note no teacher forcing
+            feed_result_t feed_result =
+              net.feed(input_transform(xs_groups[2]), std::nullopt, input_transform(ys_groups[2]));
+            error = error_fnc(output_transform(feed_result.outputs), ys_groups[2]);
+            std::cout << "Epoch " << epoch << " " << error << std::endl;
+        }
+        return error;
     }
 };
 
@@ -155,52 +169,59 @@ public:
         std::vector<af::array> xs_groups = split_data(data.values, split_sizes_);
         std::vector<af::array> ys_groups = split_data(af::shift(data.values, 0, -1), split_sizes_);
         ys_groups.back()(af::span, af::end) = af::NaN;
-        // initialize the network using the initial sequence
-        net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
-        // train the network on the training sequence with teacher forcing
-        feed_result_t train_data = [&]() {
-            af::array tr_input = input_transform(xs_groups.at(1));
-            af::array tr_desired = input_transform(ys_groups.at(1));
-            return net.feed(tr_input, tr_desired, tr_desired);
-        }();
-        // evaluate the performance of the network on all continuous intervals of the validation
-        // sequence of length n_steps_ahead_ (except the last such interval)
-        long n_validations =
-          (xs_groups.at(2).dims(1) - n_steps_ahead_ + validation_stride_ - 1) / validation_stride_;
-        af::array all_tr_predicted{
-          af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
-        af::array all_desired{
-          af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
-        long i;
-        // the last step in the sequence has an unknown desired value, so we skip the
-        // last sequence of n_steps_ahead_ (i.e., < instead of <=)
-        for (i = 0; i < xs_groups.at(2).dims(1) - n_steps_ahead_; i += validation_stride_) {
-            assert(i / validation_stride_ < n_validations);
-            // train the network on the original train data plus the additional items
-            // from the validation data before the validation subsequence
-            if (i > 0) {
-                af::array tr_input = input_transform(xs_groups.at(2)(af::span, i - 1));
-                af::array tr_desired = input_transform(ys_groups.at(2)(af::span, i - 1));
-                feed_result_t extra_train_data = net.feed(tr_input, tr_desired, tr_desired);
-                train_data = concatenate(std::move(train_data), std::move(extra_train_data));
+        double error = std::numeric_limits<double>::quiet_NaN();
+        for (long epoch = 0; epoch < n_epochs_; ++epoch) {
+            // initialize the network using the initial sequence
+            net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
+            // train the network on the training sequence with teacher forcing
+            feed_result_t train_data = [&]() {
+                af::array tr_input = input_transform(xs_groups.at(1));
+                af::array tr_desired = input_transform(ys_groups.at(1));
+                if (epoch == 0)
+                    return net.feed(tr_input, tr_desired, tr_desired);
+                else
+                    return net.feed(tr_input, std::nullopt, tr_desired);
+            }();
+            // evaluate the performance of the network on all continuous intervals of the validation
+            // sequence of length n_steps_ahead_ (except the last such interval)
+            long n_validations = (xs_groups.at(2).dims(1) - n_steps_ahead_ + validation_stride_ - 1)
+              / validation_stride_;
+            af::array all_tr_predicted{
+              af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
+            af::array all_desired{
+              af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
+            long i;
+            // the last step in the sequence has an unknown desired value, so we skip the
+            // last sequence of n_steps_ahead_ (i.e., < instead of <=)
+            for (i = 0; i < xs_groups.at(2).dims(1) - n_steps_ahead_; i += validation_stride_) {
+                assert(i / validation_stride_ < n_validations);
+                // train the network on the original train data plus the additional items
+                // from the validation data before the validation subsequence
+                if (i > 0) {
+                    af::array tr_input = input_transform(xs_groups.at(2)(af::span, i - 1));
+                    af::array tr_desired = input_transform(ys_groups.at(2)(af::span, i - 1));
+                    feed_result_t extra_train_data = net.feed(tr_input, tr_desired, tr_desired);
+                    train_data = concatenate(std::move(train_data), std::move(extra_train_data));
+                }
+                net.train(train_data);
+                // create a copy of the network before the validation so that we can simply
+                // continue training of the original net in the next iteration
+                std::unique_ptr<net_base> net_copy = net.clone();
+                // evaluate the performance of the network on the validation subsequence
+                af::array desired = ys_groups.at(2)(af::span, af::seq(i, i + n_steps_ahead_ - 1));
+                af::array tr_desired = input_transform(desired);
+                af::array predicted = net_copy->loop(n_steps_ahead_, tr_desired).outputs;
+                // extract the targets
+                all_tr_predicted(af::span, af::span, i / validation_stride_) =
+                  extract_keys(data.keys, targets(), predicted);
+                all_desired(af::span, af::span, i / validation_stride_) =
+                  extract_keys(data.keys, targets(), desired);
             }
-            net.train(train_data);
-            // create a copy of the network before the validation so that we can simply
-            // continue training of the original net in the next iteration
-            std::unique_ptr<net_base> net_copy = net.clone();
-            // evaluate the performance of the network on the validation subsequence
-            af::array desired = ys_groups.at(2)(af::span, af::seq(i, i + n_steps_ahead_ - 1));
-            af::array tr_desired = input_transform(desired);
-            af::array predicted = net_copy->loop(n_steps_ahead_, tr_desired).outputs;
-            net_copy = nullptr;  // free memory
-            // extract the targets
-            all_tr_predicted(af::span, af::span, i / validation_stride_) =
-              extract_keys(data.keys, targets(), predicted);
-            all_desired(af::span, af::span, i / validation_stride_) =
-              extract_keys(data.keys, targets(), desired);
+            assert(i / validation_stride_ == n_validations);
+            error = error_fnc(output_transform(all_tr_predicted), all_desired);
+            std::cout << "Epoch " << epoch << " " << error << std::endl;
         }
-        assert(i / validation_stride_ == n_validations);
-        return error_fnc(output_transform(all_tr_predicted), all_desired);
+        return error;
     }
 
     virtual std::vector<std::string> targets() const = 0;
@@ -860,6 +881,8 @@ po::options_description benchmark_arg_description()
       ("bench.n-trials", po::value<long>()->default_value(1),                                    //
        "The number of repeats of the [teacher-force, valid] step in the "                        //
        "sequence prediction benchmark.")                                                         //
+      ("bench.n-epochs", po::value<long>()->default_value(1),                                    //
+       "The number of retrainings of the network. Only the first epoch is teacher-forced.")      //
       ("bench.init-steps", po::value<long>()->default_value(1000),                               //
        "The number of training time steps.")                                                     //
       ("bench.train-steps", po::value<long>()->default_value(5000),                              //
