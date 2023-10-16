@@ -24,12 +24,14 @@ public:
         af::array output;
         std::optional<af::array> feedback;
         std::optional<af::array> desired;
+        std::optional<std::string> event;
     };
 
     using on_state_change_callback_t = std::function<void(net_base&, on_state_change_data)>;
 
 protected:
     std::vector<on_state_change_callback_t> on_state_change_callbacks_;
+    std::optional<std::string> event_;
 
 public:
     virtual void step(
@@ -53,6 +55,11 @@ public:
         std::optional<af::array> af_desired;
         if (desired) af_desired = af::constant(*desired, n_outs(), state().type());
         return step(af_input, af_feedback, af_desired);
+    }
+
+    virtual void event(const std::string& event)
+    {
+        event_ = event;
     }
 
     virtual feed_result_t feed(

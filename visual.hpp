@@ -212,6 +212,7 @@ private:
                 header.push_back("feedback-" + std::to_string(i));
             for (long i = 0; i < net.n_outs(); ++i)
                 header.push_back("desired-" + std::to_string(i));
+            header.push_back("event");
             csv_out_ << boost::join(header, ",") << "\n";
         }
         std::vector<std::string> values{std::to_string(time_)};
@@ -231,6 +232,7 @@ private:
             else
                 values.push_back("");
         }
+        values.push_back(data.event.value_or(""));
         csv_out_ << boost::join(values, ",") << "\n";
         ++time_;
     }

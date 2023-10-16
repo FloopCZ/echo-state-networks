@@ -97,9 +97,11 @@ public:
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
+            net.event("init-start");
             net.feed(input_transform(xs_groups[0]), input_transform(ys_groups[0]));
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
+            net.event("train-start");
             if (epoch == 0) {
                 net.train(input_transform(xs_groups[1]), input_transform(ys_groups[1]));
             } else {
@@ -109,6 +111,7 @@ public:
             }
             // evaluate the performance of the network on the validation sequence
             // note no teacher forcing
+            net.event("validation-start");
             feed_result_t feed_result =
               net.feed(input_transform(xs_groups[2]), std::nullopt, input_transform(ys_groups[2]));
             error = error_fnc(output_transform(feed_result.outputs), ys_groups[2]);
@@ -172,11 +175,13 @@ public:
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
+            net.event("init-start");
             net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
             // train the network on the training sequence with teacher forcing
             feed_result_t train_data = [&]() {
                 af::array tr_input = input_transform(xs_groups.at(1));
                 af::array tr_desired = input_transform(ys_groups.at(1));
+                net.event("train-start");
                 if (epoch == 0)
                     return net.feed(tr_input, tr_desired, tr_desired);
                 else
@@ -198,9 +203,16 @@ public:
                 // train the network on the original train data plus the additional items
                 // from the validation data before the validation subsequence
                 if (i > 0) {
-                    af::array tr_input = input_transform(xs_groups.at(2)(af::span, i - 1));
-                    af::array tr_desired = input_transform(ys_groups.at(2)(af::span, i - 1));
-                    feed_result_t extra_train_data = net.feed(tr_input, tr_desired, tr_desired);
+                    af::array tr_input = input_transform(
+                      xs_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
+                    af::array tr_desired = input_transform(
+                      ys_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
+                    net.event("train-extra");
+                    feed_result_t extra_train_data;
+                    if (epoch == 0)
+                        extra_train_data = net.feed(tr_input, tr_desired, tr_desired);
+                    else
+                        extra_train_data = net.feed(tr_input, std::nullopt, tr_desired);
                     train_data = concatenate(std::move(train_data), std::move(extra_train_data));
                 }
                 net.train(train_data);
@@ -210,6 +222,7 @@ public:
                 // evaluate the performance of the network on the validation subsequence
                 af::array desired = ys_groups.at(2)(af::span, af::seq(i, i + n_steps_ahead_ - 1));
                 af::array tr_desired = input_transform(desired);
+                net_copy->event("validation-start");
                 af::array predicted = net_copy->loop(n_steps_ahead_, tr_desired).outputs;
                 // extract the targets
                 all_tr_predicted(af::span, af::span, i / validation_stride_) =

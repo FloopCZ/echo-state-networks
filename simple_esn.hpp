@@ -159,8 +159,10 @@ public:
               .state = state_,
               .input = input,
               .output = last_output_,
-              .feedback = feedback,
-              .desired = desired};
+              .feedback = feedback.value_or(last_output_),
+              .desired = desired,
+              .event = std::move(event_)};
+            event_ = std::nullopt;
             fnc(*this, std::move(data));
         }
     }
