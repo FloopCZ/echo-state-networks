@@ -182,10 +182,8 @@ public:
                 af::array tr_input = input_transform(xs_groups.at(1));
                 af::array tr_desired = input_transform(ys_groups.at(1));
                 net.event("train-start");
-                if (epoch == 0)
-                    return net.feed(tr_input, tr_desired, tr_desired);
-                else
-                    return net.feed(tr_input, std::nullopt, tr_desired);
+                if (epoch == 0) return net.feed(tr_input, tr_desired, tr_desired);
+                return net.feed(tr_input, std::nullopt, tr_desired);
             }();
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
@@ -203,16 +201,15 @@ public:
                 // train the network on the original train data plus the additional items
                 // from the validation data before the validation subsequence
                 if (i > 0) {
-                    af::array tr_input = input_transform(
-                      xs_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
-                    af::array tr_desired = input_transform(
-                      ys_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
-                    net.event("train-extra");
-                    feed_result_t extra_train_data;
-                    if (epoch == 0)
-                        extra_train_data = net.feed(tr_input, tr_desired, tr_desired);
-                    else
-                        extra_train_data = net.feed(tr_input, std::nullopt, tr_desired);
+                    feed_result_t extra_train_data = [&]() {
+                        af::array tr_input = input_transform(
+                          xs_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
+                        af::array tr_desired = input_transform(
+                          ys_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
+                        net.event("train-extra");
+                        if (epoch == 0) return net.feed(tr_input, tr_desired, tr_desired);
+                        return net.feed(tr_input, std::nullopt, tr_desired);
+                    }();
                     train_data = concatenate(std::move(train_data), std::move(extra_train_data));
                 }
                 net.train(train_data);
