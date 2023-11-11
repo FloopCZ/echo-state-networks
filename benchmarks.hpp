@@ -4,9 +4,11 @@
 
 #include "analysis.hpp"
 #include "argument_utils.hpp"
+#include "data_map.hpp"
 #include "misc.hpp"
 #include "net.hpp"
 
+#include <af/data.h>
 #include <boost/algorithm/string.hpp>
 #include <filesystem>
 #include <fstream>
@@ -28,25 +30,25 @@ protected:
     std::string error_measure_;
     long n_epochs_;
 
-    virtual af::array input_transform(const af::array& xs) const
+    virtual data_map input_transform(const data_map& xs) const
     {
         return xs;
     }
 
-    virtual af::array output_transform(const af::array& ys) const
+    virtual data_map output_transform(const data_map& ys) const
     {
         return ys;
     }
 
-    virtual double error_fnc(const af::array& predicted, const af::array& desired) const
+    virtual double error_fnc(const data_map& predicted, const data_map& desired) const
     {
-        assert(predicted.dims() == desired.dims());
-        assert(desired.numdims() <= 3);
-        // assert(desired.dims(0) == n_outs());  // not true for loop benchmark set
-        // assert(desired.dims(1) == split_sizes_.at(2));
-        if (error_measure_ == "mse") return af_utils::mse<double>(predicted, desired);
-        if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted, desired);
-        if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted, desired);
+        af::array predicted_arr = data_map_to_array(predicted);
+        af::array desired_arr = data_map_to_array(desired);
+        assert(predicted_arr.dims() == desired_arr.dims());
+        assert(desired_arr.numdims() == 2);
+        if (error_measure_ == "mse") return af_utils::mse<double>(predicted_arr, desired_arr);
+        if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
+        if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
         throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
     }
 
@@ -63,8 +65,8 @@ public:
     }
 
     virtual double evaluate(net_base& net, std::mt19937& prng) const = 0;
-    virtual long n_ins() const = 0;
-    virtual long n_outs() const = 0;
+    virtual const std::set<std::string>& input_names() const = 0;
+    virtual const std::set<std::string>& output_names() const = 0;
     virtual ~benchmark_set_base() = default;
 };
 
@@ -72,7 +74,7 @@ public:
 class benchmark_set : public benchmark_set_base {
 protected:
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
-    virtual std::tuple<af::array, af::array>
+    virtual std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
 
 public:
@@ -81,40 +83,42 @@ public:
     double evaluate(net_base& net, std::mt19937& prng) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
-        auto [xs, ys] = generate_data(len, net.state().type(), prng);
-        assert(xs.numdims() == 2);
-        assert(xs.dims(0) == n_ins());
-        assert(xs.dims(0) == net.n_ins());
-        assert(xs.dims(1) == len);
-        assert(ys.numdims() == 2);
-        assert(ys.dims(0) == n_outs());
-        assert(ys.dims(0) == net.n_outs());
-        assert(ys.dims(1) == len);
+        data_map xs, ys;
+        std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
+        assert(data_map_keys(xs) == input_names());
+        assert(data_map_keys(xs) == net.input_names());
+        assert(data_map_length(xs) == len);
+        assert(data_map_keys(ys) == output_names());
+        assert(data_map_keys(ys) == net.output_names());
+        assert(data_map_length(ys) == len);
         // use the input transform
         // split both input and output to init, train, test
-        std::vector<af::array> xs_groups = split_data(xs, split_sizes_);
-        std::vector<af::array> ys_groups = split_data(ys, split_sizes_);
+        std::vector<data_map> xs_groups = split_data(xs, split_sizes_);
+        std::vector<data_map> ys_groups = split_data(ys, split_sizes_);
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.event("init-start");
-            net.feed(input_transform(xs_groups[0]), input_transform(ys_groups[0]));
+            net.feed(
+              {.input = input_transform(xs_groups.at(0)),
+               .feedback = input_transform(ys_groups.at(0)),
+               .desired = input_transform(ys_groups.at(0))});
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
-            if (epoch == 0) {
-                net.train(input_transform(xs_groups[1]), input_transform(ys_groups[1]));
-            } else {
-                feed_result_t train_data = net.feed(
-                  input_transform(xs_groups[1]), std::nullopt, input_transform(ys_groups[1]));
-                net.train(std::move(train_data));
-            }
+            net.train(
+              {.input = input_transform(xs_groups.at(1)),
+               .feedback = input_transform(ys_groups.at(1)),
+               .desired = input_transform(ys_groups.at(1))});
             // evaluate the performance of the network on the validation sequence
             // note no teacher forcing
             net.event("validation-start");
-            feed_result_t feed_result =
-              net.feed(input_transform(xs_groups[2]), std::nullopt, input_transform(ys_groups[2]));
-            error = error_fnc(output_transform(feed_result.outputs), ys_groups[2]);
+            feed_result_t feed_result = net.feed(
+              {.input = input_transform(xs_groups.at(2)),
+               .feedback = {},
+               .desired = input_transform(ys_groups.at(2))});
+            data_map raw_output = make_data_map(net.output_names(), feed_result.outputs);
+            error = error_fnc(output_transform(raw_output), ys_groups.at(2));
             std::cout << "Epoch " << epoch << " " << error << std::endl;
         }
         return error;
@@ -132,13 +136,19 @@ protected:
     long n_steps_ahead_;
     long validation_stride_;
 
-    struct DataType {
-        af::array values;
-        std::vector<std::string> keys;
-    };
+    /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
+    virtual std::tuple<data_map, data_map>
+    generate_data(af::dtype dtype, std::mt19937& prng) const = 0;
 
-    // Generate the testing data. This should generate a sequence of dimensions [n_ins, len].
-    virtual const DataType& generate_data(af::dtype dtype, std::mt19937& prng) const = 0;
+    double multi_error_fnc(
+      const std::vector<data_map>& predicted, const std::vector<data_map>& desired) const
+    {
+        assert(predicted.size() == desired.size());
+        double error_sum = 0;
+        for (const auto& [dmp, dmd] : rgv::zip(predicted, desired))
+            error_sum += error_fnc(dmp, dmd);
+        return error_sum / predicted.size();
+    }
 
 public:
     /// \param config The configuration parameters.
@@ -159,56 +169,71 @@ public:
     {
         assert((long)split_sizes_.size() == 3);
         // retrieve the data
-        const DataType& data = generate_data(net.state().type(), prng);
-        assert(data.values.type() == net.state().type());
-        assert(data.values.numdims() == 2);
-        assert(data.values.dims(0) == net.n_ins());
-        if (data.values.dims(1) < rg::accumulate(split_sizes_, 0L))
+        data_map xs, ys;
+        std::tie(xs, ys) = generate_data(net.state().type(), prng);
+        assert(data_map_keys(xs) == net.input_names());
+        assert(data_map_keys(ys) == net.output_names());
+        assert(data_map_length(xs) == data_map_length(ys));
+        if (data_map_length(xs) < rg::accumulate(split_sizes_, 0L))
             throw std::runtime_error{
               "Not enough data in the dataset for the given split sizes. Data have "
-              + std::to_string(data.values.dims(1)) + " and split sizes "
+              + std::to_string(data_map_length(xs)) + " and split sizes "
               + std::to_string(rg::accumulate(split_sizes_, 0L)) + "."};
         // split the sequences into groups
-        std::vector<af::array> xs_groups = split_data(data.values, split_sizes_);
-        std::vector<af::array> ys_groups = split_data(af::shift(data.values, 0, -1), split_sizes_);
-        ys_groups.back()(af::span, af::end) = af::NaN;
+        std::vector<data_map> xs_groups = split_data(xs, split_sizes_);
+        std::vector<data_map> ys_groups = split_data(ys, split_sizes_);
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.event("init-start");
-            net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
+            net.feed(
+              {.input = input_transform(xs_groups.at(0)),
+               .feedback = input_transform(ys_groups.at(0)),
+               .desired = input_transform(ys_groups.at(0))});
             // train the network on the training sequence with teacher forcing
             feed_result_t train_data = [&]() {
-                af::array tr_input = input_transform(xs_groups.at(1));
-                af::array tr_desired = input_transform(ys_groups.at(1));
+                data_map tr_input = input_transform(xs_groups.at(1));
+                data_map tr_desired = input_transform(ys_groups.at(1));
                 net.event("train-start");
-                if (epoch == 0) return net.feed(tr_input, tr_desired, tr_desired);
-                return net.feed(tr_input, std::nullopt, tr_desired);
+                if (epoch == 0)
+                    return net.feed(
+                      {.input = std::move(tr_input),
+                       .feedback = tr_desired,
+                       .desired = tr_desired});
+                return net.feed(
+                  {.input = std::move(tr_input), .feedback = {}, .desired = std::move(tr_desired)});
             }();
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
-            long n_validations = (xs_groups.at(2).dims(1) - n_steps_ahead_ + validation_stride_ - 1)
+            long n_validations =
+              (data_map_length(xs_groups.at(2)) - n_steps_ahead_ + validation_stride_ - 1)
               / validation_stride_;
-            af::array all_tr_predicted{
-              af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
-            af::array all_desired{
-              af::dim4{(long)targets().size(), n_steps_ahead_, n_validations}, net.state().type()};
+            std::vector<data_map> all_predicted;
+            std::vector<data_map> all_desired;
             long i;
             // the last step in the sequence has an unknown desired value, so we skip the
             // last sequence of n_steps_ahead_ (i.e., < instead of <=)
-            for (i = 0; i < xs_groups.at(2).dims(1) - n_steps_ahead_; i += validation_stride_) {
+            for (i = 0; i < data_map_length(xs_groups.at(2)) - n_steps_ahead_;
+                 i += validation_stride_) {
                 assert(i / validation_stride_ < n_validations);
                 // train the network on the original train data plus the additional items
                 // from the validation data before the validation subsequence
                 if (i > 0) {
                     feed_result_t extra_train_data = [&]() {
-                        af::array tr_input = input_transform(
-                          xs_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
-                        af::array tr_desired = input_transform(
-                          ys_groups.at(2)(af::span, af::seq(i - validation_stride_, i - 1)));
+                        data_map tr_input = input_transform(
+                          data_map_select(xs_groups.at(2), af::seq(i - validation_stride_, i - 1)));
+                        data_map tr_desired = input_transform(
+                          data_map_select(ys_groups.at(2), af::seq(i - validation_stride_, i - 1)));
                         net.event("train-extra");
-                        if (epoch == 0) return net.feed(tr_input, tr_desired, tr_desired);
-                        return net.feed(tr_input, std::nullopt, tr_desired);
+                        if (epoch == 0)
+                            return net.feed(
+                              {.input = std::move(tr_input),
+                               .feedback = tr_desired,
+                               .desired = tr_desired});
+                        return net.feed(
+                          {.input = std::move(tr_input),
+                           .feedback = {},
+                           .desired = std::move(tr_desired)});
                     }();
                     train_data = concatenate(std::move(train_data), std::move(extra_train_data));
                 }
@@ -217,123 +242,32 @@ public:
                 // continue training of the original net in the next iteration
                 std::unique_ptr<net_base> net_copy = net.clone();
                 // evaluate the performance of the network on the validation subsequence
-                af::array desired = ys_groups.at(2)(af::span, af::seq(i, i + n_steps_ahead_ - 1));
-                af::array tr_desired = input_transform(desired);
+                data_map desired =
+                  data_map_select(ys_groups.at(2), af::seq(i, i + n_steps_ahead_ - 1));
+                data_map tr_desired = input_transform(desired);
                 net_copy->event("validation-start");
-                af::array predicted = net_copy->loop(n_steps_ahead_, tr_desired).outputs;
+                // add a dummy sequence to make sure we make the steps even without the input
+                // TODO add persistent targets and remove this hack
+                data_map loop_input = {
+                  {"_dummy_time", af::constant(0, n_steps_ahead_, net.state().type())}};
+                assert(!xs.contains("_dummy_time") && !ys.contains("_dummy_time"));
+                af::array raw_predicted =
+                  net_copy->feed({.input = loop_input, .feedback = {}, .desired = tr_desired})
+                    .outputs;
+                data_map predicted = make_data_map(output_names(), std::move(raw_predicted));
                 // extract the targets
-                all_tr_predicted(af::span, af::span, i / validation_stride_) =
-                  extract_keys(data.keys, targets(), predicted);
-                all_desired(af::span, af::span, i / validation_stride_) =
-                  extract_keys(data.keys, targets(), desired);
+                all_predicted.push_back(
+                  output_transform(data_map_filter(std::move(predicted), target_names())));
+                all_desired.push_back(data_map_filter(std::move(desired), target_names()));
             }
             assert(i / validation_stride_ == n_validations);
-            error = error_fnc(output_transform(all_tr_predicted), all_desired);
+            error = multi_error_fnc(all_predicted, all_desired);
             std::cout << "Epoch " << epoch << " " << error << std::endl;
         }
         return error;
     }
 
-    virtual std::vector<std::string> targets() const = 0;
-};
-
-/// Evaluate the performance of the given network on sequence prediction.
-///
-/// The n_ins and n_outs has to be equal to one.
-/// The network is trained on `train-steps` steps, and then repeatedly
-/// simulated for `teacher-force + n-steps-ahead` steps and the error is
-/// calculated only from the last output.
-class seq_prediction_benchmark_set : public benchmark_set_base {
-protected:
-    long n_trials_;
-
-    double error_fnc(const af::array& predicted, const af::array& desired) const override
-    {
-        assert(predicted.dims() == desired.dims());
-        assert(desired.numdims() == 2);
-        assert(desired.dims(0) == n_trials_);
-        assert(desired.dims(1) == split_sizes_.at(3));  // bench.n-steps-ahead
-        // variance is taken from the whole desired sequence
-        af::array var = af::var(af::flat(desired), AF_VARIANCE_DEFAULT);
-        assert(var.isscalar());
-        // mse only from the last output
-        af::array mse = af_utils::mse(predicted(af::span, af::end), desired(af::span, af::end), 0);
-        assert(mse.isscalar());
-
-        if (error_measure_ == "mse") return mse.scalar<double>();
-        if (error_measure_ == "nmse") return (mse / var).scalar<double>();
-        if (error_measure_ == "nrmse") return (af::sqrt(mse / var)).scalar<double>();
-        throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
-    };
-
-    // Generate the testing data. This should generate a sequence of dimensions [n_ins, len].
-    virtual af::array generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
-
-public:
-    /// \param config The configuration parameters.
-    ///        bench.split_sizes: The split sizes [init, train, teacher-force, n-steps-ahead].
-    ///        bench.n-trials: The number of repeats of the [teacher-force, n-steps-ahead].
-    seq_prediction_benchmark_set(po::variables_map config)
-      : benchmark_set_base{std::move(config)}, n_trials_{config_.at("bench.n-trials").as<long>()}
-    {
-        split_sizes_ = {
-          config_.at("bench.init-steps").as<long>(),           //
-          config_.at("bench.train-steps").as<long>(),          //
-          config_.at("bench.teacher-force-steps").as<long>(),  //
-          config_.at("bench.n-steps-ahead").as<long>()};
-        // Repeat the [teacher-force, test] procedure n_trials times.
-        for (long i = 1; i < n_trials_; ++i) {
-            split_sizes_.push_back(split_sizes_.at(2));
-            split_sizes_.push_back(split_sizes_.at(3));
-        }
-    }
-
-    double evaluate(net_base& net, std::mt19937& prng) const override
-    {
-        assert(net.n_ins() == 1);
-        assert(net.n_ins() == net.n_outs());
-        assert((long)split_sizes_.size() == 2 + n_trials_ * 2);
-        // generate the input sequence
-        af::array xs = generate_data(rg::accumulate(split_sizes_, 1L), net.state().type(), prng);
-        assert(xs.type() == net.state().type());
-        assert(xs.numdims() == 2);
-        assert(xs.dims(0) == net.n_ins());
-        assert(xs.dims(1) == rg::accumulate(split_sizes_, 1L));
-        // generate the desired sequence
-        af::array ys = af::shift(xs, 0, -1);
-        xs = xs(af::span, af::seq(0, af::end - 1));
-        ys = ys(af::span, af::seq(0, af::end - 1));
-        assert(xs.dims(1) == rg::accumulate(split_sizes_, 0L));
-        assert(ys.dims(0) == net.n_outs());
-        assert(ys.dims(1) == rg::accumulate(split_sizes_, 0L));
-        // transform the input sequence
-        // split the sequences into groups
-        std::vector<af::array> xs_groups = split_data(xs, split_sizes_);
-        std::vector<af::array> ys_groups = split_data(ys, split_sizes_);
-        // initialize the network using the initial sequence
-        net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
-        // train the network on the training sequence
-        net.train(input_transform(xs_groups.at(1)), input_transform(ys_groups.at(1)));
-        // the rest are pairs (teacher-force, test)
-        af::array all_tr_predicted =
-          af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
-        af::array all_desired = af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
-        for (long trial = 0; trial < n_trials_; ++trial) {
-            {
-                // teacher-force the tf sequence
-                af::array tr_input = input_transform(xs_groups.at(2 * trial + 2));
-                af::array tr_desired = input_transform(ys_groups.at(2 * trial + 2));
-                net.feed(tr_input, tr_desired, tr_desired);
-            }
-            // predict and evaluate the validation sequence, note no teacher forcing
-            af::array desired = ys_groups.at(2 * trial + 3);
-            all_tr_predicted(trial, af::span) =
-              net.loop(split_sizes_.at(3), input_transform(desired)).outputs;
-            all_desired(trial, af::span) = desired;
-        }
-        // invoke the error function
-        return error_fnc(output_transform(all_tr_predicted), all_desired);
-    }
+    virtual const std::set<std::string>& target_names() const = 0;
 };
 
 /// The parameters are from Reservoir Topology in Deep Echo State Networks [2019]
@@ -341,8 +275,10 @@ public:
 class narma10_benchmark_set : public benchmark_set {
 protected:
     long tau_;
+    std::set<std::string> input_names_{"xs"};
+    std::set<std::string> output_names_{"ys"};
 
-    std::tuple<af::array, af::array>
+    std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         // NARMA10 can diverge, let's regenerate until it all fits in [-1, 1].
@@ -352,7 +288,7 @@ protected:
             xs = af::randu({len}, dtype, af_prng) * 0.5;
             ys = narma(xs, 10, tau_, {0.3, 0.05, 1.5, 0.1});
         } while (af::anyTrue<bool>(af::abs(ys) > 1.0));
-        return {xs.T(), ys.T()};
+        return {{{"xs", xs}}, {{"ys", ys}}};
     }
 
 public:
@@ -361,22 +297,24 @@ public:
     {
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return 1;
+        return output_names_;
     }
 };
 
 class narma30_benchmark_set : public benchmark_set {
 protected:
     long tau_;
+    std::set<std::string> input_names_{"xs"};
+    std::set<std::string> output_names_{"ys"};
 
-    std::tuple<af::array, af::array>
+    std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         // NARMA10 can diverge, not sure about NARMA30, let's rather check.
@@ -386,7 +324,7 @@ protected:
             xs = af::randu({len}, dtype, af_prng) * 0.5;
             ys = narma(xs, 30, tau_, {0.2, 0.004, 1.5, 0.001});
         } while (af::anyTrue<bool>(af::abs(ys) > 1.0));
-        return {xs.T(), ys.T()};
+        return {{{"xs", xs}}, {{"ys", ys}}};
     }
 
 public:
@@ -395,28 +333,30 @@ public:
     {
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return 1;
+        return output_names_;
     }
 };
 
 class memory_capacity_benchmark_set : public benchmark_set {
 protected:
     long history_;
+    std::set<std::string> input_names_;
+    std::set<std::string> output_names_;
 
-    std::tuple<af::array, af::array>
+    std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
         af::array ys = memory_matrix(xs, history_);
-        return {xs.T(), ys};
+        return {{{"xs", xs}}, make_data_map(output_names_, ys)};
     }
 
     /// The `memory capacity` measure.
@@ -424,16 +364,15 @@ protected:
     /// \param predicted The predicted memory matrix.
     /// \param desired The gold memory matrix.
     /// \returns The average squared covariance of the corresponding columns.
-    double memory_capacity(const af::array& predicted, const af::array& desired) const
+    double memory_capacity(const data_map& predicted, const data_map& desired) const
     {
-        assert(predicted.numdims() == 2 && desired.numdims() == 2);
-        assert(predicted.dims(0) == history_);
-        assert(desired.dims(0) == history_);
-        assert(predicted.dims(1) == desired.dims(1));
-        return af::sum<double>(af_utils::square(af_utils::cov(predicted, desired, 1)));
+        assert(data_map_keys(predicted) == data_map_keys(desired));
+        assert(data_map_keys(predicted) == output_names_);
+        return af::sum<double>(af_utils::square(
+          af_utils::cov(data_map_to_array(predicted), data_map_to_array(desired), 1)));
     }
 
-    double error_fnc(const af::array& predicted, const af::array& desired) const override
+    double error_fnc(const data_map& predicted, const data_map& desired) const override
     {
         if (error_measure_ == "memory-capacity") return memory_capacity(predicted, desired);
         return benchmark_set::error_fnc(predicted, desired);
@@ -446,16 +385,18 @@ public:
         if (history_ < 1)
             throw std::invalid_argument(
               "Memory history is too low (" + std::to_string(history_) + ").");
+        input_names_ = {"xs"};
+        for (long i = 0; i < history_; ++i) output_names_.insert("ys-" + std::to_string(i));
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return history_;
+        return output_names_;
     }
 };
 
@@ -464,14 +405,16 @@ public:
 class memory_single_benchmark_set : public benchmark_set {
 protected:
     long history_;
+    std::set<std::string> input_names_{"xs"};
+    std::set<std::string> output_names_{"ys"};
 
-    std::tuple<af::array, af::array>
+    std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
         af::array ys = af::shift(xs, history_);
-        return {xs.T(), ys.T()};
+        return {{{"xs", xs}}, {{"ys", ys}}};
     }
 
 public:
@@ -483,14 +426,14 @@ public:
               "Memory history is too low (" + std::to_string(history_) + ").");
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return 1;
+        return output_names_;
     }
 };
 
@@ -498,24 +441,28 @@ class mackey_glass_benchmark_set : public benchmark_set {
 protected:
     long tau_;
     double delta_;
+    std::set<std::string> input_names_{"xs"};
+    std::set<std::string> output_names_{"ys"};
 
-    af::array input_transform(const af::array& xs) const override
+    data_map input_transform(const data_map& xs) const override
     {
-        return af::tanh(xs - 1.);
+        assert(data_map_keys(xs) == std::set<std::string>{"xs"});
+        return {{"xs", af::tanh(xs.at("xs") - 1.)}};
     }
 
-    af::array output_transform(const af::array& ys) const override
+    data_map output_transform(const data_map& ys) const override
     {
-        return af::atanh(ys) + 1.;
+        assert(data_map_keys(ys) == std::set<std::string>{"ys"});
+        return {{"ys", af::atanh(ys.at("ys")) + 1.}};
     }
 
-    std::tuple<af::array, af::array>
+    std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         af::array mg = esn::mackey_glass(len + 1, tau_, delta_, dtype, prng);
         af::array xs = mg(af::seq(0, af::end - 1));
         af::array ys = mg(af::seq(1, af::end));
-        return {xs.T(), ys.T()};
+        return {{{"xs", xs}}, {{"ys", ys}}};
     }
 
 public:
@@ -526,56 +473,14 @@ public:
     {
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return 1;
-    }
-    long n_outs() const override
-    {
-        return 1;
-    }
-};
-
-class mackey_glass_seq_benchmark_set : public seq_prediction_benchmark_set {
-protected:
-    long tau_;
-    double delta_;
-
-    af::array input_transform(const af::array& xs) const override
-    {
-        return af::tanh(xs - 1.);
+        return input_names_;
     }
 
-    af::array output_transform(const af::array& ys) const override
+    const std::set<std::string>& output_names() const override
     {
-        return af::atanh(ys) + 1.;
-    }
-
-    af::array generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
-    {
-        return mackey_glass(len, tau_, delta_, dtype, prng).T();
-    }
-
-public:
-    mackey_glass_seq_benchmark_set(po::variables_map config)
-      : seq_prediction_benchmark_set{std::move(config)}
-      , tau_{config_.at("bench.mackey-glass-tau").as<long>()}
-      , delta_{config_.at("bench.mackey-glass-delta").as<double>()}
-    {
-        if (n_trials_ < 50) {
-            std::cout << "WARNING: Mackey-Glass n_trials is low (" << n_trials_ << ")."
-                      << std::endl;
-        }
-    }
-
-    long n_ins() const override
-    {
-        return 1;
-    }
-
-    long n_outs() const override
-    {
-        return 1;
+        return output_names_;
     }
 };
 
@@ -584,17 +489,24 @@ protected:
     fs::path data_path_;
     std::vector<std::string> header_ = {"date", "HUFL", "HULL", "MUFL",
                                         "MULL", "LUFL", "LULL", "OT"};
-    DataType data_;
+    data_map data_;
     std::string set_type_;  // train/valid/test
+    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> target_names_{"OT"};
 
-    af::array input_transform(const af::array& xs) const override
+    data_map input_transform(const data_map& xs) const override
     {
-        return af::tanh(xs / 50. - 0.2);
+        data_map result;
+        for (const auto& [key, value] : xs) result.emplace(key, af::tanh(value / 50. - 0.2));
+        return result;
     }
 
-    af::array output_transform(const af::array& ys) const override
+    data_map output_transform(const data_map& ys) const override
     {
-        return (af::atanh(ys) + 0.2) * 50.;
+        data_map result;
+        for (const auto& [key, value] : ys) result.emplace(key, (af::atanh(value) + 0.2) * 50.);
+        return result;
     }
 
 public:
@@ -615,35 +527,35 @@ public:
         std::getline(in, line);
         if (line != boost::join(header_, ",")) throw std::runtime_error{"Invalid header."};
 
-        std::vector<double> numbers;
+        std::map<std::string, std::vector<double>> data;
         while (std::getline(in, line)) {
             std::vector<std::string> words;
             boost::split(words, line, boost::is_any_of(","));
-            for (const std::string& v : words | rgv::drop(1)) numbers.push_back(std::stod(v));
+            for (const auto& [col, value] : rgv::zip(header_, words))
+                if (col != "date") data[col].push_back(std::stod(value));
         };
 
         long long n_features = header_.size() - 1;
-        long long n_points = numbers.size() / n_features;
-        data_.keys = header_ | rgv::drop(1) | rg::to_vector;
-        data_.values = af::moddims(af_utils::to_array(numbers), af::dim4{n_features, n_points});
+        long long n_points = data.at("OT").size() / n_features;
+        for (const auto& [key, values] : data) data_[key] = af_utils::to_array(values);
 
         std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
                   << " points.\n";
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return header_.size() - 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return header_.size() - 1;
+        return output_names_;
     }
 
-    std::vector<std::string> targets() const override
+    const std::set<std::string>& target_names() const override
     {
-        return header_ | rgv::drop(1) | rg::to_vector;
+        return target_names_;
     }
 };
 
@@ -651,19 +563,26 @@ class etth_benchmark_set : public ett_benchmark_set {
 protected:
     int variant_;
 
-    const DataType& generate_data(af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
-        if (set_type_ == "train") return train_data_;
-        if (set_type_ == "valid") return valid_data_;
-        if (set_type_ == "train-valid") return train_valid_data_;
-        if (set_type_ == "test") return test_data_;
-        throw std::runtime_error{"Unknown dataset."};
+        data_map data;
+        if (set_type_ == "train")
+            data = train_data_;
+        else if (set_type_ == "valid")
+            data = valid_data_;
+        else if (set_type_ == "train-valid")
+            data = train_valid_data_;
+        else if (set_type_ == "test")
+            data = test_data_;
+        else
+            throw std::runtime_error{"Unknown dataset."};
+        return {data, data_map_shift(data, -1)};
     }
 
-    DataType train_data_;
-    DataType valid_data_;
-    DataType train_valid_data_;
-    DataType test_data_;
+    data_map train_data_;
+    data_map valid_data_;
+    data_map train_valid_data_;
+    data_map test_data_;
 
 public:
     etth_benchmark_set(po::variables_map config)
@@ -671,27 +590,17 @@ public:
     {
         load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
 
-        train_data_.keys = data_.keys;
-        train_data_.values = data_.values(af::span, af::seq(0, 12 * 30 * 24));
-        std::cout << "ETT train has " << train_data_.values.dims(1) << " points.\n";
+        train_data_ = data_map_select(data_, af::seq(0, 12 * 30 * 24));
+        std::cout << "ETT train has " << data_map_length(train_data_) << " points.\n";
 
-        valid_data_.keys = data_.keys;
-        valid_data_.values = data_.values(af::span, af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
-        std::cout << "ETT valid has " << valid_data_.values.dims(1) << " points.\n";
+        valid_data_ = data_map_select(data_, af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
+        std::cout << "ETT valid has " << data_map_length(valid_data_) << " points.\n";
 
-        train_valid_data_.keys = data_.keys;
-        train_valid_data_.values = data_.values(af::span, af::seq(0, (12 + 4) * 30 * 24));
-        std::cout << "ETT train-valid has " << train_valid_data_.values.dims(1) << " points.\n";
+        train_valid_data_ = data_map_select(data_, af::seq(0, (12 + 4) * 30 * 24));
+        std::cout << "ETT train-valid has " << data_map_length(train_valid_data_) << " points.\n";
 
-        test_data_.keys = data_.keys;
-        test_data_.values =
-          data_.values(af::span, af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
-        std::cout << "ETT test has " << test_data_.values.dims(1) << " points.\n";
-    }
-
-    std::vector<std::string> targets() const override
-    {
-        return {"OT"};
+        test_data_ = data_map_select(data_, af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
+        std::cout << "ETT test has " << data_map_length(test_data_) << " points.\n";
     }
 };
 
@@ -701,20 +610,23 @@ protected:
     long seq_len_;
     double d0_;
     long n_retries_;
-    long n_ins_;
-    long n_outs_;
+    std::set<std::string> input_names_;
+    std::set<std::string> output_names_;
 
     double lyapunov_trial_(const net_base& net_, double d0, af::randomEngine& af_prng) const
     {
         // create a copy of the network to work with
         std::unique_ptr<net_base> net = net_.clone();
-        assert(net->n_ins() == net->n_outs());
+        assert(net->input_names() == input_names_);
+        assert(net->output_names() == output_names_);
         auto dtype = net->state().type();
         // pass initial transitions by feeding a random sequence
-        af::array init_xs = af::randu({net->n_ins(), init_len_}, dtype, af_prng) * 0.5;
-        net->feed(init_xs);
+        af::array init_xs =
+          af::randu({(dim_t)net->input_names().size(), init_len_}, dtype, af_prng) * 0.5;
+        net->feed({.input = {{"xs", init_xs}}, .feedback = {}, .desired = {}});
         // build the sequence to be analyzed
-        af::array xs = af::randu({net->n_ins(), seq_len_}, dtype, af_prng) * 0.5;
+        af::array xs =
+          af::randu({(dim_t)net->input_names().size(), seq_len_}, dtype, af_prng) * 0.5;
         // make a soon-to-be perturbed clone of the original net
         net->random_noise(false);
         std::unique_ptr<net_base> net_pert = net->clone();
@@ -723,12 +635,12 @@ protected:
         // for each time step
         for (int t = 0; t < seq_len_; ++t) {
             // perform a single step on the cloned net
-            net->step(xs(af::span, t));
+            net->step({{"xs", xs(af::span, t)}}, {}, {});
             // perform a single step on the perturbed net (and perturb input in time 0)
             if (t == 0)
-                net_pert->step(xs(af::span, t) + d0);
+                net_pert->step({{"xs", xs(af::span, t) + d0}}, {}, {});
             else
-                net_pert->step(xs(af::span, t));
+                net_pert->step({{"xs", xs(af::span, t)}}, {}, {});
             // calculate the distance between net and net_pert states
             double norm = af::norm(net->state() - net_pert->state(), AF_NORM_VECTOR_2);
             dists_time(t) = norm;
@@ -761,8 +673,8 @@ public:
     /// \param n_retries The maximum number of retries if NaN is encountered (set -1 for infinity).
     lyapunov_benchmark_set(
       po::variables_map config,
-      long n_ins = 1,
-      long n_outs = 1,
+      std::set<std::string> input_names = {"xs"},
+      std::set<std::string> output_names = {"ys"},
       double d0 = 1e-12,
       long n_retries = 8)
       : benchmark_set_base{std::move(config)}
@@ -770,8 +682,8 @@ public:
       , seq_len_{config_.at("bench.valid-steps").as<long>()}
       , d0_{d0}
       , n_retries_{n_retries}
-      , n_ins_{n_ins}
-      , n_outs_{n_outs}
+      , input_names_{std::move(input_names)}
+      , output_names_{std::move(output_names)}
     {
     }
 
@@ -788,14 +700,14 @@ public:
         return std::numeric_limits<double>::quiet_NaN();
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return n_ins_;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return n_outs_;
+        return output_names_;
     }
 };
 
@@ -803,40 +715,43 @@ public:
 class semaphore_benchmark_set : public benchmark_set_base {
 protected:
     long period_;
-    long n_ins_;
-    long n_outs_;
+    std::set<std::string> input_names_{"xs"};
+    std::set<std::string> output_names_{"ys"};
 
 public:
     semaphore_benchmark_set(
-      po::variables_map config, long period = 100, long n_ins = 1, long n_outs = 1)
+      po::variables_map config,
+      long period = 100,
+      std::set<std::string> input_names = {"xs"},
+      std::set<std::string> output_names = {"ys"})
       : benchmark_set_base{std::move(config)}
       , period_{config_.at("bench.period").as<long>()}
-      , n_ins_{n_ins}
-      , n_outs_{n_outs}
+      , input_names_{std::move(input_names)}
+      , output_names_{std::move(output_names)}
     {
     }
 
     double evaluate(net_base& net, std::mt19937&) const override
     {
-        assert(net.n_ins() == n_ins_ && net.n_outs() == n_outs_);
+        assert(net.input_names() == input_names_ && net.output_names() == output_names_);
         for (long time = 0;; ++time) {
-            double in = 2 * (time / period_ % 2) - 1;
-            net.step_constant(-in, -in);
+            af::array in = af::constant(2. * (time / period_ % 2) - 1, 1);
+            net.step({{"xs", -in}}, {{"ys", -in}}, {{"ys", -in}});
         }
     }
 
-    long n_ins() const override
+    const std::set<std::string>& input_names() const override
     {
-        return n_ins_;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const std::set<std::string>& output_names() const override
     {
-        return n_outs_;
+        return output_names_;
     }
 };
 
-std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args)
+inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args)
 {
     if (args.at("gen.benchmark-set").as<std::string>() == "narma10") {
         return std::make_unique<narma10_benchmark_set>(args);
@@ -853,9 +768,6 @@ std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args
     if (args.at("gen.benchmark-set").as<std::string>() == "mackey-glass") {
         return std::make_unique<mackey_glass_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "mackey-glass-seq-prediction") {
-        return std::make_unique<mackey_glass_seq_benchmark_set>(args);
-    }
     if (args.at("gen.benchmark-set").as<std::string>() == "lyapunov") {
         return std::make_unique<lyapunov_benchmark_set>(args);
     }
@@ -869,7 +781,7 @@ std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
 }
 
-po::options_description benchmark_arg_description()
+inline po::options_description benchmark_arg_description()
 {
     // TODO move to benchmarks
     po::options_description benchmark_arg_desc{"Benchmark options"};

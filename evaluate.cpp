@@ -25,7 +25,7 @@ evaluate(NetFactory net_factory, std::unique_ptr<esn::benchmark_set_base> bench,
         // We need to make sure the device is set properly, otherwise
         // it sometimes fails on XID errors.
         af::setDevice(af_device);
-        auto net = net_factory(bench->n_ins(), bench->n_outs());
+        auto net = net_factory(bench->input_names(), bench->output_names());
         r = bench->evaluate(*net, esn::global_prng);
     });
     return results;

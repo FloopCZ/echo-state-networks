@@ -59,8 +59,9 @@ int param_sensitivity(int argc, char* argv[])
         T param = param_orig + grid_delta;
         args.insert_or_assign(
           args.at("gen.param").as<std::string>(), po::variable_value{param, false});
-        auto net = esn::make_net(1, 1, args, esn::global_prng);
         auto bench = esn::make_benchmark(args);
+        auto net =
+          esn::make_net(bench->input_names(), bench->output_names(), args, esn::global_prng);
         double f_value = bench->evaluate(*net, esn::global_prng);
         fout << param << "," << f_value << std::endl;
     }

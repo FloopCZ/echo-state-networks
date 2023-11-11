@@ -1,6 +1,7 @@
 #pragma once
 
 #include "arrayfire_utils.hpp"
+#include "data_map.hpp"
 #include "net.hpp"
 
 #include <arrayfire.h>
@@ -117,15 +118,15 @@ private:
         window_(0, 1).setAxesTitles("", "");
     }
 
-    void plot_input(const af::array& input)
+    void plot_input(const data_map& input)
     {
-        assert(input.numdims() == 1);
-        update_plot_history(input_history_, input);
+        for (const auto& [key, value] : input) assert(value.elements() == 1);
+        update_plot_history(input_history_, data_map_to_array(input));
         window_(1, 0).setAxesTitles("Time", "");
         window_(1, 0).setAxesLimits(
           std::max(0L, time_ - history_size_), std::max(time_, history_size_), -1., 1., true);
-        for (long i = 0; i < input.dims(0); ++i) {
-            window_(1, 0).plot(plottable_plot_history(input_history_, i), "Desired/Input");
+        for (long i = 0; i < input.size(); ++i) {
+            window_(1, 0).plot(plottable_plot_history(input_history_, i), "Desired");
         }
     }
 
@@ -155,7 +156,7 @@ private:
             std::cout << "mean activation: " << mean << "\n";
             // Render the image.
             plot_state(data.state);
-            plot_input(data.desired.value_or(data.input));
+            plot_input(data.input.desired);
             plot_output(data.output);
             window_.show();
             // Sleep.
@@ -199,36 +200,34 @@ private:
 
     void on_state_change(net_base& net, const esn::net_base::on_state_change_data& data)
     {
-        assert((data.input.dims() == af::dim4{net.n_ins()}));
-        assert((data.output.dims() == af::dim4{net.n_outs()}));
-        assert((!data.feedback || data.feedback->dims() == af::dim4{net.n_outs()}));
-        assert((!data.desired || data.desired->dims() == af::dim4{net.n_outs()}));
+        assert(data_map_keys(data.input.desired) == net.output_names());
         if (time_ == 0) {
             std::vector<std::string> header{"time"};
-            assert(!data.desired || data.desired->numdims() == 1);
-            for (long i = 0; i < net.n_ins(); ++i) header.push_back("input-" + std::to_string(i));
-            for (long i = 0; i < net.n_outs(); ++i) header.push_back("output-" + std::to_string(i));
-            for (long i = 0; i < net.n_outs(); ++i)
-                header.push_back("feedback-" + std::to_string(i));
-            for (long i = 0; i < net.n_outs(); ++i)
-                header.push_back("desired-" + std::to_string(i));
+            for (const std::string& h : net.input_names()) header.push_back("input-" + h);
+            for (const std::string& h : net.output_names()) header.push_back("output-" + h);
+            for (const std::string& h : net.output_names()) header.push_back("feedback-" + h);
+            for (const std::string& h : net.output_names()) header.push_back("desired-" + h);
             header.push_back("event");
             csv_out_ << boost::join(header, ",") << "\n";
         }
         std::vector<std::string> values{std::to_string(time_)};
-        for (long i = 0; i < net.n_ins(); ++i)
-            values.push_back(std::to_string(data.input(i).scalar<double>()));
-        for (long i = 0; i < net.n_outs(); ++i)
-            values.push_back(std::to_string(data.output(i).scalar<double>()));
-        for (long i = 0; i < net.n_outs(); ++i) {
-            if (data.feedback)
-                values.push_back(std::to_string((*data.feedback)(i).scalar<double>()));
+        for (const std::string& h : net.input_names()) {
+            if (data.input.input.contains(h))
+                values.push_back(std::to_string(data.input.input.at(h).scalar<double>()));
             else
                 values.push_back("");
         }
-        for (long i = 0; i < net.n_outs(); ++i) {
-            if (data.desired)
-                values.push_back(std::to_string((*data.desired)(i).scalar<double>()));
+        for (long i = 0; i < net.output_names().size(); ++i)
+            values.push_back(std::to_string(data.output(i).scalar<double>()));
+        for (const std::string& h : net.output_names()) {
+            if (data.input.feedback.contains(h))
+                values.push_back(std::to_string(data.input.feedback.at(h).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        for (const std::string& h : net.output_names()) {
+            if (data.input.desired.contains(h))
+                values.push_back(std::to_string(data.input.desired.at(h).scalar<double>()));
             else
                 values.push_back("");
         }

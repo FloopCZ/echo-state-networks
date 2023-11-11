@@ -54,7 +54,7 @@ int main(int argc, char* argv[])
 
     std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
     std::unique_ptr<esn::net_base> net =
-      esn::make_net(bench->n_ins(), bench->n_outs(), args, esn::global_prng);
+      esn::make_net(bench->input_names(), bench->output_names(), args, esn::global_prng);
 
     std::optional<esn::visualizer> plt;
     if (args.at("gen.real-time-visual").as<bool>()) {

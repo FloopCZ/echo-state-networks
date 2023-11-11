@@ -46,6 +46,7 @@
                 "--bench.init-steps=10",
                 "--bench.train-steps=100",
                 "--bench.valid-steps=100",
+                "--gen.n-evals=1",
                 "--gen.af-device=0"
             ],
             "stopAtEntry": false,

@@ -5,6 +5,7 @@
 #include <arrayfire.h>
 #include <cassert>
 #include <memory>
+#include <stdexcept>
 #include <string>
 
 namespace af_utils {
@@ -208,6 +209,25 @@ af::array periodic(const af::array& A, int border_h, int border_w)
 bool almost_equal(const af::array& A, const af::array& B, double eps = 1e-8)
 {
     return af::allTrue<bool>(af::abs(A - B) < eps);
+}
+
+/// Split the data along the given dimension.
+std::vector<af::array> split_data(const af::array& data, const std::vector<long>& sizes, long dim)
+{
+    assert(!sizes.empty());
+    std::vector<af::array> groups;
+    groups.reserve(sizes.size());
+    long begin = 0;
+    for (long size : sizes) {
+        if (dim == 0)
+            groups.push_back(data(af::seq(begin, begin + size - 1)));
+        else if (dim == 1)
+            groups.push_back(data(af::span, af::seq(begin, begin + size - 1)));
+        else
+            throw std::invalid_argument{"Unsupported dimension in split_data."};
+        begin += size;
+    }
+    return groups;
 }
 
 }  // end namespace af_utils

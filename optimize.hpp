@@ -480,9 +480,9 @@ public:
         double unit_sigma = inv_exp_transform(1.0);
         param_x0_ = {{"lcnn.sigma-res", unit_sigma}, {"lcnn.mu-res", 0.0}, {"lcnn.sparsity", 0.1},
                      {"lcnn.leakage", 0.9},          {"lcnn.noise", 0.2},  {"lcnn.mu-b", 0.0}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             param_x0_.insert({"lcnn.fb-weight-" + std::to_string(i), 0.0});
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
         neuron_ins_ = sample_net->neuron_ins();
@@ -497,9 +497,9 @@ public:
     {
         std::set<std::string> params = {"lcnn.sigma-res", "lcnn.mu-res", "lcnn.sparsity",
                                         "lcnn.leakage",   "lcnn.noise",  "lcnn.mu-b"};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("lcnn.in-weight-" + std::to_string(i));
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert("lcnn.fb-weight" + std::to_string(i));
         return params;
     }
@@ -509,7 +509,8 @@ public:
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
-        return std::make_unique<lcnn<>>(random_lcnn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
+        return std::make_unique<lcnn<>>(
+          random_lcnn(bench_->input_names(), bench_->output_names(), cfg, prng));
     }
 
     std::map<std::string, double> named_param_x0() const override
@@ -522,9 +523,9 @@ public:
         std::map<std::string, double> params = {{"lcnn.sigma-res", 0.01}, {"lcnn.mu-res", 0.05},
                                                 {"lcnn.sparsity", 0.05},  {"lcnn.leakage", 0.05},
                                                 {"lcnn.noise", 0.05},     {"lcnn.mu-b", 0.05}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"lcnn.fb-weight-" + std::to_string(i), 0.01});
         return params;
     }
@@ -534,9 +535,9 @@ public:
         std::map<std::string, double> params = {{"lcnn.sigma-res", -1.1}, {"lcnn.mu-res", -1.1},
                                                 {"lcnn.sparsity", -0.1},  {"lcnn.leakage", -0.1},
                                                 {"lcnn.noise", -0.1},     {"lcnn.mu-b", -1.1}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), -1.1});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"lcnn.fb-weight-" + std::to_string(i), -1.1});
         return params;
     }
@@ -546,9 +547,9 @@ public:
         std::map<std::string, double> params = {{"lcnn.sigma-res", 1.1}, {"lcnn.mu-res", 1.1},
                                                 {"lcnn.sparsity", 1.1},  {"lcnn.leakage", 1.1},
                                                 {"lcnn.noise", 1.1},     {"lcnn.mu-b", 1.1}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 1.1});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"lcnn.fb-weight-" + std::to_string(i), 1.1});
         return params;
     }
@@ -570,16 +571,16 @@ public:
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
         return std::make_unique<simple_esn<>>(
-          random_esn(bench_->n_ins(), bench_->n_outs(), cfg, prng));
+          random_esn(bench_->input_names(), bench_->output_names(), cfg, prng));
     }
 
     std::set<std::string> available_params() const override
     {
         std::set<std::string> params = {
           "esn.sigma-res", "esn.mu-res", "esn.sparsity", "esn.leakage"};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("esn.in-weight-" + std::to_string(i));
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert("esn.fb-weight" + std::to_string(i));
         return params;
     }
@@ -591,9 +592,9 @@ public:
           {"esn.mu-res", 0.0},
           {"esn.sparsity", 0.5},
           {"esn.leakage", 0.9}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 0.1});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight" + std::to_string(i), 0.0});
         return params;
     }
@@ -605,9 +606,9 @@ public:
           {"esn.mu-res", 0.01},
           {"esn.sparsity", 0.01},
           {"esn.leakage", 0.01}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 0.01});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight" + std::to_string(i), 0.01});
         return params;
     }
@@ -619,9 +620,9 @@ public:
           {"esn.mu-res", -1.1},
           {"esn.sparsity", -1.1},
           {"esn.leakage", -1.1}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), -1.1});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight" + std::to_string(i), -1.1});
         return params;
     }
@@ -630,9 +631,9 @@ public:
     {
         std::map<std::string, double> params = {
           {"esn.sigma-res", 1.1}, {"esn.mu-res", 1.1}, {"esn.sparsity", 1.1}, {"esn.leakage", 1.1}};
-        for (int i = 0; i < bench_->n_ins(); ++i)
+        for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 1.1});
-        for (int i = 0; i < bench_->n_outs(); ++i)
+        for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight" + std::to_string(i), 1.1});
         return params;
     }

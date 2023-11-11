@@ -89,20 +89,6 @@ af::array mackey_glass(long len, double tau, double delta, af::dtype dtype, std:
     return af_utils::to_array(ys).as(dtype);
 }
 
-/// Split the data along the first dimension.
-std::vector<af::array> split_data(const af::array& data, const std::vector<long>& sizes)
-{
-    assert(!sizes.empty());
-    std::vector<af::array> groups;
-    groups.reserve(sizes.size());
-    long begin = 0;
-    for (long size : sizes) {
-        groups.push_back(data(af::span, af::seq(begin, begin + size - 1), af::span, af::span));
-        begin += size;
-    }
-    return groups;
-}
-
 /// Generate a memory matrix of a sequence.
 ///
 /// Column `i` in the memory matrix is the original sequence delayed by `i` steps.

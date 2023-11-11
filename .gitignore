@@ -140,3 +140,4 @@ fplot.dat
 # Metacentrum results
 run-gpu-experiment.o*
 cmake-build-singularity.o*
+c_cpp_properties.json
