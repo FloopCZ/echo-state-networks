@@ -881,14 +881,10 @@ lcnn<DType> random_lcnn(
 
     if (input_to_all) {
         // put input and feedback into all the neurons
-        cfg.input_w = af::array{{state_height, state_width, n_ins}, DType};
-        for (long i = 0; i < n_ins; ++i)
-            cfg.input_w(af::span, af::span, i) =
-              af::randu({state_height, state_width, 1}, DType, af_prng) * in_weight.at(i);
-        cfg.feedback_w = af::array{{state_height, state_width, n_outs}, DType};
-        for (long i = 0; i < n_outs; ++i)
-            cfg.feedback_w(af::span, af::span, i) =
-              af::randu({state_height, state_width, 1}, DType, af_prng) * fb_weight.at(i);
+        cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng);
+        for (long i = 0; i < n_ins; ++i) cfg.input_w(af::span, af::span, i) *= in_weight.at(i);
+        cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng);
+        for (long i = 0; i < n_outs; ++i) cfg.feedback_w(af::span, af::span, i) *= fb_weight.at(i);
     } else {
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);

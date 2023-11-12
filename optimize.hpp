@@ -318,6 +318,7 @@ public:
                 if (!p.starts_with(ep)) new_param_names.insert(p);
             param_names = std::move(new_param_names);
         }
+        assert(param_names.size() == params.size());
         return rgv::zip(param_names, params) | rg::to<std::map>();
     }
 
@@ -384,7 +385,7 @@ public:
         return to_variables_map(name_and_filter_params(params));
     }
 
-    po::variables_map to_variables_map(const std::map<std::string, double>& params) const
+    po::variables_map to_variables_map(std::map<std::string, double> params) const
     {
         // syntactic sugar
         auto val = [](double v) { return po::variable_value{v, false}; };
@@ -394,10 +395,12 @@ public:
             std::vector<double> values;
             for (int i = 0; true; ++i) {
                 std::string param_name = name + "-" + std::to_string(i);
-                if (params.contains(param_name))
+                if (params.contains(param_name)) {
                     values.push_back(pow_transform(params.at(param_name)));
-                else
+                    params.erase(param_name);
+                } else {
                     break;
+                }
             }
             return values;
         };
@@ -407,9 +410,11 @@ public:
 
         if (params.contains(p + "sigma-res")) {
             cfg.insert_or_assign(p + "sigma-res", expval(params.at(p + "sigma-res")));
+            params.erase(p + "sigma-res");
         }
         if (params.contains(p + "mu-res")) {
             cfg.insert_or_assign(p + "mu-res", powval(params.at(p + "mu-res")));
+            params.erase(p + "mu-res");
         }
         std::vector<double> in_weight = vector_powval(p + "in-weight");
         if (!in_weight.empty()) {
@@ -422,17 +427,22 @@ public:
         if (params.contains(p + "sparsity")) {
             cfg.insert_or_assign(
               p + "sparsity", val(std::clamp(params.at(p + "sparsity"), 0.0, 1.0)));
+            params.erase(p + "sparsity");
         }
         if (params.contains(p + "leakage")) {
             cfg.insert_or_assign(
               p + "leakage", val(std::clamp(params.at(p + "leakage"), 0.0, 1.0)));
+            params.erase(p + "leakage");
         }
         if (params.contains(p + "noise")) {
             cfg.insert_or_assign(p + "noise", expval(params.at(p + "noise")));
+            params.erase(p + "noise");
         }
         if (params.contains(p + "mu-b")) {
             cfg.insert_or_assign(p + "mu-b", powval(params.at(p + "mu-b")));
+            params.erase(p + "mu-b");
         }
+        assert(params.empty());  // make sure all the params have been consumed
         return cfg;
     }
 
@@ -500,7 +510,7 @@ public:
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("lcnn.in-weight-" + std::to_string(i));
         for (int i = 0; i < bench_->output_names().size(); ++i)
-            params.insert("lcnn.fb-weight" + std::to_string(i));
+            params.insert("lcnn.fb-weight-" + std::to_string(i));
         return params;
     }
 
@@ -581,7 +591,7 @@ public:
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("esn.in-weight-" + std::to_string(i));
         for (int i = 0; i < bench_->output_names().size(); ++i)
-            params.insert("esn.fb-weight" + std::to_string(i));
+            params.insert("esn.fb-weight-" + std::to_string(i));
         return params;
     }
 
@@ -595,7 +605,7 @@ public:
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
-            params.insert({"esn.fb-weight" + std::to_string(i), 0.0});
+            params.insert({"esn.fb-weight-" + std::to_string(i), 0.0});
         return params;
     }
 
@@ -609,7 +619,7 @@ public:
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 0.01});
         for (int i = 0; i < bench_->output_names().size(); ++i)
-            params.insert({"esn.fb-weight" + std::to_string(i), 0.01});
+            params.insert({"esn.fb-weight-" + std::to_string(i), 0.01});
         return params;
     }
 
@@ -623,7 +633,7 @@ public:
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), -1.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
-            params.insert({"esn.fb-weight" + std::to_string(i), -1.1});
+            params.insert({"esn.fb-weight-" + std::to_string(i), -1.1});
         return params;
     }
 
@@ -634,12 +644,12 @@ public:
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 1.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
-            params.insert({"esn.fb-weight" + std::to_string(i), 1.1});
+            params.insert({"esn.fb-weight-" + std::to_string(i), 1.1});
         return params;
     }
 };
 
-po::options_description optimizer_arg_description()
+inline po::options_description optimizer_arg_description()
 {
     po::options_description optimizer_arg_desc{"Optimizer options"};
     optimizer_arg_desc.add_options()                                                        //
