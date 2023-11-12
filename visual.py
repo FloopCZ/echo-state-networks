@@ -45,7 +45,7 @@ if __name__ == "__main__":
         for pref in cut_prefixes:
             c = c.removeprefix(pref)
         col_suffixes.add(c)
-    for i, col_suf in enumerate(col_suffixes):
+    for i, col_suf in enumerate(sorted(col_suffixes)):
         j = 0
         for c in sorted(df.columns):
             if c.endswith(f"-{col_suf}"):
