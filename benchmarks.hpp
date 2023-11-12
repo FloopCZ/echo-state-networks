@@ -245,14 +245,13 @@ public:
                 data_map desired =
                   data_map_select(ys_groups.at(2), af::seq(i, i + n_steps_ahead_ - 1));
                 data_map tr_desired = input_transform(desired);
+                data_map loop_input =
+                  data_map_select(xs_groups.at(2), af::seq(i, i + n_steps_ahead_ - 1));
+                loop_input = data_map_filter(std::move(loop_input), loop_input_names());
+                data_map tr_loop_input = input_transform(loop_input);
                 net_copy->event("validation-start");
-                // add a dummy sequence to make sure we make the steps even without the input
-                // TODO add persistent targets and remove this hack
-                data_map loop_input = {
-                  {"_dummy_time", af::constant(0, n_steps_ahead_, net.state().type())}};
-                assert(!xs.contains("_dummy_time") && !ys.contains("_dummy_time"));
                 af::array raw_predicted =
-                  net_copy->feed({.input = loop_input, .feedback = {}, .desired = tr_desired})
+                  net_copy->feed({.input = tr_loop_input, .feedback = {}, .desired = tr_desired})
                     .outputs;
                 data_map predicted = make_data_map(output_names(), std::move(raw_predicted));
                 // extract the targets
@@ -266,6 +265,8 @@ public:
         }
         return error;
     }
+
+    virtual const std::set<std::string>& loop_input_names() const = 0;
 
     virtual const std::set<std::string>& target_names() const = 0;
 };
@@ -491,7 +492,9 @@ protected:
                                         "MULL", "LUFL", "LULL", "OT"};
     data_map data_;
     std::string set_type_;  // train/valid/test
-    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> persistent_input_names_{"date-Y", "date-m", "date-d", "date-H", "date-M"};
+    std::set<std::string> input_names_{"date-Y", "date-m", "date-d", "date-H", "date-M", "HUFL",
+                                       "HULL",   "MUFL",   "MULL",   "LUFL",   "LULL",   "OT"};
     std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
     std::set<std::string> target_names_{"OT"};
 
@@ -532,15 +535,30 @@ public:
             std::vector<std::string> words;
             boost::split(words, line, boost::is_any_of(","));
             for (const auto& [col, value] : rgv::zip(header_, words))
-                if (col != "date") data[col].push_back(std::stod(value));
+                if (col == "date") {
+                    std::tm tm = {};
+                    std::stringstream ss{value};
+                    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+                    data["date-Y"].push_back(tm.tm_year % 2 * 10);
+                    data["date-m"].push_back(tm.tm_mon);
+                    data["date-d"].push_back(tm.tm_wday * 2);
+                    data["date-H"].push_back(tm.tm_hour);
+                    data["date-M"].push_back(tm.tm_min / 15);
+                } else
+                    data[col].push_back(std::stod(value));
         };
 
         long long n_features = header_.size() - 1;
-        long long n_points = data.at("OT").size() / n_features;
+        long long n_points = data.at("OT").size();
         for (const auto& [key, values] : data) data_[key] = af_utils::to_array(values);
 
         std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
                   << " points.\n";
+    }
+
+    const std::set<std::string>& loop_input_names() const override
+    {
+        return persistent_input_names_;
     }
 
     const std::set<std::string>& input_names() const override
@@ -565,18 +583,19 @@ protected:
 
     std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
-        data_map data;
+        data_map xs;
         if (set_type_ == "train")
-            data = train_data_;
+            xs = train_data_;
         else if (set_type_ == "valid")
-            data = valid_data_;
+            xs = valid_data_;
         else if (set_type_ == "train-valid")
-            data = train_valid_data_;
+            xs = train_valid_data_;
         else if (set_type_ == "test")
-            data = test_data_;
+            xs = test_data_;
         else
             throw std::runtime_error{"Unknown dataset."};
-        return {data, data_map_shift(data, -1)};
+        data_map ys = data_map_shift(data_map_filter(xs, output_names()), -1);
+        return {std::move(xs), std::move(ys)};
     }
 
     data_map train_data_;
