@@ -12,6 +12,7 @@
 #include <boost/algorithm/string.hpp>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <range/v3/view.hpp>
 #include <vector>
 
@@ -492,9 +493,11 @@ protected:
                                         "MULL", "LUFL", "LULL", "OT"};
     data_map data_;
     std::string set_type_;  // train/valid/test
-    std::set<std::string> persistent_input_names_{"date-Y", "date-m", "date-d", "date-H", "date-M"};
-    std::set<std::string> input_names_{"date-Y", "date-m", "date-d", "date-H", "date-M", "HUFL",
-                                       "HULL",   "MUFL",   "MULL",   "LUFL",   "LULL",   "OT"};
+    std::set<std::string> persistent_input_names_{
+      "date-mon", "date-mday", "date-wday", "date-hour"};
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                       "HUFL",     "HULL",      "MUFL",      "MULL",
+                                       "LUFL",     "LULL",      "OT"};
     std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
     std::set<std::string> target_names_{"OT"};
 
@@ -539,11 +542,25 @@ public:
                     std::tm tm = {};
                     std::stringstream ss{value};
                     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+                    /*
                     data["date-Y"].push_back(tm.tm_year % 2 * 10);
                     data["date-m"].push_back(tm.tm_mon);
                     data["date-d"].push_back(tm.tm_wday * 2);
                     data["date-H"].push_back(tm.tm_hour);
                     data["date-M"].push_back(tm.tm_min / 15);
+                    */
+
+                    data["date-mon"].push_back(
+                      std::sin(
+                        (tm.tm_mon * 31 * 24 + tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI
+                        / (12 * 31 * 24))
+                      * 10);
+                    data["date-mday"].push_back(
+                      std::sin((tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI / (31 * 24)) * 10);
+                    data["date-wday"].push_back(
+                      std::sin((tm.tm_wday * 24 + tm.tm_hour) * 2. * M_PI / (7 * 24)) * 10);
+                    data["date-hour"].push_back(std::sin(tm.tm_hour * 2. * M_PI / 24) * 10);
+                    // data["date-min"].push_back(tm.tm_min / 15);
                 } else
                     data[col].push_back(std::stod(value));
         };
