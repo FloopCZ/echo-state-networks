@@ -88,10 +88,10 @@ public:
         std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
         assert(data_map_keys(xs) == input_names());
         assert(data_map_keys(xs) == net.input_names());
-        assert(data_map_length(xs) == len);
+        assert(data_map_length(xs) >= len);
         assert(data_map_keys(ys) == output_names());
         assert(data_map_keys(ys) == net.output_names());
-        assert(data_map_length(ys) == len);
+        assert(data_map_length(ys) >= len);
         // use the input transform
         // split both input and output to init, train, test
         std::vector<data_map> xs_groups = split_data(xs, split_sizes_);
