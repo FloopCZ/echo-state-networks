@@ -318,8 +318,30 @@ public:
                 if (!p.starts_with(ep)) new_param_names.insert(p);
             param_names = std::move(new_param_names);
         }
+        for (const std::set<std::string>& pg : param_groups()) {
+            if (pg.empty()) continue;
+            std::set<std::string> new_param_names = param_names;
+            // only keep the group representant
+            for (const std::string& param : param_names)
+                if (pg.contains(param) && param != *pg.begin()) new_param_names.erase(param);
+            param_names = std::move(new_param_names);
+        }
         assert(param_names.size() == params.size());
-        return rgv::zip(param_names, params) | rg::to<std::map>();
+        std::map<std::string, double> param_map =
+          rgv::zip(param_names, params) | rg::to<std::map>();
+        for (const std::set<std::string>& pg : param_groups()) {
+            if (pg.empty()) continue;
+            for (const auto& [param, value] : rgv::zip(param_names, params)) {
+                // copy the value from the group representant to all
+                // the other group members
+                if (param == *pg.begin()) {
+                    for (const std::string& dependent_name : pg) {
+                        param_map.emplace(dependent_name, value);
+                    }
+                }
+            }
+        }
+        return param_map;
     }
 
     std::vector<double> unname_and_filter_params(std::map<std::string, double> params) const
@@ -329,6 +351,14 @@ public:
             std::map<std::string, double> new_params;
             for (const auto& [param, value] : params)
                 if (!param.starts_with(ep)) new_params.insert({param, value});
+            params = std::move(new_params);
+        }
+        for (const std::set<std::string>& pg : param_groups()) {
+            if (pg.empty()) continue;
+            std::map<std::string, double> new_params = params;
+            // only keep the group representant
+            for (const auto& [param, value] : params)
+                if (pg.contains(param) && param != *pg.begin()) new_params.erase(param);
             params = std::move(new_params);
         }
         return rgv::values(params) | rg::to_vector;
@@ -341,6 +371,7 @@ public:
     virtual std::map<std::string, double> named_param_sigmas() const = 0;
     virtual std::map<std::string, double> named_param_lbounds() const = 0;
     virtual std::map<std::string, double> named_param_ubounds() const = 0;
+    virtual std::vector<std::set<std::string>> param_groups() const = 0;
 };
 
 class net_optimizer : public named_optimizer<net_evaluation_result_t> {
@@ -563,6 +594,15 @@ public:
             params.insert({"lcnn.fb-weight-" + std::to_string(i), 1.1});
         return params;
     }
+
+    std::vector<std::set<std::string>> param_groups() const override
+    {
+        // TODO only as a config option
+        std::set<std::string> fb_group;
+        for (int i = 0; i < bench_->output_names().size(); ++i)
+            fb_group.insert("lcnn.fb-weight-" + std::to_string(i));
+        return {fb_group};
+    }
 };
 
 class esn_optimizer : public net_optimizer {
@@ -646,6 +686,15 @@ public:
         for (int i = 0; i < bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight-" + std::to_string(i), 1.1});
         return params;
+    }
+
+    std::vector<std::set<std::string>> param_groups() const override
+    {
+        // TODO only as a config option
+        std::set<std::string> fb_group;
+        for (int i = 0; i < bench_->output_names().size(); ++i)
+            fb_group.insert("lcnn.fb-weight-" + std::to_string(i));
+        return {fb_group};
     }
 };
 
