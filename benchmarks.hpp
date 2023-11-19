@@ -43,6 +43,7 @@ protected:
 
     virtual double error_fnc(const data_map& predicted, const data_map& desired) const
     {
+        assert(data_map_keys(predicted) == data_map_keys(desired));
         af::array predicted_arr = data_map_to_array(predicted);
         af::array desired_arr = data_map_to_array(desired);
         assert(predicted_arr.dims() == desired_arr.dims());
@@ -51,6 +52,16 @@ protected:
         if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
         if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
         throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
+    }
+
+    double multi_error_fnc(
+      const std::vector<data_map>& predicted, const std::vector<data_map>& desired) const
+    {
+        assert(predicted.size() == desired.size());
+        double error_sum = 0;
+        for (const auto& [dmp, dmd] : rgv::zip(predicted, desired))
+            error_sum += error_fnc(dmp, dmd);
+        return error_sum / predicted.size();
     }
 
 public:
@@ -71,59 +82,142 @@ public:
     virtual ~benchmark_set_base() = default;
 };
 
+/// TODO fix docs
 /// Base class for echo state network benchmarking tasks.
 class markov_benchmark_set : public benchmark_set_base {
 protected:
+    long n_steps_ahead_;
+
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
     virtual std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
 
+    static std::set<std::string>
+    make_shifted_seq_names(const std::set<std::string>& prefixes, long n)
+    {
+        std::set<std::string> names;
+        for (const std::string& p : prefixes)
+            for (long i = 1; i <= n; ++i) names.emplace(p + "-" + std::to_string(i));
+        return names;
+    }
+
+    static data_map make_shifted_seqs(const data_map& data, long n)
+    {
+        data_map shifted_seqs;
+        for (const auto& [name, value] : data) {
+            for (long i = 1; i <= n; ++i) {
+                af::array shifted = af::shift(value, -i);
+                shifted(af::seq(af::end - i, af::end)) = af::NaN;
+                shifted_seqs.emplace(name + "-" + std::to_string(i), std::move(shifted));
+            }
+        }
+        return shifted_seqs;
+    }
+
 public:
     using benchmark_set_base::benchmark_set_base;
 
+    markov_benchmark_set(po::variables_map config)
+      : benchmark_set_base{std::move(config)}
+      , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
+    {
+    }
+
     double evaluate(net_base& net, std::mt19937& prng) const override
     {
-        long len = rg::accumulate(split_sizes_, 0L);
+        // TODO Why do we need output transform? We can predict the targets directly and stop
+        // clamping.
+        // Alter the train and validation sequence sizes so that we do not feedback
+        // any validation data to the network.
+        std::vector<long> split_sizes = split_sizes_;
+        split_sizes.at(1) -= n_steps_ahead_;
+        split_sizes.at(2) += n_steps_ahead_;
+        long len = rg::accumulate(split_sizes, 0L);
         data_map xs, ys;
         std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
+        data_map ys_shifted = make_shifted_seqs(ys, n_steps_ahead_);
+        // We can feed the ground truth of one-step prediction of each target back to the network
+        // even when validating the prediction, but no further shift than -1.
+        data_map ys_feedback = make_shifted_seqs(ys, 1);
         assert(data_map_keys(xs) == input_names());
         assert(data_map_keys(xs) == net.input_names());
         assert(data_map_length(xs) >= len);
-        assert(data_map_keys(ys) == output_names());
-        assert(data_map_keys(ys) == net.output_names());
+        assert(data_map_keys(ys_shifted) == output_names());
+        assert(data_map_keys(ys_shifted) == net.output_names());
+        assert(data_map_length(ys_shifted) >= len);
+        assert(data_map_length(ys_feedback) >= len);
+        assert(data_map_keys(ys) == target_names());
         assert(data_map_length(ys) >= len);
         // use the input transform
         // split both input and output to init, train, test
-        std::vector<data_map> xs_groups = split_data(xs, split_sizes_);
-        std::vector<data_map> ys_groups = split_data(ys, split_sizes_);
+        std::vector<data_map> xs_groups = split_data(xs, split_sizes);
+        std::vector<data_map> ys_shifted_groups = split_data(ys_shifted, split_sizes);
+        std::vector<data_map> ys_feedback_groups = split_data(ys_feedback, split_sizes);
+        std::vector<data_map> ys_groups = split_data(ys, split_sizes);
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.event("init-start");
             net.feed(
               {.input = input_transform(xs_groups.at(0)),
-               .feedback = input_transform(ys_groups.at(0)),
-               .desired = input_transform(ys_groups.at(0))});
+               .feedback = input_transform(ys_shifted_groups.at(0)),
+               .desired = input_transform(ys_shifted_groups.at(0))});
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
-            net.train(
-              {.input = input_transform(xs_groups.at(1)),
-               .feedback = input_transform(ys_groups.at(1)),
-               .desired = input_transform(ys_groups.at(1))});
+            if (epoch == 0)
+                net.train(
+                  {.input = input_transform(xs_groups.at(1)),
+                   .feedback = input_transform(ys_shifted_groups.at(1)),
+                   .desired = input_transform(ys_shifted_groups.at(1))});
+            else
+                net.train(
+                  {.input = input_transform(xs_groups.at(1)),
+                   .feedback = input_transform(ys_feedback_groups.at(1)),
+                   .desired = input_transform(ys_shifted_groups.at(1))});
             // evaluate the performance of the network on the validation sequence
-            // note no teacher forcing
             net.event("validation-start");
-            feed_result_t feed_result = net.feed(
-              {.input = input_transform(xs_groups.at(2)),
-               .feedback = {},
-               .desired = input_transform(ys_groups.at(2))});
-            data_map raw_output = make_data_map(net.output_names(), feed_result.outputs);
-            error = error_fnc(output_transform(raw_output), ys_groups.at(2));
+            long validation_size = data_map_length(xs_groups.at(2));
+            feed_result_t feed_result = [&]() {
+                af::seq selector(validation_size - n_steps_ahead_);
+                data_map input = data_map_select(xs_groups.at(2), selector);
+                data_map feedback = data_map_select(ys_feedback_groups.at(2), selector);
+                data_map desired = data_map_select(ys_shifted_groups.at(2), selector);
+                return net.feed(
+                  {.input = input_transform(input),
+                   .feedback = input_transform(feedback),
+                   .desired = input_transform(desired)});
+            }();
+            data_map tr_output = make_data_map(net.output_names(), feed_result.outputs);
+
+            // build the subsequences of length n_steps_ahead_ for each time point
+            std::vector<data_map> predicted;
+            std::vector<data_map> desired;
+            for (const std::string& target_name : target_names()) {
+                const af::array& tr_desired_subseq = ys_groups.at(2).at(target_name);
+                // We have to start at n_steps_ahead_ during validation/testing, because the
+                // network has already seen the first n_steps_ahead_ targets as its feedback.
+                // The train and validation sequence lengths have been adapted for this already.
+                for (long time = n_steps_ahead_; time < validation_size - n_steps_ahead_; ++time) {
+                    af::array tr_predicted_subseq = af::constant(af::NaN, n_steps_ahead_);
+                    for (long i = 1; i <= n_steps_ahead_; ++i) {
+                        std::string shifted_name = target_name + "-" + std::to_string(i);
+                        tr_predicted_subseq(i - 1) = tr_output.at(shifted_name)(time);
+                    }
+                    predicted.emplace_back(
+                      output_transform({{target_name, std::move(tr_predicted_subseq)}}));
+                    data_map desired_subseq_dm = {
+                      {target_name, tr_desired_subseq(af::seq(time + 1, time + n_steps_ahead_))}};
+                    desired.push_back(std::move(desired_subseq_dm));
+                }
+            }
+            error = multi_error_fnc(predicted, desired);
             std::cout << "Epoch " << epoch << " " << error << std::endl;
         }
         return error;
     }
+
+    virtual const std::set<std::string>& target_names() const = 0;
 };
 
 /// Base class for echo state network benchmarking tasks.
@@ -162,10 +256,16 @@ public:
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
-            net.train(
-              {.input = input_transform(xs_groups.at(1)),
-               .feedback = input_transform(ys_groups.at(1)),
-               .desired = input_transform(ys_groups.at(1))});
+            if (epoch == 0)
+                net.train(
+                  {.input = input_transform(xs_groups.at(1)),
+                   .feedback = input_transform(ys_groups.at(1)),
+                   .desired = input_transform(ys_groups.at(1))});
+            else
+                net.train(
+                  {.input = input_transform(xs_groups.at(1)),
+                   .feedback = {},
+                   .desired = input_transform(ys_groups.at(1))});
             // evaluate the performance of the network on the validation sequence
             // note no teacher forcing
             net.event("validation-start");
@@ -195,16 +295,6 @@ protected:
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
     virtual std::tuple<data_map, data_map>
     generate_data(af::dtype dtype, std::mt19937& prng) const = 0;
-
-    double multi_error_fnc(
-      const std::vector<data_map>& predicted, const std::vector<data_map>& desired) const
-    {
-        assert(predicted.size() == desired.size());
-        double error_sum = 0;
-        for (const auto& [dmp, dmd] : rgv::zip(predicted, desired))
-            error_sum += error_fnc(dmp, dmd);
-        return error_sum / predicted.size();
-    }
 
 public:
     /// \param config The configuration parameters.
@@ -715,13 +805,13 @@ public:
     }
 };
 
-class etth_markov_benchmark_set : public benchmark_set, public etth_loader {
+class etth_markov_benchmark_set : public markov_benchmark_set, public etth_loader {
 protected:
     std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
                                        "HUFL",     "HULL",      "MUFL",      "MULL",
                                        "LUFL",     "LULL",      "OT"};
-    std::set<std::string> output_names_;
-    long n_steps_ahead_;
+    std::set<std::string> target_names_ = {"OT"};
+    std::set<std::string> output_names_ = make_shifted_seq_names(target_names_, n_steps_ahead_);
 
     data_map input_transform(const data_map& xs) const override
     {
@@ -737,19 +827,14 @@ protected:
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         data_map xs = get_dataset(dtype, prng);
-        data_map ys;
-        for (long i = 1; i <= n_steps_ahead_; ++i)
-            ys.emplace("OT-" + std::to_string(i), af::shift(xs.at("OT"), -i));
+        data_map ys = data_map_filter(xs, target_names());
         return {std::move(xs), std::move(ys)};
     }
 
 public:
     etth_markov_benchmark_set(po::variables_map config)
-      : benchmark_set{std::move(config)}
-      , etth_loader{config_}
-      , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
+      : markov_benchmark_set{std::move(config)}, etth_loader{config_}
     {
-        for (long i = 1; i <= n_steps_ahead_; ++i) output_names_.emplace("OT-" + std::to_string(i));
     }
 
     const std::set<std::string>& input_names() const override
@@ -760,6 +845,11 @@ public:
     const std::set<std::string>& output_names() const override
     {
         return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
     }
 };
 

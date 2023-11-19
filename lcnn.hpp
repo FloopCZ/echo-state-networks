@@ -90,7 +90,9 @@ protected:
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
-    af::array last_output_;  // the last output of the net
+    af::array last_output_;    // the last output of the net
+    data_map last_output_dm_;  // the last output of the net as a data map
+    data_map prev_step_feedback_;
     af::array reservoir_w_;
     af::array reservoir_w_full_;
     af::array reservoir_b_;
@@ -235,9 +237,33 @@ protected:
     /// Update the last output of the network after having a new state.
     virtual void update_last_output()
     {
+        if (output_w_.isempty()) {
+            last_output_ = af::constant(af::NaN, output_names_.size(), DType);
+            last_output_dm_.clear();
+            return;
+        }
         af::array flat_state_1 = af_utils::add_ones(af::flat(state_), 0);
         last_output_ = af::clamp(af::matmul(output_w_, flat_state_1), -1., 1.);
         assert(last_output_.dims() == (af::dim4{output_names_.size()}));
+        last_output_dm_ = make_data_map(output_names_, last_output_);
+    }
+
+    virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
+    {
+        // TODO migrate to simple esn
+        if (data_map_keys(step_feedback) == output_names_) {
+            last_output_ = data_map_to_array(step_feedback);
+            last_output_dm_ = step_feedback;
+            return;
+        }
+
+        if (!step_feedback.empty()) {
+            data_map updated_last_output = step_feedback;
+            updated_last_output.insert(last_output_dm_.begin(), last_output_dm_.end());
+            updated_last_output = data_map_filter(std::move(updated_last_output), output_names_);
+            last_output_dm_ = std::move(updated_last_output);
+            last_output_ = data_map_to_array(last_output_dm_);
+        }
     }
 
 public:
@@ -247,8 +273,9 @@ public:
     lcnn(lcnn_config cfg, std::mt19937& prng)
       : input_names_{cfg.input_names}
       , output_names_{cfg.output_names}
-      , last_output_{af::constant(0, output_names_.size(), DType)}
-      , output_w_{af::constant(af::NaN, output_names_.size(), cfg.init_state.elements() + 1, DType)}
+      , last_output_{af::constant(af::NaN, output_names_.size(), DType)}
+      , last_output_dm_{}
+      , output_w_{}
       , force_matmul_{false}
       , prng_{&prng}
       , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_->operator()()}
@@ -289,14 +316,13 @@ public:
     {
         // TODO desired and feedback is the same, only one should be provided and there should be
         // teacher-force bool param
-        // TODO save last output as data map
         // TODO take params as references and do not change in place
-        data_map orig_step_input = step_input;
+        update_last_output_via_teacher_force(prev_step_feedback_);
+        prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
-        assert(!last_output_.isempty());
-        data_map last_output = make_data_map(output_names_, last_output_);
-        step_input.insert(last_output.begin(), last_output.end());
+        data_map orig_step_input = step_input;
+        step_input.insert(last_output_dm_.begin(), last_output_dm_.end());
         step_input = data_map_filter(std::move(step_input), input_names_);
 
         // validate all input data
@@ -310,7 +336,6 @@ public:
         assert(data_map_keys(step_input) == input_names_);
         if (!step_feedback.empty()) {
             check_data(step_feedback);
-            assert(data_map_keys(step_feedback) == output_names_);
         }
         if (!step_desired.empty()) {
             check_data(step_desired);
@@ -330,7 +355,7 @@ public:
         update_via_input(data_map_to_array(step_input));
 
         // add feedback
-        update_via_feedback(last_output_);
+        if (!last_output_dm_.empty()) update_via_feedback(last_output_);
 
         // add bias
         update_via_bias();
@@ -346,12 +371,7 @@ public:
         //     update_weights(unwrapped_weights, unwrapped_state);
         // }
 
-        // TODO update in on_state_change output properly
-        // update last output after we have a new state
-        if (step_feedback.empty())
-            update_last_output();
-        else
-            last_output_ = data_map_to_array(step_feedback);
+        update_last_output();
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
@@ -437,6 +457,7 @@ public:
         assert(data.desired->dims(0) == output_names_.size());
         af::array states = af::moddims(data.states, state_.elements(), data.outputs.dims(1));
         output_w_ = af_utils::lstsq_train(states.T(), data.desired->T()).T();
+        update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
     }
 

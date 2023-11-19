@@ -105,4 +105,11 @@ inline std::vector<data_map> split_data(const data_map& data, const std::vector<
     return result;
 }
 
+inline void data_map_print(const data_map& data)
+{
+    for (const auto& [key, value] : data) {
+        af::print(key.c_str(), value);
+    }
+}
+
 }  // namespace esn
