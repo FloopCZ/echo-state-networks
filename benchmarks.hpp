@@ -72,6 +72,61 @@ public:
 };
 
 /// Base class for echo state network benchmarking tasks.
+class markov_benchmark_set : public benchmark_set_base {
+protected:
+    /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
+    virtual std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
+
+public:
+    using benchmark_set_base::benchmark_set_base;
+
+    double evaluate(net_base& net, std::mt19937& prng) const override
+    {
+        long len = rg::accumulate(split_sizes_, 0L);
+        data_map xs, ys;
+        std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
+        assert(data_map_keys(xs) == input_names());
+        assert(data_map_keys(xs) == net.input_names());
+        assert(data_map_length(xs) >= len);
+        assert(data_map_keys(ys) == output_names());
+        assert(data_map_keys(ys) == net.output_names());
+        assert(data_map_length(ys) >= len);
+        // use the input transform
+        // split both input and output to init, train, test
+        std::vector<data_map> xs_groups = split_data(xs, split_sizes_);
+        std::vector<data_map> ys_groups = split_data(ys, split_sizes_);
+        double error = std::numeric_limits<double>::quiet_NaN();
+        for (long epoch = 0; epoch < n_epochs_; ++epoch) {
+            // initialize the network using the initial sequence
+            net.event("init-start");
+            net.feed(
+              {.input = input_transform(xs_groups.at(0)),
+               .feedback = input_transform(ys_groups.at(0)),
+               .desired = input_transform(ys_groups.at(0))});
+            // train the network on the training sequence
+            // teacher-force the first epoch, but not the others
+            net.event("train-start");
+            net.train(
+              {.input = input_transform(xs_groups.at(1)),
+               .feedback = input_transform(ys_groups.at(1)),
+               .desired = input_transform(ys_groups.at(1))});
+            // evaluate the performance of the network on the validation sequence
+            // note no teacher forcing
+            net.event("validation-start");
+            feed_result_t feed_result = net.feed(
+              {.input = input_transform(xs_groups.at(2)),
+               .feedback = {},
+               .desired = input_transform(ys_groups.at(2))});
+            data_map raw_output = make_data_map(net.output_names(), feed_result.outputs);
+            error = error_fnc(output_transform(raw_output), ys_groups.at(2));
+            std::cout << "Epoch " << epoch << " " << error << std::endl;
+        }
+        return error;
+    }
+};
+
+/// Base class for echo state network benchmarking tasks.
 class benchmark_set : public benchmark_set_base {
 protected:
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
@@ -486,29 +541,21 @@ public:
     }
 };
 
-class ett_benchmark_set : public loop_benchmark_set {
+class ett_loader {
 protected:
     fs::path data_path_;
     std::vector<std::string> header_ = {"date", "HUFL", "HULL", "MUFL",
                                         "MULL", "LUFL", "LULL", "OT"};
     data_map data_;
-    std::string set_type_;  // train/valid/test
-    std::set<std::string> persistent_input_names_{
-      "date-mon", "date-mday", "date-wday", "date-hour"};
-    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
-                                       "HUFL",     "HULL",      "MUFL",      "MULL",
-                                       "LUFL",     "LULL",      "OT"};
-    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
-    std::set<std::string> target_names_{"OT"};
 
-    data_map input_transform(const data_map& xs) const override
+    data_map ett_input_transform(const data_map& xs) const
     {
         data_map result;
         for (const auto& [key, value] : xs) result.emplace(key, af::tanh(value / 50. - 0.2));
         return result;
     }
 
-    data_map output_transform(const data_map& ys) const override
+    data_map ett_output_transform(const data_map& ys) const
     {
         data_map result;
         for (const auto& [key, value] : ys) result.emplace(key, (af::atanh(value) + 0.2) * 50.);
@@ -516,10 +563,8 @@ protected:
     }
 
 public:
-    ett_benchmark_set(po::variables_map config)
-      : loop_benchmark_set{std::move(config)}
-      , data_path_{config_.at("bench.ett-data-path").as<std::string>()}
-      , set_type_{config_.at("bench.ett-set-type").as<std::string>()}
+    ett_loader(const po::variables_map& config)
+      : data_path_{config.at("bench.ett-data-path").as<std::string>()}
     {
     }
 
@@ -572,6 +617,82 @@ public:
         std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
                   << " points.\n";
     }
+};
+
+class etth_loader : public ett_loader {
+protected:
+    int variant_;
+    std::string set_type_;  // train/valid/test
+
+    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
+    {
+        data_map xs;
+        if (set_type_ == "train") return train_data_;
+        if (set_type_ == "valid") return valid_data_;
+        if (set_type_ == "train-valid") return train_valid_data_;
+        if (set_type_ == "test") return test_data_;
+        throw std::runtime_error{"Unknown dataset."};
+    }
+
+    data_map train_data_;
+    data_map valid_data_;
+    data_map train_valid_data_;
+    data_map test_data_;
+
+public:
+    etth_loader(po::variables_map config)
+      : ett_loader{config}
+      , variant_{config.at("bench.etth-variant").as<int>()}
+      , set_type_{config.at("bench.ett-set-type").as<std::string>()}
+    {
+        load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
+
+        train_data_ = data_map_select(data_, af::seq(0, 12 * 30 * 24));
+        std::cout << "ETT train has " << data_map_length(train_data_) << " points.\n";
+
+        valid_data_ = data_map_select(data_, af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
+        std::cout << "ETT valid has " << data_map_length(valid_data_) << " points.\n";
+
+        train_valid_data_ = data_map_select(data_, af::seq(0, (12 + 4) * 30 * 24));
+        std::cout << "ETT train-valid has " << data_map_length(train_valid_data_) << " points.\n";
+
+        test_data_ = data_map_select(data_, af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
+        std::cout << "ETT test has " << data_map_length(test_data_) << " points.\n";
+    }
+};
+
+class etth_loop_benchmark_set : public loop_benchmark_set, public etth_loader {
+protected:
+    std::set<std::string> persistent_input_names_{
+      "date-mon", "date-mday", "date-wday", "date-hour"};
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                       "HUFL",     "HULL",      "MUFL",      "MULL",
+                                       "LUFL",     "LULL",      "OT"};
+    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> target_names_{"OT"};
+
+    data_map input_transform(const data_map& xs) const override
+    {
+        return ett_input_transform(xs);
+    }
+
+    data_map output_transform(const data_map& ys) const override
+    {
+        return ett_output_transform(ys);
+    }
+
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    {
+        data_map xs = get_dataset(dtype, prng);
+        data_map ys = data_map_shift(data_map_filter(xs, output_names()), -1);
+        return {std::move(xs), std::move(ys)};
+    }
+
+public:
+    etth_loop_benchmark_set(po::variables_map config)
+      : loop_benchmark_set{std::move(config)}, etth_loader{config_}
+    {
+    }
 
     const std::set<std::string>& loop_input_names() const override
     {
@@ -594,49 +715,51 @@ public:
     }
 };
 
-class etth_benchmark_set : public ett_benchmark_set {
+class etth_markov_benchmark_set : public benchmark_set, public etth_loader {
 protected:
-    int variant_;
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                       "HUFL",     "HULL",      "MUFL",      "MULL",
+                                       "LUFL",     "LULL",      "OT"};
+    std::set<std::string> output_names_;
+    long n_steps_ahead_;
 
-    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    data_map input_transform(const data_map& xs) const override
     {
-        data_map xs;
-        if (set_type_ == "train")
-            xs = train_data_;
-        else if (set_type_ == "valid")
-            xs = valid_data_;
-        else if (set_type_ == "train-valid")
-            xs = train_valid_data_;
-        else if (set_type_ == "test")
-            xs = test_data_;
-        else
-            throw std::runtime_error{"Unknown dataset."};
-        data_map ys = data_map_shift(data_map_filter(xs, output_names()), -1);
+        return ett_input_transform(xs);
+    }
+
+    data_map output_transform(const data_map& ys) const override
+    {
+        return ett_output_transform(ys);
+    }
+
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    {
+        data_map xs = get_dataset(dtype, prng);
+        data_map ys;
+        for (long i = 1; i <= n_steps_ahead_; ++i)
+            ys.emplace("OT-" + std::to_string(i), af::shift(xs.at("OT"), -i));
         return {std::move(xs), std::move(ys)};
     }
 
-    data_map train_data_;
-    data_map valid_data_;
-    data_map train_valid_data_;
-    data_map test_data_;
-
 public:
-    etth_benchmark_set(po::variables_map config)
-      : ett_benchmark_set{std::move(config)}, variant_{config_.at("bench.etth-variant").as<int>()}
+    etth_markov_benchmark_set(po::variables_map config)
+      : benchmark_set{std::move(config)}
+      , etth_loader{config_}
+      , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
     {
-        load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
+        for (long i = 1; i <= n_steps_ahead_; ++i) output_names_.emplace("OT-" + std::to_string(i));
+    }
 
-        train_data_ = data_map_select(data_, af::seq(0, 12 * 30 * 24));
-        std::cout << "ETT train has " << data_map_length(train_data_) << " points.\n";
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
 
-        valid_data_ = data_map_select(data_, af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
-        std::cout << "ETT valid has " << data_map_length(valid_data_) << " points.\n";
-
-        train_valid_data_ = data_map_select(data_, af::seq(0, (12 + 4) * 30 * 24));
-        std::cout << "ETT train-valid has " << data_map_length(train_valid_data_) << " points.\n";
-
-        test_data_ = data_map_select(data_, af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
-        std::cout << "ETT test has " << data_map_length(test_data_) << " points.\n";
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
     }
 };
 
@@ -810,8 +933,11 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     if (args.at("gen.benchmark-set").as<std::string>() == "semaphore") {
         return std::make_unique<semaphore_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "etth") {
-        return std::make_unique<etth_benchmark_set>(args);
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth-loop") {
+        return std::make_unique<etth_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth-markov") {
+        return std::make_unique<etth_markov_benchmark_set>(args);
     }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
@@ -847,8 +973,6 @@ inline po::options_description benchmark_arg_description()
        "The number of valid time steps.")                                                        //
       ("bench.valid-steps", po::value<long>()->default_value(1000),                              //
        "The number of test time steps.")                                                         //
-      ("bench.teacher-force-steps", po::value<long>()->default_value(1000),                      //
-       "The number of teacher-force steps in sequence prediction benchmarks.")                   //
       ("bench.period", po::value<long>()->default_value(100),                                    //
        "The period of flipping the semaphore sign.")                                             //
       ("bench.ett-data-path", po::value<std::string>()->default_value("third_party/ETDataset"),  //
