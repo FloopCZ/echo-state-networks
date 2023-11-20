@@ -127,33 +127,22 @@ public:
     {
         // TODO Why do we need output transform? We can predict the targets directly and stop
         // clamping.
-        // Alter the train and validation sequence sizes so that we do not feedback
-        // any validation data to the network.
-        std::vector<long> split_sizes = split_sizes_;
-        split_sizes.at(1) -= n_steps_ahead_;
-        split_sizes.at(2) += n_steps_ahead_;
-        long len = rg::accumulate(split_sizes, 0L);
+        long len = rg::accumulate(split_sizes_, 0L);
         data_map xs, ys;
         std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
         data_map ys_shifted = make_shifted_seqs(ys, n_steps_ahead_);
-        // We can feed the ground truth of one-step prediction of each target back to the network
-        // even when validating the prediction, but no further shift than -1.
-        data_map ys_feedback = make_shifted_seqs(ys, 1);
         assert(data_map_keys(xs) == input_names());
         assert(data_map_keys(xs) == net.input_names());
         assert(data_map_length(xs) >= len);
         assert(data_map_keys(ys_shifted) == output_names());
         assert(data_map_keys(ys_shifted) == net.output_names());
         assert(data_map_length(ys_shifted) >= len);
-        assert(data_map_length(ys_feedback) >= len);
         assert(data_map_keys(ys) == target_names());
         assert(data_map_length(ys) >= len);
-        // use the input transform
         // split both input and output to init, train, test
-        std::vector<data_map> xs_groups = split_data(xs, split_sizes);
-        std::vector<data_map> ys_shifted_groups = split_data(ys_shifted, split_sizes);
-        std::vector<data_map> ys_feedback_groups = split_data(ys_feedback, split_sizes);
-        std::vector<data_map> ys_groups = split_data(ys, split_sizes);
+        std::vector<data_map> xs_groups = split_data(xs, split_sizes_);
+        std::vector<data_map> ys_shifted_groups = split_data(ys_shifted, split_sizes_);
+        std::vector<data_map> ys_groups = split_data(ys, split_sizes_);
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
@@ -163,42 +152,34 @@ public:
                .feedback = input_transform(ys_shifted_groups.at(0)),
                .desired = input_transform(ys_shifted_groups.at(0))});
             // train the network on the training sequence
-            // teacher-force the first epoch, but not the others
             net.event("train-start");
-            if (epoch == 0)
-                net.train(
-                  {.input = input_transform(xs_groups.at(1)),
-                   .feedback = input_transform(ys_shifted_groups.at(1)),
-                   .desired = input_transform(ys_shifted_groups.at(1))});
-            else
-                net.train(
-                  {.input = input_transform(xs_groups.at(1)),
-                   .feedback = input_transform(ys_feedback_groups.at(1)),
-                   .desired = input_transform(ys_shifted_groups.at(1))});
+            net.train(
+              {.input = input_transform(xs_groups.at(1)),
+               .feedback = {},
+               .desired = input_transform(ys_shifted_groups.at(1))});
             // evaluate the performance of the network on the validation sequence
             net.event("validation-start");
             long validation_size = data_map_length(xs_groups.at(2));
+            af::seq valid_selector(validation_size - n_steps_ahead_);
             feed_result_t feed_result = [&]() {
-                af::seq selector(validation_size - n_steps_ahead_);
-                data_map input = data_map_select(xs_groups.at(2), selector);
-                data_map feedback = data_map_select(ys_feedback_groups.at(2), selector);
-                data_map desired = data_map_select(ys_shifted_groups.at(2), selector);
+                data_map input = data_map_select(xs_groups.at(2), valid_selector);
+                data_map desired = data_map_select(ys_shifted_groups.at(2), valid_selector);
                 return net.feed(
                   {.input = input_transform(input),
-                   .feedback = input_transform(feedback),
+                   .feedback = {},
                    .desired = input_transform(desired)});
             }();
             data_map tr_output = make_data_map(net.output_names(), feed_result.outputs);
+            data_map output = output_transform(tr_output);
 
             // build the subsequences of length n_steps_ahead_ for each time point
             std::vector<data_map> predicted;
             std::vector<data_map> desired;
+            data_map last_shift_predicted;
+            data_map last_shift_desired;
             for (const std::string& target_name : target_names()) {
-                const af::array& tr_desired_subseq = ys_groups.at(2).at(target_name);
-                // We have to start at n_steps_ahead_ during validation/testing, because the
-                // network has already seen the first n_steps_ahead_ targets as its feedback.
-                // The train and validation sequence lengths have been adapted for this already.
-                for (long time = n_steps_ahead_; time < validation_size - n_steps_ahead_; ++time) {
+                const af::array& tr_desired_seq = ys_groups.at(2).at(target_name);
+                for (long time = 0; time < validation_size - n_steps_ahead_; ++time) {
                     af::array tr_predicted_subseq = af::constant(af::NaN, n_steps_ahead_);
                     for (long i = 1; i <= n_steps_ahead_; ++i) {
                         std::string shifted_name = target_name + "-" + std::to_string(i);
@@ -207,12 +188,19 @@ public:
                     predicted.emplace_back(
                       output_transform({{target_name, std::move(tr_predicted_subseq)}}));
                     data_map desired_subseq_dm = {
-                      {target_name, tr_desired_subseq(af::seq(time + 1, time + n_steps_ahead_))}};
+                      {target_name, tr_desired_seq(af::seq(time + 1, time + n_steps_ahead_))}};
                     desired.push_back(std::move(desired_subseq_dm));
                 }
+
+                std::string last_shift_name = target_name + "-" + std::to_string(n_steps_ahead_);
+                last_shift_predicted.emplace(last_shift_name, output.at(last_shift_name));
+                last_shift_desired.emplace(
+                  last_shift_name, af::shift(tr_desired_seq, -n_steps_ahead_)(valid_selector));
             }
             error = multi_error_fnc(predicted, desired);
-            std::cout << "Epoch " << epoch << " " << error << std::endl;
+            std::cout << "Epoch " << epoch << " error " << error << "\n"
+                      << "Error of the last target "
+                      << error_fnc(last_shift_predicted, last_shift_desired) << std::endl;
         }
         return error;
     }

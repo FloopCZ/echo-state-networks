@@ -63,7 +63,7 @@
             ]
         },
         {
-            "name": "(gdb) Launch evaluate for ET Dataset",
+            "name": "(gdb) Launch evaluate for ET loop Dataset",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/evaluate_cuda",
