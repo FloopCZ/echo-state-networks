@@ -180,13 +180,12 @@ public:
             for (const std::string& target_name : target_names()) {
                 const af::array& tr_desired_seq = ys_groups.at(2).at(target_name);
                 for (long time = 0; time < validation_size - n_steps_ahead_; ++time) {
-                    af::array tr_predicted_subseq = af::constant(af::NaN, n_steps_ahead_);
+                    af::array predicted_subseq = af::constant(af::NaN, n_steps_ahead_);
                     for (long i = 1; i <= n_steps_ahead_; ++i) {
                         std::string shifted_name = target_name + "-" + std::to_string(i);
-                        tr_predicted_subseq(i - 1) = tr_output.at(shifted_name)(time);
+                        predicted_subseq(i - 1) = output.at(shifted_name)(time);
                     }
-                    predicted.emplace_back(
-                      output_transform({{target_name, std::move(tr_predicted_subseq)}}));
+                    predicted.push_back({{target_name, std::move(predicted_subseq)}});
                     data_map desired_subseq_dm = {
                       {target_name, tr_desired_seq(af::seq(time + 1, time + n_steps_ahead_))}};
                     desired.push_back(std::move(desired_subseq_dm));
@@ -629,14 +628,18 @@ protected:
     data_map ett_input_transform(const data_map& xs) const
     {
         data_map result;
-        for (const auto& [key, value] : xs) result.emplace(key, af::tanh(value / 50. - 0.2));
+        for (const auto& [key, value] : xs) {
+            // Avoid -1 and 1 to atanh by multiplying by 0.99.
+            result.emplace(key, af::tanh((value / 50. - 0.2)) / 0.99);
+        }
         return result;
     }
 
     data_map ett_output_transform(const data_map& ys) const
     {
         data_map result;
-        for (const auto& [key, value] : ys) result.emplace(key, (af::atanh(value) + 0.2) * 50.);
+        for (const auto& [key, value] : ys)
+            result.emplace(key, (af::atanh(value * 0.99) + 0.2) * 50.);
         return result;
     }
 
