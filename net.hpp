@@ -50,9 +50,9 @@ public:
 
     virtual feed_result_t feed(const input_t& input) = 0;
 
-    virtual feed_result_t train(const input_t& input) = 0;
+    virtual std::tuple<feed_result_t, train_result_t> train(const input_t& input) = 0;
 
-    virtual void train(const feed_result_t& data) = 0;
+    virtual train_result_t train(const feed_result_t& data) = 0;
 
     virtual const af::array& state() const = 0;
 

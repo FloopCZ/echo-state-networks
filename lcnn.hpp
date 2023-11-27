@@ -2,6 +2,7 @@
 
 // Locally connected Echo state network class and training functions. //
 
+#include "arrayfire_utils.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
 #include "lcnn_step.hpp"
@@ -433,16 +434,16 @@ public:
     /// \param input Input sequence of dimensions [n_ins, time].
     /// \param desired The desired output sequences. Those are also teacher-forced into the net.
     ///                Needs to have dimensions [n_outs, time]
-    feed_result_t train(const input_t& input) override
+    std::tuple<feed_result_t, train_result_t> train(const input_t& input) override
     {
         feed_result_t feed_result = feed(input);
-        train(feed_result);
-        return feed_result;
+        train_result_t train_result = train(feed_result);
+        return {std::move(feed_result), std::move(train_result)};
     }
 
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    void train(const feed_result_t& data) override
+    train_result_t train(const feed_result_t& data) override
     {
         assert(data.states.type() == DType);
         assert(
@@ -459,6 +460,7 @@ public:
         output_w_ = af_utils::lstsq_train(states.T(), data.desired->T()).T();
         update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
+        return {.states = std::move(states), .output_w = output_w_};
     }
 
     /// Get the current state of the network.

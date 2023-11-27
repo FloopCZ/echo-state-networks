@@ -20,6 +20,14 @@ struct feed_result_t {
     std::optional<af::array> desired;
 };
 
+/// The information returned by the esn train().
+struct train_result_t {
+    /// The array of intermediate states.
+    af::array states;
+    /// The output weights.
+    af::array output_w;
+};
+
 inline feed_result_t concatenate(const feed_result_t& a, const feed_result_t& b)
 {
     feed_result_t c;

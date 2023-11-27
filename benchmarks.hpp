@@ -4,6 +4,7 @@
 
 #include "analysis.hpp"
 #include "argument_utils.hpp"
+#include "arrayfire_utils.hpp"
 #include "data_map.hpp"
 #include "misc.hpp"
 #include "net.hpp"
@@ -370,7 +371,14 @@ public:
                     }();
                     train_data = concatenate(std::move(train_data), std::move(extra_train_data));
                 }
-                net.train(train_data);
+                {
+                    train_result_t train_result = net.train(train_data);
+                    // Print train mse error
+                    af::array train_prediction =
+                      af_utils::lstsq_predict(train_result.states.T(), train_result.output_w.T());
+                    double err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);
+                    std::cout << "Train MSE error: " << err << std::endl;
+                }
                 // create a copy of the network before the validation so that we can simply
                 // continue training of the original net in the next iteration
                 std::unique_ptr<net_base> net_copy = net.clone();
