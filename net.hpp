@@ -21,10 +21,13 @@ constexpr af::dtype DEFAULT_AF_DTYPE = af::dtype::f64;
 
 class net_base {
 public:
+    using input_transform_fn_t = std::function<data_map(const data_map&)>;
+
     struct input_t {
         data_map input;
         data_map feedback;
         data_map desired;
+        input_transform_fn_t input_transform;
     };
 
     struct on_state_change_data {
@@ -41,7 +44,11 @@ protected:
     std::optional<std::string> event_;
 
 public:
-    virtual void step(data_map step_input, data_map step_feedback, data_map step_desired) = 0;
+    virtual void step(
+      const data_map& step_input,
+      const data_map& step_feedback,
+      const data_map& step_desired,
+      input_transform_fn_t input_transform) = 0;
 
     virtual void event(const std::string& event)
     {

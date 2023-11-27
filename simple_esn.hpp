@@ -130,36 +130,41 @@ public:
     ///                 of the network's output of size [n_outs].
     /// \param desired The desired output. This is only used for callbacks.
     ///                Has to be of size [n_outs].
-    void step(data_map step_input, data_map step_feedback, data_map step_desired) override
+    void step(
+      const data_map& step_input,
+      const data_map& step_feedback,
+      const data_map& step_desired,
+      input_transform_fn_t input_transform) override
     {
         data_map orig_step_input = step_input;
 
         // prepare the inputs for this step (add missing keys from last output)
         assert(!last_output_.isempty());
         data_map last_output = make_data_map(output_names_, last_output_);
-        step_input.insert(last_output.begin(), last_output.end());
-        step_input = data_map_filter(std::move(step_input), input_names_);
+        data_map tr_last_output = input_transform(last_output);
+        data_map tr_step_input = input_transform(step_input);
+        tr_step_input.insert(tr_last_output.begin(), tr_last_output.end());
+        tr_step_input = data_map_filter(std::move(tr_step_input), input_names_);
 
         // validate all input data
-        auto check_data = [](const data_map& data) {
-            for (const auto& [key, value] : data) {
-                assert(value.isscalar());
-                assert(af::allTrue<bool>(value >= -1. && value <= 1.));
-            }
+        auto check_scalar = [](const data_map& data) {
+            for (const auto& [key, value] : data) assert(value.isscalar());
         };
-        check_data(step_input);
-        assert(data_map_keys(step_input) == input_names_);
+        check_scalar(tr_step_input);
+        assert(data_map_keys(tr_step_input) == input_names_);
+        const af::array& tr_step_input_array = data_map_to_array(tr_step_input);
+        assert(af::allTrue<bool>(tr_step_input_array >= -1. && tr_step_input_array <= 1.));
         if (!step_feedback.empty()) {
-            check_data(step_feedback);
+            check_scalar(step_feedback);
             assert(data_map_keys(step_feedback) == output_names_);
         }
         if (!step_desired.empty()) {
-            check_data(step_desired);
+            check_scalar(step_desired);
             assert(data_map_keys(step_desired) == output_names_);
         }
 
-        af::array weighted_input = af::matmul(input_w_, data_map_to_array(step_input));
-        af::array feedback_activation = af::matmul(feedback_w_, last_output_);
+        af::array weighted_input = af::matmul(input_w_, data_map_to_array(tr_step_input));
+        af::array feedback_activation = af::matmul(feedback_w_, data_map_to_array(tr_last_output));
         af::array internal_activation = af::matmul(reservoir_w_, state_);
         af::array noise =
           1. + af::randn({state_.dims()}, DType, af_prng_) * noise_ * noise_enabled_;
@@ -168,18 +173,20 @@ public:
         state_ *= 1. - leakage_;
         state_ += af::tanh(state_before_activation * noise);
         af::eval(state_);
-        if (step_feedback.empty())
+        if (step_feedback.empty()) {
+            assert(
+              data_map_keys(step_feedback) == output_names_ && "Only full feedback is supported.");
             last_output_ = af::matmul(output_w_, af_utils::add_ones(state_, 0));
-        else
+        } else {
             last_output_ = data_map_to_array(step_feedback);
+        }
         assert(last_output_.dims() == (af::dim4{output_names_.size()}));
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
               .state = state_,
-              .input =
-                {.input = orig_step_input, .feedback = step_feedback, .desired = step_desired},
+              .input = {.input = step_input, .feedback = step_feedback, .desired = step_desired},
               .output = last_output_,
               .event = event_};
             fnc(*this, std::move(data));
@@ -221,7 +228,7 @@ public:
             data_map step_input = data_map_select(input.input, i);
             data_map step_feedback = data_map_select(input.feedback, i);
             data_map step_desired = data_map_select(input.desired, i);
-            step(step_input, step_feedback, step_desired);
+            step(step_input, step_feedback, step_desired, input.input_transform);
             result.states(af::span, i) = state_;
             result.outputs(af::span, i) = last_output_;
         }

@@ -244,14 +244,13 @@ protected:
             return;
         }
         af::array flat_state_1 = af_utils::add_ones(af::flat(state_), 0);
-        last_output_ = af::clamp(af::matmul(output_w_, flat_state_1), -1., 1.);
+        last_output_ = af::matmul(output_w_, flat_state_1);
         assert(last_output_.dims() == (af::dim4{output_names_.size()}));
         last_output_dm_ = make_data_map(output_names_, last_output_);
     }
 
     virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
     {
-        // TODO migrate to simple esn
         if (data_map_keys(step_feedback) == output_names_) {
             last_output_ = data_map_to_array(step_feedback);
             last_output_dm_ = step_feedback;
@@ -313,7 +312,11 @@ public:
     ///                 of the network's output.
     /// \param desired The desired output. This is only used for callbacks.
     ///                Has to be of size [n_outs].
-    void step(data_map step_input, data_map step_feedback, data_map step_desired) override
+    void step(
+      const data_map& step_input,
+      const data_map& step_feedback,
+      const data_map& step_desired,
+      input_transform_fn_t input_transform) override
     {
         // TODO desired and feedback is the same, only one should be provided and there should be
         // teacher-force bool param
@@ -322,24 +325,24 @@ public:
         prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
-        data_map orig_step_input = step_input;
-        step_input.insert(last_output_dm_.begin(), last_output_dm_.end());
-        step_input = data_map_filter(std::move(step_input), input_names_);
+        data_map tr_last_output = input_transform(last_output_dm_);
+        data_map tr_step_input = input_transform(step_input);
+        tr_step_input.insert(tr_last_output.begin(), tr_last_output.end());
+        tr_step_input = data_map_filter(std::move(tr_step_input), input_names_);
 
         // validate all input data
-        auto check_data = [](const data_map& data) {
-            for (const auto& [key, value] : data) {
-                assert(value.isscalar());
-                assert(af::allTrue<bool>(value >= -1. && value <= 1.));
-            }
+        auto check_scalar = [](const data_map& data) {
+            for (const auto& [key, value] : data) assert(value.isscalar());
         };
-        check_data(step_input);
-        assert(data_map_keys(step_input) == input_names_);
+        check_scalar(tr_step_input);
+        assert(data_map_keys(tr_step_input) == input_names_);
+        const af::array& tr_step_input_array = data_map_to_array(tr_step_input);
+        assert(af::allTrue<bool>(tr_step_input_array >= -1. && tr_step_input_array <= 1.));
         if (!step_feedback.empty()) {
-            check_data(step_feedback);
+            check_scalar(step_feedback);
         }
         if (!step_desired.empty()) {
-            check_data(step_desired);
+            check_scalar(step_desired);
             assert(data_map_keys(step_desired) == output_names_);
         }
 
@@ -353,10 +356,10 @@ public:
         }
 
         // add input
-        update_via_input(data_map_to_array(step_input));
+        update_via_input(data_map_to_array(tr_step_input));
 
         // add feedback
-        if (!last_output_dm_.empty()) update_via_feedback(last_output_);
+        if (!tr_last_output.empty()) update_via_feedback(data_map_to_array(tr_last_output));
 
         // add bias
         update_via_bias();
@@ -378,8 +381,7 @@ public:
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
               .state = state_,
-              .input =
-                {.input = orig_step_input, .feedback = step_feedback, .desired = step_desired},
+              .input = {.input = step_input, .feedback = step_feedback, .desired = step_desired},
               .output = last_output_,
               .event = event_};
             fnc(*this, std::move(data));
@@ -405,7 +407,6 @@ public:
                 assert(data.numdims() == 1);
                 assert(data.dims(0) > 0);
                 assert(data_len == -1 || data.dims(0) == data_len);
-                assert(af::allTrue<bool>(af::abs(data) <= 1.));
                 data_len = data.dims(0);
             }
         };
@@ -422,7 +423,7 @@ public:
             data_map step_input = data_map_select(input.input, i);
             data_map step_feedback = data_map_select(input.feedback, i);
             data_map step_desired = data_map_select(input.desired, i);
-            step(step_input, step_feedback, step_desired);
+            step(step_input, step_feedback, step_desired, input.input_transform);
             result.states(af::span, af::span, i) = state_;
             result.outputs(af::span, i) = last_output_;
         }
