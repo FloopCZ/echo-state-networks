@@ -253,7 +253,7 @@ public:
         assert(data.desired->numdims() <= 2);
         assert(data.desired->dims(0) == output_names_.size());
         output_w_ = af_utils::lstsq_train(data.states.T(), data.desired->T()).T();
-        output_w_(af::isNaN(-output_w_) || af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
+        output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         assert((output_w_.dims() == af::dim4{output_names_.size(), state_.elements() + 1}));
         return {.states = data.states, .output_w = output_w_};
     }

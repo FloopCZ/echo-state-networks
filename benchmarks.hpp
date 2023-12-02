@@ -669,7 +669,7 @@ protected:
     {
         if (xs.empty()) return {};
         // Avoid -1 and 1 to atanh by multiplying by 0.99.
-        return {xs.keys(), af::tanh((xs.data() / 50. - 0.2)) / 0.99};
+        return {xs.keys(), af::tanh((xs.data() / 50. - 0.2)) * 0.99};
     }
 
 public:
