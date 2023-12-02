@@ -176,11 +176,19 @@ public:
                .input_transform = input_transform_fn()});
             // train the network on the training sequence
             net.event("train-start");
-            net.train(
-              {.input = xs_groups.at(1),
-               .feedback = {},
-               .desired = ys_shifted_groups.at(1),
-               .input_transform = input_transform_fn()});
+            {
+                auto train_result = std::get<train_result_t>(net.train(
+                  {.input = xs_groups.at(1),
+                   .feedback = {},
+                   .desired = ys_shifted_groups.at(1),
+                   .input_transform = input_transform_fn()}));
+                // Print train mse error
+                af::array train_prediction =
+                  af_utils::lstsq_predict(train_result.states.T(), train_result.output_w.T());
+                double err =
+                  af_utils::mse<double>(train_prediction.T(), ys_shifted_groups.at(1).data());
+                std::cout << "Train MSE error: " << err << std::endl;
+            }
             // evaluate the performance of the network on the validation sequence
             net.event("validation-start");
             long validation_size = xs_groups.at(2).length();
