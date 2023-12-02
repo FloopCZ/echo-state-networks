@@ -91,8 +91,7 @@ protected:
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
-    af::array last_output_;    // the last output of the net
-    data_map last_output_dm_;  // the last output of the net as a data map
+    data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
     af::array reservoir_w_;
     af::array reservoir_w_full_;
@@ -239,31 +238,20 @@ protected:
     virtual void update_last_output()
     {
         if (output_w_.isempty()) {
-            last_output_ = af::constant(af::NaN, output_names_.size(), DType);
-            last_output_dm_.clear();
+            last_output_.clear();
             return;
         }
         af::array flat_state_1 = af_utils::add_ones(af::flat(state_), 0);
-        last_output_ = af::matmul(output_w_, flat_state_1);
-        assert(last_output_.dims() == (af::dim4{output_names_.size()}));
-        last_output_dm_ = make_data_map(output_names_, last_output_);
+        last_output_ = {output_names_, af::matmul(output_w_, flat_state_1)};
+        assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
     }
 
     virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
     {
-        if (data_map_keys(step_feedback) == output_names_) {
-            last_output_ = data_map_to_array(step_feedback);
-            last_output_dm_ = step_feedback;
-            return;
-        }
-
-        if (!step_feedback.empty()) {
-            data_map updated_last_output = step_feedback;
-            updated_last_output.insert(last_output_dm_.begin(), last_output_dm_.end());
-            updated_last_output = data_map_filter(std::move(updated_last_output), output_names_);
-            last_output_dm_ = std::move(updated_last_output);
-            last_output_ = data_map_to_array(last_output_dm_);
-        }
+        if (step_feedback.empty()) return;
+        // check that with empty last output, full feedback is provided.
+        assert(!last_output_.empty() || step_feedback.keys() == output_names_);
+        last_output_ = step_feedback.extend(std::move(last_output_)).filter(output_names_);
     }
 
 public:
@@ -273,8 +261,7 @@ public:
     lcnn(lcnn_config cfg, std::mt19937& prng)
       : input_names_{cfg.input_names}
       , output_names_{cfg.output_names}
-      , last_output_{af::constant(af::NaN, output_names_.size(), DType)}
-      , last_output_dm_{}
+      , last_output_{}
       , output_w_{}
       , force_matmul_{false}
       , prng_{&prng}
@@ -325,25 +312,20 @@ public:
         prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
-        data_map tr_last_output = input_transform(last_output_dm_);
-        data_map tr_step_input = input_transform(step_input);
-        tr_step_input.insert(tr_last_output.begin(), tr_last_output.end());
-        tr_step_input = data_map_filter(std::move(tr_step_input), input_names_);
+        data_map tr_last_output = input_transform(last_output_);
+        data_map tr_step_input =
+          input_transform(step_input).extend(tr_last_output).filter(input_names_);
 
         // validate all input data
-        auto check_scalar = [](const data_map& data) {
-            for (const auto& [key, value] : data) assert(value.isscalar());
-        };
-        check_scalar(tr_step_input);
-        assert(data_map_keys(tr_step_input) == input_names_);
-        const af::array& tr_step_input_array = data_map_to_array(tr_step_input);
-        assert(af::allTrue<bool>(tr_step_input_array >= -1. && tr_step_input_array <= 1.));
+        assert(tr_step_input.length() == 1);
+        assert(tr_step_input.keys() == input_names_);
+        assert(af::allTrue<bool>(tr_step_input.data() >= -1. && tr_step_input.data() <= 1.));
         if (!step_feedback.empty()) {
-            check_scalar(step_feedback);
+            assert(step_feedback.length() == 1);
         }
         if (!step_desired.empty()) {
-            check_scalar(step_desired);
-            assert(data_map_keys(step_desired) == output_names_);
+            assert(step_desired.length() == 1);
+            assert(step_desired.keys() == output_names_);
         }
 
         // Update the internal state.
@@ -356,10 +338,13 @@ public:
         }
 
         // add input
-        update_via_input(data_map_to_array(tr_step_input));
+        update_via_input(tr_step_input.data());
 
         // add feedback
-        if (!tr_last_output.empty()) update_via_feedback(data_map_to_array(tr_last_output));
+        if (!tr_last_output.empty()) {
+            assert(tr_last_output.keys() == output_names_);
+            update_via_feedback(tr_last_output.data());
+        }
 
         // add bias
         update_via_bias();
@@ -376,6 +361,7 @@ public:
         // }
 
         update_last_output();
+        assert(!af::anyTrue<bool>(af::isNaN(state_)));
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
@@ -402,13 +388,13 @@ public:
     {
         long data_len = -1;
         auto check_data = [&data_len](const data_map& dm) {
-            for (const auto& [key, data] : dm) {
-                assert(data.type() == DType);
-                assert(data.numdims() == 1);
-                assert(data.dims(0) > 0);
-                assert(data_len == -1 || data.dims(0) == data_len);
-                data_len = data.dims(0);
-            }
+            if (dm.empty()) return;
+            assert(dm.data().type() == DType);
+            assert(dm.data().numdims() <= 2);
+            assert(dm.size() > 0);
+            assert(data_len == -1 || dm.length() == data_len);
+            assert(!af::anyTrue<bool>(af::isNaN(dm.data())));
+            data_len = dm.length();
         };
         check_data(input.input);
         check_data(input.feedback);
@@ -416,16 +402,16 @@ public:
 
         feed_result_t result;
         result.states = af::array(state_.dims(0), state_.dims(1), data_len, DType);
-        result.outputs = af::array(output_names_.size(), data_len, DType);
-        result.desired = data_map_to_array(input.desired);
+        result.outputs = af::constant(af::NaN, output_names_.size(), data_len, DType);
+        result.desired = input.desired.data();
         for (long i = 0; i < data_len; ++i) {
             // prepare the inputs for this step
-            data_map step_input = data_map_select(input.input, i);
-            data_map step_feedback = data_map_select(input.feedback, i);
-            data_map step_desired = data_map_select(input.desired, i);
+            data_map step_input = input.input.select(i);
+            data_map step_feedback = input.feedback.select(i);
+            data_map step_desired = input.desired.select(i);
             step(step_input, step_feedback, step_desired, input.input_transform);
             result.states(af::span, af::span, i) = state_;
-            result.outputs(af::span, i) = last_output_;
+            if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
         return result;
     }
@@ -457,8 +443,12 @@ public:
         assert(data.desired->type() == DType);
         assert(data.desired->numdims() <= 2);
         assert(data.desired->dims(0) == output_names_.size());
+        assert(!af::anyTrue<bool>(af::isNaN(data.states)));
+        assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
         af::array states = af::moddims(data.states, state_.elements(), data.outputs.dims(1));
         output_w_ = af_utils::lstsq_train(states.T(), data.desired->T()).T();
+        output_w_(af::isNaN(output_w_)) = 0.;
+        output_w_(af::isInf(output_w_)) = 0.;
         update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
         return {.states = std::move(states), .output_w = output_w_};

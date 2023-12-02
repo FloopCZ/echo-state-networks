@@ -33,7 +33,7 @@ public:
     struct on_state_change_data {
         af::array state;
         input_t input;
-        af::array output;
+        data_map output;
         std::optional<std::string> event;
     };
 

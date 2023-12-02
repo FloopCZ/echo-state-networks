@@ -120,8 +120,8 @@ private:
 
     void plot_input(const data_map& input)
     {
-        for (const auto& [key, value] : input) assert(value.elements() == 1);
-        update_plot_history(input_history_, data_map_to_array(input));
+        assert(input.length() == 1);
+        update_plot_history(input_history_, input.data());
         window_(1, 0).setAxesTitles("Time", "");
         window_(1, 0).setAxesLimits(
           std::max(0L, time_ - history_size_), std::max(time_, history_size_), -1., 1., true);
@@ -138,7 +138,7 @@ private:
         window_(1, 1).setAxesLimits(
           std::max(0L, time_ - history_size_), std::max(time_, history_size_), -1., 1., true);
         for (long i = 0; i < output.dims(0); ++i) {
-            window_(1, 1).plot(plottable_plot_history(output_history_, i), "Feedback/Output");
+            window_(1, 1).plot(plottable_plot_history(output_history_, i), "Output");
         }
     }
 
@@ -157,7 +157,9 @@ private:
             // Render the image.
             plot_state(data.state);
             plot_input(data.input.desired);
-            plot_output(data.output);
+            af::array output = af::constant(af::NaN, net.output_names().size(), net.state().type());
+            if (!data.output.empty()) output = data.output.data();
+            plot_output(output);
             window_.show();
             // Sleep.
             if (sleepms_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds{sleepms_});
@@ -200,7 +202,7 @@ private:
 
     void on_state_change(net_base& net, const esn::net_base::on_state_change_data& data)
     {
-        assert(data_map_keys(data.input.desired) == net.output_names());
+        assert(data.input.desired.keys() == net.output_names());
         if (time_ == 0) {
             std::vector<std::string> header{"time"};
             for (const std::string& h : net.input_names()) header.push_back("input-" + h);
@@ -211,22 +213,30 @@ private:
             csv_out_ << boost::join(header, ",") << "\n";
         }
         std::vector<std::string> values{std::to_string(time_)};
+        assert(data.input.input.length() == 1);
         for (const std::string& h : net.input_names()) {
-            if (data.input.input.contains(h))
+            if (data.input.input.keys().contains(h))
                 values.push_back(std::to_string(data.input.input.at(h).scalar<double>()));
             else
                 values.push_back("");
         }
-        for (long i = 0; i < net.output_names().size(); ++i)
-            values.push_back(std::to_string(data.output(i).scalar<double>()));
+        assert(data.output.length() == 1);
         for (const std::string& h : net.output_names()) {
-            if (data.input.feedback.contains(h))
+            if (data.output.keys().contains(h))
+                values.push_back(std::to_string(data.output.at(h).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        assert(data.input.feedback.length() == 1);
+        for (const std::string& h : net.output_names()) {
+            if (data.input.feedback.keys().contains(h))
                 values.push_back(std::to_string(data.input.feedback.at(h).scalar<double>()));
             else
                 values.push_back("");
         }
+        assert(data.input.desired.length() == 1);
         for (const std::string& h : net.output_names()) {
-            if (data.input.desired.contains(h))
+            if (data.input.desired.keys().contains(h))
                 values.push_back(std::to_string(data.input.desired.at(h).scalar<double>()));
             else
                 values.push_back("");

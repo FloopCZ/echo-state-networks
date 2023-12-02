@@ -6,6 +6,7 @@
 #include <arrayfire.h>
 #include <map>
 #include <range/v3/all.hpp>
+#include <range/v3/view/enumerate.hpp>
 #include <set>
 
 namespace esn {
@@ -13,103 +14,163 @@ namespace esn {
 namespace rg = ranges;
 namespace rgv = ranges::views;
 
-using data_map = std::map<std::string, af::array>;
+class data_map {
+private:
+    std::set<std::string> keys_;
+    af::array data_;
 
-template <typename Rng>
-inline data_map make_data_map(Rng&& keys, const af::array& values)
-{
-    assert(values.numdims() <= 2);
-    assert(rg::size(keys) == values.dims(0));
-
-    auto value_slices = rgv::ints((dim_t)0, values.dims(0))
-      | rgv::transform([&](long i) { return values(i, af::span).T(); });
-    return rgv::zip(keys, value_slices) | rg::to<data_map>;
-}
-
-template <typename Selector>
-data_map data_map_select(const data_map& data, const Selector& sel)
-{
-    data_map result;
-    for (const auto& [key, value] : data) {
-        assert(value.numdims() == 1);
-        result.emplace(key, value(sel));
+    template <typename Rng>
+    static std::map<std::string, double> key_indices(Rng&& keys, size_t offset = 0)
+    {
+        return rgv::zip(keys, rgv::iota(offset)) | rg::to<std::map<std::string, double>>;
     }
-    return result;
-}
 
-template <typename Rng>
-inline data_map data_map_filter(const data_map& data, Rng&& keys)
-{
-    data_map result;
-    for (const auto& key : keys) {
-        assert(data.contains(key));
-        result.emplace(key, data.at(key));
+    static af::array make_index_array(const std::map<std::string, double>& indices)
+    {
+        std::vector<double> ordered_indices = rgv::values(indices) | rg::to_vector;
+        return af_utils::to_array(ordered_indices);
     }
-    return result;
-}
 
-inline af::array data_map_to_array(const data_map& data)
-{
-    assert(!data.empty());
-    const af::array& front = data.begin()->second;
-    assert(front.numdims() == 1);
-    af::array result(data.size(), front.dims(0), front.type());
-    long i = 0;
-    for (const auto& [_, value] : data) {
-        result(i++, af::span) = value.T();
+public:
+    data_map() = default;
+
+    data_map(std::set<std::string> keys, af::array data)
+    {
+        assert(data.dims(0) == keys.size());
+        assert(data.numdims() <= 2);
+        keys_ = std::move(keys);
+        data_ = std::move(data);
     }
-    return result;
-}
 
-inline std::set<std::string> data_map_keys(const data_map& data)
-{
-    return rgv::keys(data) | rg::to<std::set<std::string>>;
-}
-
-inline long data_map_length(const data_map& data)
-{
-    assert(!data.empty());
-    long len = -1;
-    for (const auto& [key, value] : data) {
-        assert(value.numdims() == 1);
-        assert(len == -1 || len == value.dims(0));
-        len = value.dims(0);
-    }
-    return len;
-}
-
-inline data_map data_map_shift(const data_map& data, long shift)
-{
-    data_map result;
-    for (const auto& [key, value] : data) {
-        assert(value.numdims() == 1);
-        af::array shifted = af::shift(value, shift);
-        if (shift < 0)
-            shifted(af::seq(af::end - (-shift), af::end)) = af::NaN;
-        else if (shift > 0)
-            shifted(af::seq(0, shift - 1)) = af::NaN;
-        result.emplace(key, std::move(shifted));
-    }
-    return result;
-}
-
-inline std::vector<data_map> split_data(const data_map& data, const std::vector<long>& sizes)
-{
-    std::vector<data_map> result(sizes.size());
-    for (const auto& [key, value] : data) {
-        long igroup = 0;
-        for (af::array& chunk : af_utils::split_data(value, sizes, 0)) {
-            result.at(igroup++)[key] = std::move(chunk);
+    data_map(const std::map<std::string, af::array>& data_vectors)
+    {
+        if (data_vectors.empty()) return;
+        long data_len = -1;
+        for (const auto& [k, v] : data_vectors) {
+            assert(v.numdims() == 1);
+            assert(data_len == -1 || v.dims(0) == data_len);
+            data_len = v.dims(0);
         }
+        data_ = af::array(data_vectors.size(), data_len, data_vectors.begin()->second.type());
+        for (const auto& [i, v] : rgv::enumerate(rgv::values(data_vectors))) {
+            data_(i, af::span) = v.T();
+        }
+        keys_ = rgv::keys(data_vectors) | rg::to<std::set>;
     }
-    return result;
-}
 
-inline void data_map_print(const data_map& data)
-{
-    for (const auto& [key, value] : data) {
-        af::print(key.c_str(), value);
+    data_map(const std::vector<std::string>& keys, const af::array& data)
+    {
+        assert(data.dims(0) == keys.size());
+        assert(data.numdims() <= 2);
+        const std::map<std::string, double> ordered_indices = key_indices(keys);
+        const af::array index_array = make_index_array(ordered_indices);
+        keys_.insert(keys.begin(), keys.end());
+        data_ = data(index_array, af::span);
     }
-}
+
+    data_map(const std::string& key, const af::array& data_vector)
+    {
+        assert(data_vector.numdims() == 1);
+        keys_.insert(key);
+        data_ = data_vector.T();
+    }
+
+    template <typename Selector>
+    data_map select(Selector sel) const
+    {
+        if (keys_.empty()) return {};
+        return {keys_, data_(af::span, sel)};
+    }
+
+    af::array at(const std::string& key) const
+    {
+        assert(keys_.contains(key));
+        long idx = std::distance(keys_.begin(), keys_.find(key));
+        assert(data_(idx).dims(0) == 1);
+        return data_(idx, af::span).T();
+    }
+
+    template <typename Rng>
+    data_map filter(Rng&& keys_rng) const
+    {
+        std::set<std::string> keys = keys_rng | rg::to<std::set<std::string>>;
+        if (keys == keys_) return *this;
+
+        const std::map<std::string, double> indices = key_indices(keys_);
+        std::vector<double> filtered_indices;
+        for (const std::string& k : keys) {
+            assert(indices.contains(k));
+            filtered_indices.push_back(indices.at(k));
+        }
+        const af::array index_array = af_utils::to_array(filtered_indices);
+        return {std::move(keys), data_(index_array, af::span)};
+    }
+
+    data_map shift(long shift) const
+    {
+        if (keys_.empty()) return *this;
+        af::array shifted = af::shift(data_, 0, shift);
+        if (shift < 0)
+            shifted(af::span, af::seq(af::end - (-shift), af::end)) = af::NaN;
+        else if (shift > 0)
+            shifted(af::span, af::seq(0, shift - 1)) = af::NaN;
+        return {keys_, std::move(shifted)};
+    }
+
+    std::vector<data_map> split(const std::vector<long>& sizes) const
+    {
+        assert(!keys_.empty());
+        std::vector<af::array> data_groups = af_utils::split_data(data_, sizes, 1);
+        std::vector<data_map> result;
+        for (af::array& group : data_groups) result.emplace_back(keys_, std::move(group));
+        return result;
+    }
+
+    data_map extend(const data_map& rhs) const
+    {
+        if (keys_.empty()) return rhs;
+        if (rg::includes(keys_, rhs.keys_)) return *this;
+
+        assert(length() == rhs.length());
+        af::array joined_data = af::join(0, data_, rhs.data());
+        std::map<std::string, double> rhs_indices = key_indices(rhs.keys_, keys_.size());
+        std::map<std::string, double> joined_indices = key_indices(keys_);
+        joined_indices.insert(rhs_indices.begin(), rhs_indices.end());
+        af::array index_array = make_index_array(joined_indices);
+
+        return {rgv::keys(joined_indices) | rg::to<std::set>, joined_data(index_array, af::span)};
+    }
+
+    const std::set<std::string>& keys() const
+    {
+        return keys_;
+    }
+
+    const af::array& data() const
+    {
+        return data_;
+    }
+
+    long size() const
+    {
+        return keys_.size();
+    }
+
+    bool empty() const
+    {
+        return keys_.empty();
+    }
+
+    long length() const
+    {
+        return data_.dims(1);
+    }
+
+    void clear()
+    {
+        keys_.clear();
+        data_ = af::array{};
+    }
+};
 
 }  // namespace esn

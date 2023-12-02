@@ -6,6 +6,7 @@ import matplotlib
 matplotlib.rcParams["pdf.fonttype"] = 42
 matplotlib.rcParams["ps.fonttype"] = 42
 matplotlib.rcParams["figure.figsize"] = 4, 3
+from collections import defaultdict
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -22,7 +23,8 @@ if __name__ == "__main__":
     sns.set_style("whitegrid")
     palette = sns.color_palette("deep")
     linestyles = ["solid", "dotted", "dashed", "dashdot"]
-    df = pd.read_csv(args.csv, index_col="time")
+    dtypes = defaultdict(lambda: float, {"event": str})
+    df = pd.read_csv(args.csv, index_col="time", dtype=dtypes)
     fig, ax = plt.subplots()
 
     # Plot events
