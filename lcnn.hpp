@@ -447,8 +447,7 @@ public:
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
         af::array states = af::moddims(data.states, state_.elements(), data.outputs.dims(1));
         output_w_ = af_utils::lstsq_train(states.T(), data.desired->T()).T();
-        output_w_(af::isNaN(output_w_)) = 0.;
-        output_w_(af::isInf(output_w_)) = 0.;
+        output_w_(af::isNaN(-output_w_) || af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
         return {.states = std::move(states), .output_w = output_w_};
