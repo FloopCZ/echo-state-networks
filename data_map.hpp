@@ -141,6 +141,12 @@ public:
         return {rgv::keys(joined_indices) | rg::to<std::set>, joined_data(index_array, af::span)};
     }
 
+    data_map concat(const data_map& rhs) const
+    {
+        assert(keys_ == rhs.keys_);
+        return {keys_, af::join(1, data_, rhs.data_)};
+    }
+
     const std::set<std::string>& keys() const
     {
         return keys_;
