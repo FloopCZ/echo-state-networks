@@ -51,7 +51,7 @@ inline feed_result_t concatenate(const feed_result_t& a, const feed_result_t& b)
         throw std::runtime_error(
           "Unsupported dimensionality of states " + std::to_string(a.states.numdims()) + ".");
     }
-    c.outputs = af::join(1, std::move(a.outputs), b.outputs);
+    c.outputs = af::join(1, a.outputs, b.outputs);
     if (a.desired.has_value() && b.desired.has_value()) {
         assert(a.desired->type() == b.desired->type());
         assert(a.desired->numdims() <= 2);
