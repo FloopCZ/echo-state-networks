@@ -48,7 +48,7 @@ protected:
         const af::array& predicted_arr = predicted.data();
         const af::array& desired_arr = desired.data();
         assert(predicted_arr.dims() == desired_arr.dims());
-        assert(desired_arr.numdims() == 2);
+        assert(desired_arr.numdims() <= 2);
         if (error_measure_ == "mse") return af_utils::mse<double>(predicted_arr, desired_arr);
         if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
         if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
