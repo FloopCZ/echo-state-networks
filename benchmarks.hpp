@@ -177,11 +177,11 @@ public:
             // train the network on the training sequence
             net.event("train-start");
             {
-                auto train_result = std::get<train_result_t>(net.train(
+                train_result_t train_result = net.train(
                   {.input = xs_groups.at(1),
                    .feedback = {},
                    .desired = ys_shifted_groups.at(1),
-                   .input_transform = input_transform_fn()}));
+                   .input_transform = input_transform_fn()});
                 // Print train mse error
                 af::array train_prediction =
                   af_utils::lstsq_predict(train_result.predictors, train_result.output_w.T());
@@ -365,16 +365,16 @@ public:
             train_result_t train_result = [&]() {
                 net.event("train-start");
                 if (epoch == 0)
-                    return std::get<train_result_t>(net.train(
+                    return net.train(
                       {.input = xs_groups.at(1),
                        .feedback = ys_groups.at(1),
                        .desired = ys_groups.at(1),
-                       .input_transform = input_transform_fn()}));
-                return std::get<train_result_t>(net.train(
+                       .input_transform = input_transform_fn()});
+                return net.train(
                   {.input = xs_groups.at(1),
                    .feedback = {},
                    .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()}));
+                   .input_transform = input_transform_fn()});
             }();
             net.random_noise(false);
             {

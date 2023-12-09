@@ -438,16 +438,14 @@ public:
     /// \param input Input sequence of dimensions [n_ins, time].
     /// \param desired The desired output sequences. Those are also teacher-forced into the net.
     ///                Needs to have dimensions [n_outs, time]
-    std::tuple<feed_result_t, train_result_t> train(const input_t& input) override
+    train_result_t train(const input_t& input) override
     {
-        feed_result_t feed_result = feed(input);
-        train_result_t train_result = train(feed_result);
-        return {std::move(feed_result), std::move(train_result)};
+        return train(feed(input));
     }
 
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    train_result_t train(const feed_result_t& data) override
+    train_result_t train(feed_result_t data) override
     {
         assert(data.states.type() == DType);
         assert(
@@ -466,14 +464,18 @@ public:
         assert(data.desired->dims(0) == output_names_.size());
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
-        af::array states = af::moddims(data.states, state_.elements(), data.outputs.dims(1));
+        data.outputs = af::array{};  // free memory
+        data.states = af::moddims(data.states, state_.elements(), data.inputs.dims(1));
         long n_predictors = input_names_.size() + state_.elements() + 1;
         if (!state_predictor_indices_.isempty()) {
-            states = states(state_predictor_indices_, af::span);
+            data.states = data.states(state_predictor_indices_, af::span);
             n_predictors = input_names_.size() + state_predictor_indices_.elements() + 1;
         }
-        af::array predictors = af::join(1, data.inputs.T(), states.T());
-        states = af::array{};  // free memory
+        af::array predictors = af::join(1, data.inputs.T(), data.states.T());
+        // free memory
+        data.inputs = af::array{};
+        data.states = af::array{};
+        // train
         output_w_ = af_utils::lstsq_train(predictors, data.desired->T()).T();
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
