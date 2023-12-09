@@ -183,8 +183,9 @@ public:
                    .desired = ys_shifted_groups.at(1),
                    .input_transform = input_transform_fn()}));
                 // Print train mse error
-                af::array train_prediction =
-                  af_utils::lstsq_predict(train_result.states.T(), train_result.output_w.T());
+                af::array train_prediction = af_utils::lstsq_predict(
+                  af::join(1, train_result.inputs.T(), train_result.states.T()),
+                  train_result.output_w.T());
                 double err =
                   af_utils::mse<double>(train_prediction.T(), ys_shifted_groups.at(1).data());
                 std::cout << "Train MSE error: " << err << std::endl;
@@ -379,8 +380,9 @@ public:
             net.random_noise(false);
             {
                 // Print train mse error
-                af::array train_prediction =
-                  af_utils::lstsq_predict(train_result.states.T(), train_result.output_w.T());
+                af::array train_prediction = af_utils::lstsq_predict(
+                  af::join(1, train_result.inputs.T(), train_result.states.T()),
+                  train_result.output_w.T());
                 double err = af_utils::mse<double>(train_prediction.T(), ys_groups.at(1).data());
                 std::cout << "Train MSE error: " << err << std::endl;
             }
@@ -396,8 +398,7 @@ public:
             // last sequence of n_steps_ahead_ (i.e., < instead of <=)
             for (i = 0; i < xs_groups.at(2).length() - n_steps_ahead_; i += validation_stride_) {
                 assert(i / validation_stride_ < n_validations);
-                // train the network on the original train data plus the additional items
-                // from the validation data before the validation subsequence
+                // feed the network with the validation data before the validation subsequence
                 if (i > 0) {
                     data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                     data_map desired =

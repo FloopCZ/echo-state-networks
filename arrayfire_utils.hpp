@@ -131,14 +131,14 @@ af::array add_ones(const af::array& A, long dim = 1)
 
 /// Linear regression training.
 ///
-/// Train X, such as [A | 1] * X == B, where [A | 1] is the
+/// Train X, such as [1 | A] * X == B, where [1 | A] is the
 /// matrix A with an extra column of ones.
 af::array lstsq_train(const af::array& A, const af::array& B)
 {
     assert(B.numdims() <= 2);
     assert(A.dims(0) == B.dims(0));
-    // add biases (i.e., 1's) to the last column of the coefficient matrix
-    af::array A1 = af::join(1, A, af::constant(1, A.dims(0), A.type()));
+    // add biases (i.e., 1's) as the first column of the coefficient matrix
+    af::array A1 = af::join(1, af::constant(1, A.dims(0), A.type()), A);
     af::array X = af::solve(A1, B);
     assert((X.dims() == af::dim4{A.dims(1) + 1, B.dims(1)}));  // + 1 for biases
     return X;
@@ -146,15 +146,15 @@ af::array lstsq_train(const af::array& A, const af::array& B)
 
 /// Linear regression prediction.
 ///
-/// Return the result of [A | 1] * X, where [A | 1] is the
+/// Return the result of [1| A] * X, where [1 | A] is the
 /// matrix A with an extra column of ones.
 af::array lstsq_predict(const af::array& A, const af::array& X)
 {
     assert(A.numdims() == 2);
     assert(X.numdims() <= 2);
     assert(A.dims(1) + 1 == X.dims(0));  // + 1 for the bias
-    // add biases (i.e., 1's) to the last row of the coefficient matrix
-    af::array A1 = af::join(1, A, af::constant(1, A.dims(0), A.type()));
+    // add biases (i.e., 1's) as the first row of the coefficient matrix
+    af::array A1 = af::join(1, af::constant(1, A.dims(0), A.type()), A);
     return af::matmul(A1, X);
 }
 

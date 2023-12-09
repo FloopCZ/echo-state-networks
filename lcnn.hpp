@@ -91,6 +91,7 @@ protected:
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
+    data_map last_input_;   // full last output of the net as a data map
     data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
     af::array reservoir_w_;
@@ -241,8 +242,12 @@ protected:
             last_output_.clear();
             return;
         }
-        af::array flat_state_1 = af_utils::add_ones(af::flat(state_), 0);
-        last_output_ = {output_names_, af::matmul(output_w_, flat_state_1)};
+        assert(last_input_.length() == 1);
+        af::array one = af::constant(1, 1, DType);
+        af::array flat_inputs = last_input_.data();
+        af::array flat_state = af::flat(state_);
+        af::array predictors = af::join(0, one, flat_inputs, flat_state);
+        last_output_ = {output_names_, af::matmul(output_w_, predictors)};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
     }
 
@@ -312,6 +317,8 @@ public:
         prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
+        last_input_ = step_input.extend(last_output_).filter(input_names_);
+        data_map tr_step_input = input_transform(last_input_);
         data_map tr_last_output = input_transform(last_output_);
         data_map tr_step_input =
           input_transform(step_input).extend(tr_last_output).filter(input_names_);
@@ -401,6 +408,7 @@ public:
         check_data(input.desired);
 
         feed_result_t result;
+        result.inputs = af::array(input_names_.size(), data_len, DType);
         result.states = af::array(state_.dims(0), state_.dims(1), data_len, DType);
         result.outputs = af::constant(af::NaN, output_names_.size(), data_len, DType);
         result.desired = input.desired.data();
@@ -410,6 +418,7 @@ public:
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
             step(step_input, step_feedback, step_desired, input.input_transform);
+            result.inputs(af::span, i) = last_input_.data();
             result.states(af::span, af::span, i) = state_;
             if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
@@ -435,6 +444,10 @@ public:
         assert(data.states.type() == DType);
         assert(
           (data.states.dims() == af::dim4{state_.dims(0), state_.dims(1), data.outputs.dims(1)}));
+        assert(data.inputs.type() == DType);
+        assert(data.inputs.numdims() <= 2);
+        assert(data.inputs.dims(0) == input_names_.size());
+        assert(data.inputs.dims(1) == data.outputs.dims(1));
         assert(data.outputs.type() == DType);
         assert(data.outputs.numdims() <= 2);
         assert(data.outputs.dims(0) == output_names_.size());
@@ -446,11 +459,14 @@ public:
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
         af::array states = af::moddims(data.states, state_.elements(), data.outputs.dims(1));
-        output_w_ = af_utils::lstsq_train(states.T(), data.desired->T()).T();
+        af::array predictors = af::join(0, data.inputs, states);
+        output_w_ = af_utils::lstsq_train(predictors.T(), data.desired->T()).T();
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
-        assert(output_w_.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
-        return {.states = std::move(states), .output_w = output_w_};
+        assert(
+          output_w_.dims()
+          == (af::dim4{output_names_.size(), input_names_.size() + state_.elements() + 1}));
+        return {.inputs = data.inputs, .states = std::move(states), .output_w = output_w_};
     }
 
     /// Get the current state of the network.

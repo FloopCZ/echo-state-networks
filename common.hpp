@@ -12,6 +12,9 @@ static thread_local std::mt19937 global_prng{global_rd()};
 
 /// The information returned by the esn feed().
 struct feed_result_t {
+    /// The array of intermediate inputs (updated by feedback and last output to span all the
+    /// inputs).
+    af::array inputs;
     /// The array of intermediate states.
     af::array states;
     /// The array of intermediate outputs.
@@ -22,6 +25,9 @@ struct feed_result_t {
 
 /// The information returned by the esn train().
 struct train_result_t {
+    // TODO update simple esn
+    /// The array of intermediate inputs.
+    af::array inputs;
     /// The array of intermediate states.
     af::array states;
     /// The output weights.

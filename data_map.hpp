@@ -172,6 +172,11 @@ public:
         return data_.dims(1);
     }
 
+    bool contains(const std::string& key) const
+    {
+        return keys_.contains(key);
+    }
+
     void clear()
     {
         keys_.clear();
