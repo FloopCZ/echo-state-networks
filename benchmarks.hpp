@@ -189,6 +189,7 @@ public:
                   af_utils::mse<double>(train_prediction.T(), ys_shifted_groups.at(1).data());
                 std::cout << "Train MSE error: " << err << std::endl;
             }
+            net.random_noise(false);
             // evaluate the performance of the network on the validation sequence
             net.event("validation-start");
             long validation_size = xs_groups.at(2).length();
@@ -287,6 +288,7 @@ public:
                    .feedback = {},
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
+            net.random_noise(false);
             // evaluate the performance of the network on the validation sequence
             // note no teacher forcing
             net.event("validation-start");
@@ -374,6 +376,7 @@ public:
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()}));
             }();
+            net.random_noise(false);
             {
                 // Print train mse error
                 af::array train_prediction =
