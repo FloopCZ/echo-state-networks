@@ -766,6 +766,11 @@ public:
 
         test_data_ = data_.select(af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
+
+        std::cout << "Naive 1-step ahead prediction valid MSE error is "
+                  << af_utils::mse<double>(
+                       valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
+                  << std::endl;
     }
 };
 
@@ -808,6 +813,11 @@ public:
 
         test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
+
+        std::cout << "Naive 1-step ahead prediction valid MSE error is "
+                  << af_utils::mse<double>(
+                       valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
+                  << std::endl;
     }
 };
 
