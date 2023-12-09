@@ -959,7 +959,7 @@ lcnn<DType> random_lcnn(
         std::vector<double> indices =
           rgv::ints(0L, (long)state_height * state_width) | rg::to<std::vector<double>>;
         indices = rga::shuffle(indices, prng) | rgv::take(n_state_predictors) | rg::to_vector;
-        cfg.state_predictor_indices = af_utils::to_array(indices);
+        cfg.state_predictor_indices = af::sort(af_utils::to_array(indices));
     }
 
     // the initial state is full of zeros
