@@ -360,20 +360,27 @@ public:
                .desired = ys_groups.at(0),
                .input_transform = input_transform_fn()});
             // train the network on the training sequence with teacher forcing
-            feed_result_t train_data = [&]() {
+            train_result_t train_result = [&]() {
                 net.event("train-start");
                 if (epoch == 0)
-                    return net.feed(
+                    return std::get<train_result_t>(net.train(
                       {.input = xs_groups.at(1),
                        .feedback = ys_groups.at(1),
                        .desired = ys_groups.at(1),
-                       .input_transform = input_transform_fn()});
-                return net.feed(
+                       .input_transform = input_transform_fn()}));
+                return std::get<train_result_t>(net.train(
                   {.input = xs_groups.at(1),
                    .feedback = {},
                    .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()});
+                   .input_transform = input_transform_fn()}));
             }();
+            {
+                // Print train mse error
+                af::array train_prediction =
+                  af_utils::lstsq_predict(train_result.states.T(), train_result.output_w.T());
+                double err = af_utils::mse<double>(train_prediction.T(), ys_groups.at(1).data());
+                std::cout << "Train MSE error: " << err << std::endl;
+            }
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
             long n_validations =
@@ -389,33 +396,22 @@ public:
                 // train the network on the original train data plus the additional items
                 // from the validation data before the validation subsequence
                 if (i > 0) {
-                    feed_result_t extra_train_data = [&]() {
-                        data_map input =
-                          xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
-                        data_map desired =
-                          ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
-                        net.event("train-extra");
-                        if (epoch == 0)
-                            return net.feed(
-                              {.input = input,
-                               .feedback = desired,
-                               .desired = desired,
-                               .input_transform = input_transform_fn()});
-                        return net.feed(
+                    data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                    data_map desired =
+                      ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                    net.event("feed-extra");
+                    if (epoch == 0)
+                        net.feed(
+                          {.input = input,
+                           .feedback = desired,
+                           .desired = desired,
+                           .input_transform = input_transform_fn()});
+                    else
+                        net.feed(
                           {.input = input,
                            .feedback = {},
                            .desired = desired,
                            .input_transform = input_transform_fn()});
-                    }();
-                    train_data = concatenate(std::move(train_data), std::move(extra_train_data));
-                }
-                {
-                    train_result_t train_result = net.train(train_data);
-                    // Print train mse error
-                    af::array train_prediction =
-                      af_utils::lstsq_predict(train_result.states.T(), train_result.output_w.T());
-                    double err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);
-                    std::cout << "Train MSE error: " << err << std::endl;
                 }
                 // create a copy of the network before the validation so that we can simply
                 // continue training of the original net in the next iteration
@@ -434,6 +430,10 @@ public:
                                                .input_transform = input_transform_fn()})
                                             .outputs;
                 data_map predicted{output_names(), std::move(raw_predicted)};
+                {
+                    double err = af_utils::mse<double>(predicted.data(), desired.data());
+                    std::cout << "Valid MSE error: " << err << std::endl;
+                }
                 // extract the targets
                 all_predicted.push_back(predicted.filter(target_names()));
                 all_desired.push_back(desired.filter(target_names()));
@@ -697,14 +697,6 @@ public:
                     std::tm tm = {};
                     std::stringstream ss{value};
                     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-                    /*
-                    data["date-Y"].push_back(tm.tm_year % 2 * 10);
-                    data["date-m"].push_back(tm.tm_mon);
-                    data["date-d"].push_back(tm.tm_wday * 2);
-                    data["date-H"].push_back(tm.tm_hour);
-                    data["date-M"].push_back(tm.tm_min / 15);
-                    */
-
                     data["date-mon"].push_back(
                       std::sin(
                         (tm.tm_mon * 31 * 24 + tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI
@@ -715,7 +707,7 @@ public:
                     data["date-wday"].push_back(
                       std::sin((tm.tm_wday * 24 + tm.tm_hour) * 2. * M_PI / (7 * 24)) * 10);
                     data["date-hour"].push_back(std::sin(tm.tm_hour * 2. * M_PI / 24) * 10);
-                    // data["date-min"].push_back(tm.tm_min / 15);
+                    data["date-min"].push_back(std::sin(tm.tm_min * 2. * M_PI / 60) * 10);
                 } else
                     data[col].push_back(std::stod(value));
         };
@@ -774,6 +766,48 @@ public:
     }
 };
 
+class ettm_loader : public ett_loader {
+protected:
+    int variant_;
+    std::string set_type_;  // train/valid/test
+
+    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
+    {
+        data_map xs;
+        if (set_type_ == "train") return train_data_;
+        if (set_type_ == "valid") return valid_data_;
+        if (set_type_ == "train-valid") return train_valid_data_;
+        if (set_type_ == "test") return test_data_;
+        throw std::runtime_error{"Unknown dataset."};
+    }
+
+    data_map train_data_;
+    data_map valid_data_;
+    data_map train_valid_data_;
+    data_map test_data_;
+
+public:
+    ettm_loader(po::variables_map config)
+      : ett_loader{config}
+      , variant_{config.at("bench.etth-variant").as<int>()}
+      , set_type_{config.at("bench.ett-set-type").as<std::string>()}
+    {
+        load_data("ETT-small/ETTm" + std::to_string(variant_) + ".csv");
+
+        train_data_ = data_.select(af::seq(0, 12 * 30 * 24 * 4));
+        std::cout << "ETT train has " << train_data_.length() << " points.\n";
+
+        valid_data_ = data_.select(af::seq(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4));
+        std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
+
+        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 * 4));
+        std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
+
+        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4));
+        std::cout << "ETT test has " << test_data_.length() << " points.\n";
+    }
+};
+
 class etth_loop_benchmark_set : public loop_benchmark_set, public etth_loader {
 protected:
     std::set<std::string> persistent_input_names_{
@@ -791,14 +825,70 @@ protected:
 
     std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
-        data_map xs = get_dataset(dtype, prng);
-        data_map ys = xs.filter(output_names()).shift(-1);
+        data_map dataset = get_dataset(dtype, prng);
+        data_map xs = dataset.filter(input_names());
+        data_map ys = dataset.filter(output_names()).shift(-1);
         return {std::move(xs), std::move(ys)};
     }
 
 public:
     etth_loop_benchmark_set(po::variables_map config)
       : loop_benchmark_set{std::move(config)}, etth_loader{config_}
+    {
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+
+    bool constant_data() const override
+    {
+        return true;
+    }
+};
+
+class ettm_loop_benchmark_set : public loop_benchmark_set, public ettm_loader {
+protected:
+    std::set<std::string> persistent_input_names_{
+      "date-mon", "date-mday", "date-wday", "date-hour", "date-min"};
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                       "date-min", "HUFL",      "HULL",      "MUFL",
+                                       "MULL",     "LUFL",      "LULL",      "OT"};
+    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> target_names_{"OT"};
+
+    data_map input_transform(const data_map& xs) const override
+    {
+        return ett_input_transform(xs);
+    }
+
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    {
+        data_map dataset = get_dataset(dtype, prng);
+        data_map xs = dataset.filter(input_names());
+        data_map ys = dataset.filter(output_names()).shift(-1);
+        return {std::move(xs), std::move(ys)};
+    }
+
+public:
+    ettm_loop_benchmark_set(po::variables_map config)
+      : loop_benchmark_set{std::move(config)}, ettm_loader{config_}
     {
     }
 
@@ -1052,6 +1142,9 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "etth-loop") {
         return std::make_unique<etth_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
+        return std::make_unique<ettm_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "etth-markov") {
         return std::make_unique<etth_markov_benchmark_set>(args);
