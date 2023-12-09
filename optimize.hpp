@@ -530,7 +530,7 @@ public:
         double unit_sigma = inv_exp_transform(1.0);
         param_x0_ = {{"lcnn.sigma-res", unit_sigma},  {"lcnn.mu-res", 0.0}, {"lcnn.sparsity", 0.1},
                      {"lcnn.leakage", 0.9},           {"lcnn.noise", 0.2},  {"lcnn.mu-b", 0.0},
-                     {"lcnn.n-state-predictors", 1.0}};
+                     {"lcnn.n-state-predictors", 0.9}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)

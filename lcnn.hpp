@@ -472,7 +472,7 @@ public:
             states = states(state_predictor_indices_, af::span);
             n_predictors = input_names_.size() + state_predictor_indices_.elements() + 1;
         }
-        af::array predictors = af::join(0, data.inputs, states);
+        af::array predictors = af::join(0, data.inputs, std::move(states));
         output_w_ = af_utils::lstsq_train(predictors.T(), data.desired->T()).T();
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
