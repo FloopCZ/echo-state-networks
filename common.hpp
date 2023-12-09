@@ -25,11 +25,8 @@ struct feed_result_t {
 
 /// The information returned by the esn train().
 struct train_result_t {
-    // TODO update simple esn
-    /// The array of intermediate inputs.
-    af::array inputs;
-    /// The array of intermediate states.
-    af::array states;
+    /// The array of intermediate predictors.
+    af::array predictors;
     /// The output weights.
     af::array output_w;
 };

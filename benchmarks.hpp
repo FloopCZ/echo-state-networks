@@ -183,9 +183,8 @@ public:
                    .desired = ys_shifted_groups.at(1),
                    .input_transform = input_transform_fn()}));
                 // Print train mse error
-                af::array train_prediction = af_utils::lstsq_predict(
-                  af::join(1, train_result.inputs.T(), train_result.states.T()),
-                  train_result.output_w.T());
+                af::array train_prediction =
+                  af_utils::lstsq_predict(train_result.predictors.T(), train_result.output_w.T());
                 double err =
                   af_utils::mse<double>(train_prediction.T(), ys_shifted_groups.at(1).data());
                 std::cout << "Train MSE error: " << err << std::endl;
@@ -380,9 +379,8 @@ public:
             net.random_noise(false);
             {
                 // Print train mse error
-                af::array train_prediction = af_utils::lstsq_predict(
-                  af::join(1, train_result.inputs.T(), train_result.states.T()),
-                  train_result.output_w.T());
+                af::array train_prediction =
+                  af_utils::lstsq_predict(train_result.predictors.T(), train_result.output_w.T());
                 double err = af_utils::mse<double>(train_prediction.T(), ys_groups.at(1).data());
                 std::cout << "Train MSE error: " << err << std::endl;
             }

@@ -269,7 +269,7 @@ public:
         assert(
           output_w_.dims()
           == (af::dim4{output_names_.size(), input_names_.size() + state_.elements() + 1}));
-        return {.inputs = data.inputs, .states = data.states, .output_w = output_w_};
+        return {.predictors = std::move(predictors), .output_w = output_w_};
     }
 
     /// Get the current state of the network.
