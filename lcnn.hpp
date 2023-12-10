@@ -471,12 +471,16 @@ public:
             data.states = data.states(state_predictor_indices_, af::span);
             n_predictors = input_names_.size() + state_predictor_indices_.elements() + 1;
         }
-        af::array predictors = af::join(1, data.inputs.T(), data.states.T());
+        af::array ones = af::constant(1, data.inputs.dims(1), data.inputs.type());
+        data.inputs = data.inputs.T();
+        data.states = data.states.T();
+        af::array predictors = af::join(1, ones, data.inputs, data.states);
         // free memory
         data.inputs = af::array{};
         data.states = af::array{};
         // train
-        output_w_ = af_utils::lstsq_train(predictors, data.desired->T()).T();
+        data.desired = data.desired->T();
+        output_w_ = af::solve(predictors, *data.desired).T();
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), n_predictors}));
