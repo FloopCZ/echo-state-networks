@@ -119,13 +119,13 @@ T nrmse(const af::array& ys_predict, const af::array& ys_truth)
       .scalar<double>();
 }
 
-/// Add a row/column of ones to a matrix.
+/// Prepend a row/column of ones to a matrix.
 af::array add_ones(const af::array& A, long dim = 1)
 {
     assert(dim == 0 || dim == 1);
     long dim0 = dim == 0 ? 1 : A.dims(0);
     long dim1 = dim == 0 ? A.dims(1) : 1;
-    af::array A1 = af::join(dim, A, af::constant(1, dim0, dim1, A.type()));
+    af::array A1 = af::join(dim, af::constant(1, dim0, dim1, A.type()), A);
     return A1;
 }
 

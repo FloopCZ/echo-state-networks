@@ -98,7 +98,6 @@ protected:
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
     af::array state_predictor_indices_;
-    data_map last_input_;   // full last output of the net as a data map
     data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
     af::array reservoir_w_;
@@ -249,13 +248,10 @@ protected:
             last_output_.clear();
             return;
         }
-        assert(last_input_.length() == 1);
-        af::array one = af::constant(1, 1, DType);
-        af::array input_predictors = last_input_.data();
         af::array state_predictors = af::flat(state_);
         if (!state_predictor_indices_.isempty())
             state_predictors = state_predictors(state_predictor_indices_);
-        af::array predictors = af::join(0, one, input_predictors, state_predictors);
+        af::array predictors = af_utils::add_ones(state_predictors, 0);
         last_output_ = {output_names_, af::matmul(output_w_, predictors)};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
     }
@@ -327,9 +323,9 @@ public:
         prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
-        last_input_ = step_input.extend(last_output_).filter(input_names_);
-        data_map tr_step_input = input_transform(last_input_);
         data_map tr_last_output = input_transform(last_output_);
+        data_map tr_step_input =
+          input_transform(step_input).extend(tr_last_output).filter(input_names_);
 
         // validate all input data
         assert(tr_step_input.length() == 1);
@@ -416,7 +412,6 @@ public:
         check_data(input.desired);
 
         feed_result_t result;
-        result.inputs = af::array(input_names_.size(), data_len, DType);
         result.states = af::array(state_.dims(0), state_.dims(1), data_len, DType);
         result.outputs = af::constant(af::NaN, output_names_.size(), data_len, DType);
         result.desired = input.desired.data();
@@ -426,7 +421,6 @@ public:
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
             step(step_input, step_feedback, step_desired, input.input_transform);
-            result.inputs(af::span, i) = last_input_.data();
             result.states(af::span, af::span, i) = state_;
             if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
@@ -450,10 +444,6 @@ public:
         assert(data.states.type() == DType);
         assert(
           (data.states.dims() == af::dim4{state_.dims(0), state_.dims(1), data.outputs.dims(1)}));
-        assert(data.inputs.type() == DType);
-        assert(data.inputs.numdims() <= 2);
-        assert(data.inputs.dims(0) == input_names_.size());
-        assert(data.inputs.dims(1) == data.outputs.dims(1));
         assert(data.outputs.type() == DType);
         assert(data.outputs.numdims() <= 2);
         assert(data.outputs.dims(0) == output_names_.size());
@@ -465,22 +455,18 @@ public:
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
         data.outputs = af::array{};  // free memory
-        data.states = af::moddims(data.states, state_.elements(), data.inputs.dims(1));
-        long n_predictors = input_names_.size() + state_.elements() + 1;
-        if (!state_predictor_indices_.isempty()) {
-            data.states = data.states(state_predictor_indices_, af::span);
-            n_predictors = input_names_.size() + state_predictor_indices_.elements() + 1;
-        }
-        af::array ones = af::constant(1, data.inputs.dims(1), data.inputs.type());
-        data.inputs = data.inputs.T();
+        data.states = af::moddims(data.states, state_.elements(), data.desired->dims(1));
         data.states = data.states.T();
-        af::array predictors = af::join(1, ones, data.inputs, data.states);
-        // free memory
-        data.inputs = af::array{};
-        data.states = af::array{};
-        // train
+        long n_predictors = state_.elements() + 1;
+        if (!state_predictor_indices_.isempty()) {
+            data.states = data.states(af::span, state_predictor_indices_);
+            n_predictors = state_predictor_indices_.elements() + 1;
+        }
+        af::array predictors = af_utils::add_ones(data.states, 1);
+        data.states = af::array{};  // free memory
         data.desired = data.desired->T();
         output_w_ = af::solve(predictors, *data.desired).T();
+        data.desired = af::array{};  // free memory
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), n_predictors}));
