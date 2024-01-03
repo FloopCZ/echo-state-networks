@@ -573,9 +573,9 @@ public:
     std::map<std::string, double> named_param_sigmas() const override
     {
         std::map<std::string, double> params = {
-          {"lcnn.sigma-res", 0.01},         {"lcnn.mu-res", 0.05}, {"lcnn.sparsity", 0.05},
-          {"lcnn.leakage", 0.05},           {"lcnn.noise", 0.05},  {"lcnn.mu-b", 0.05},
-          {"lcnn.n-state-predictors", 0.05}};
+          {"lcnn.sigma-res", 0.01},        {"lcnn.mu-res", 0.05}, {"lcnn.sparsity", 0.05},
+          {"lcnn.leakage", 0.05},          {"lcnn.noise", 0.05},  {"lcnn.mu-b", 0.05},
+          {"lcnn.n-state-predictors", 0.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
         for (int i = 0; i < bench_->output_names().size(); ++i)

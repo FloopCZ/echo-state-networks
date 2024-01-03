@@ -19,8 +19,17 @@ private:
     std::set<std::string> keys_;
     af::array data_;
 
-    template <typename Rng>
-    static std::map<std::string, double> key_indices(Rng&& keys, size_t offset = 0)
+    std::map<std::string, double> key_indices(const std::set<std::string>& keys) const
+    {
+        for (const std::string& key : keys) assert(keys_.contains(key));
+        std::vector<double> indices;
+        for (const auto& [i, key] : rgv::enumerate(keys_))
+            if (keys.contains(key)) indices.push_back(i);
+        return rgv::zip(keys, indices) | rg::to<std::map<std::string, double>>;
+    }
+
+    template <rg::range Rng>
+    static std::map<std::string, double> iota_indices(Rng&& keys, size_t offset = 0)
     {
         return rgv::zip(keys, rgv::iota(offset)) | rg::to<std::map<std::string, double>>;
     }
@@ -62,7 +71,7 @@ public:
     {
         assert(data.dims(0) == keys.size());
         assert(data.numdims() <= 2);
-        const std::map<std::string, double> ordered_indices = key_indices(keys);
+        const std::map<std::string, double> ordered_indices = iota_indices(keys);
         const af::array index_array = make_index_array(ordered_indices);
         keys_.insert(keys.begin(), keys.end());
         data_ = data(index_array, af::span);
@@ -82,6 +91,13 @@ public:
         return {keys_, data_(af::span, sel)};
     }
 
+    data_map tail(long len) const
+    {
+        if (keys_.empty()) return {};
+        assert(data_.dims(1) >= len);
+        return {keys_, data_(af::span, af::seq(af::end - len, af::end))};
+    }
+
     af::array at(const std::string& key) const
     {
         assert(keys_.contains(key));
@@ -90,19 +106,14 @@ public:
         return data_(idx, af::span).T();
     }
 
-    template <typename Rng>
+    template <rg::range Rng>
     data_map filter(Rng&& keys_rng) const
     {
         std::set<std::string> keys = keys_rng | rg::to<std::set<std::string>>;
         if (keys == keys_) return *this;
 
-        const std::map<std::string, double> indices = key_indices(keys_);
-        std::vector<double> filtered_indices;
-        for (const std::string& k : keys) {
-            assert(indices.contains(k));
-            filtered_indices.push_back(indices.at(k));
-        }
-        const af::array index_array = af_utils::to_array(filtered_indices);
+        const std::map<std::string, double> indices = key_indices(keys_rng | rg::to<std::set>);
+        const af::array index_array = af_utils::to_array(rgv::values(indices) | rg::to_vector);
         return {std::move(keys), data_(index_array, af::span)};
     }
 
@@ -133,12 +144,57 @@ public:
 
         assert(length() == rhs.length());
         af::array joined_data = af::join(0, data_, rhs.data());
-        std::map<std::string, double> rhs_indices = key_indices(rhs.keys_, keys_.size());
-        std::map<std::string, double> joined_indices = key_indices(keys_);
+        std::map<std::string, double> rhs_indices = iota_indices(rhs.keys_, keys_.size());
+        std::map<std::string, double> joined_indices = iota_indices(keys_);
         joined_indices.insert(rhs_indices.begin(), rhs_indices.end());
         af::array index_array = make_index_array(joined_indices);
 
         return {rgv::keys(joined_indices) | rg::to<std::set>, joined_data(index_array, af::span)};
+    }
+
+    /// Drop all data sequences that are fully NaN.
+    data_map drop_nan() const
+    {
+        if (keys_.empty()) return *this;
+        af::array nonnan_indicator_arr = !af::allTrue(af::isNaN(data_), 1);
+        if (af::allTrue<bool>(nonnan_indicator_arr)) return *this;
+        std::vector<double> nonnan_indicators = af_utils::to_vector(nonnan_indicator_arr);
+        assert(nonnan_indicators.size() == keys_.size());
+        std::set<std::string> nonnan_keys;
+        for (const auto& [is_nonnan, key] : rgv::zip(nonnan_indicators, keys_))
+            if (is_nonnan) nonnan_keys.insert(key);
+        return {std::move(nonnan_keys), data_(nonnan_indicator_arr, af::span)};
+    }
+
+    /// Only keep every n-th, others set to NaN.
+    data_map every_nth(const std::set<std::string>& keys, long n) const
+    {
+        assert(n > 0);
+        if (keys_.empty()) return *this;
+        if (n <= 1) return *this;
+        const std::map<std::string, double> indices = key_indices(keys);
+        af::array indices_arr = af_utils::to_array(rgv::values(indices) | rg::to_vector);
+        // Cast the af::seq to af::array to avoid
+        // https://github.com/arrayfire/arrayfire/issues/3525.
+        af::array selector = af::seq(0, data_.dims(1) - 1, n);
+        af::array data = data_;
+        data(indices_arr, af::span) = af::NaN;
+        data(indices_arr, selector) = data_(indices_arr, selector);
+        return {keys_, std::move(data)};
+    }
+
+    /// Probabilistically change values to NaN.
+    data_map probably_nan(const std::set<std::string>& keys, double p) const
+    {
+        if (keys_.empty()) return *this;
+        if (p <= 0.) return *this;
+        const std::map<std::string, double> indices = key_indices(keys);
+        af::array indices_arr = af_utils::to_array(rgv::values(indices) | rg::to_vector);
+        af::array selector = af::constant(false, data_.dims(), af::dtype::b8);
+        selector(indices_arr, af::span) = af::randu(keys.size(), data_.dims(1)) < p;
+        af::array data = data_;
+        data(selector) = af::NaN;
+        return {keys_, std::move(data)};
     }
 
     data_map concat(const data_map& rhs) const

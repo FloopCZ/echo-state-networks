@@ -169,6 +169,7 @@ public:
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.event("init-start");
+            net.random_noise(true);
             net.feed(
               {.input = xs_groups.at(0),
                .feedback = ys_shifted_groups.at(0),
@@ -268,6 +269,7 @@ public:
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.event("init-start");
+            net.random_noise(true);
             net.feed(
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
@@ -356,6 +358,7 @@ public:
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.event("init-start");
+            net.random_noise(true);
             net.feed(
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
@@ -370,11 +373,19 @@ public:
                        .feedback = ys_groups.at(1),
                        .desired = ys_groups.at(1),
                        .input_transform = input_transform_fn()});
-                return net.train(
-                  {.input = xs_groups.at(1),
+                train_result_t train_result = net.train(
+                  {.input = xs_groups.at(1).probably_nan(output_names(), .5 * epoch / n_epochs_),
                    .feedback = {},
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
+                // give the network an unimpaired input of length `init-steps` after training
+                // epoch>0 with probabilistically skipped values
+                net.feed(
+                  {.input = xs_groups.at(1).tail(split_sizes_.at(0)),
+                   .feedback = ys_groups.at(1).tail(split_sizes_.at(0)),
+                   .desired = ys_groups.at(1).tail(split_sizes_.at(0)),
+                   .input_transform = input_transform_fn()});
+                return train_result;
             }();
             net.random_noise(false);
             {
@@ -402,18 +413,11 @@ public:
                     data_map desired =
                       ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                     net.event("feed-extra");
-                    if (epoch == 0)
-                        net.feed(
-                          {.input = input,
-                           .feedback = desired,
-                           .desired = desired,
-                           .input_transform = input_transform_fn()});
-                    else
-                        net.feed(
-                          {.input = input,
-                           .feedback = {},
-                           .desired = desired,
-                           .input_transform = input_transform_fn()});
+                    net.feed(
+                      {.input = input,
+                       .feedback = desired,
+                       .desired = desired,
+                       .input_transform = input_transform_fn()});
                 }
                 // create a copy of the network before the validation so that we can simply
                 // continue training of the original net in the next iteration

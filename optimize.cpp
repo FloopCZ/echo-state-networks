@@ -85,7 +85,6 @@ int main(int argc, char* argv[])
           esn::make_optimizer(std::move(bench), args, global_prng);
         cma::CMASolutions cmasols = opt->optimize();
         cma::Candidate best_candidate = cmasols.get_best_seen_candidate();
-        std::vector<double> best_pheno_candidate = opt->pheno_candidate(best_candidate);
         std::cout << "Best seen candidate:\n";
         opt->print_candidate(std::cout, best_candidate) << std::endl;
         std::cout << "Distribution mean:\n";

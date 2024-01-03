@@ -254,14 +254,17 @@ protected:
         af::array predictors = af_utils::add_ones(state_predictors, 0);
         last_output_ = {output_names_, af::matmul(output_w_, predictors)};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
+        assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
     }
 
     virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
     {
-        if (step_feedback.empty()) return;
+        // consider NaN as not provided
+        data_map nonnan_step_feedback = step_feedback.drop_nan();
+        if (nonnan_step_feedback.empty()) return;
         // check that with empty last output, full feedback is provided.
-        assert(!last_output_.empty() || step_feedback.keys() == output_names_);
-        last_output_ = step_feedback.extend(std::move(last_output_)).filter(output_names_);
+        assert(!last_output_.empty() || nonnan_step_feedback.keys() == output_names_);
+        last_output_ = nonnan_step_feedback.extend(last_output_).filter(output_names_);
     }
 
 public:
@@ -325,7 +328,7 @@ public:
         // prepare the inputs for this step
         data_map tr_last_output = input_transform(last_output_);
         data_map tr_step_input =
-          input_transform(step_input).extend(tr_last_output).filter(input_names_);
+          input_transform(step_input.drop_nan()).extend(tr_last_output).filter(input_names_);
 
         // validate all input data
         assert(tr_step_input.length() == 1);
@@ -404,7 +407,7 @@ public:
             assert(dm.data().numdims() <= 2);
             assert(dm.size() > 0);
             assert(data_len == -1 || dm.length() == data_len);
-            assert(!af::anyTrue<bool>(af::isNaN(dm.data())));
+            assert(!af::anyTrue<bool>(af::isInf(dm.data())));
             data_len = dm.length();
         };
         check_data(input.input);

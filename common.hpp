@@ -30,6 +30,8 @@ struct train_result_t {
 
 inline feed_result_t concatenate(const feed_result_t& a, const feed_result_t& b)
 {
+    if (a.states.isempty() && a.outputs.isempty() && !a.desired) return b;
+
     feed_result_t c;
     assert(a.states.type() == b.states.type());
     assert(a.outputs.type() == b.outputs.type());

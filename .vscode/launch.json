@@ -2,7 +2,7 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launch optmize_cuda for esn",
+            "name": "(gdb) Launch optimize_cuda for esn",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/optimize_cuda",
