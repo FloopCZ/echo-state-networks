@@ -191,6 +191,7 @@ public:
                 std::cout << "Train MSE error: " << err << std::endl;
             }
             net.random_noise(false);
+            net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
             net.event("validation-start");
             long validation_size = xs_groups.at(2).length();
@@ -291,6 +292,7 @@ public:
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
             net.random_noise(false);
+            net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
             // note no teacher forcing
             net.event("validation-start");
@@ -388,6 +390,7 @@ public:
                 return train_result;
             }();
             net.random_noise(false);
+            net.clear_feedback();
             {
                 // Print train mse error
                 af::array train_prediction =
