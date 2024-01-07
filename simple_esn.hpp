@@ -168,8 +168,7 @@ public:
         state_ += af::tanh(state_before_activation * noise);
         af::eval(state_);
         if (step_feedback.empty()) {
-            af::array predictors = af_utils::add_ones(state_, 0);
-            last_output_ = af::matmul(output_w_, predictors);
+            update_output();
         } else {
             assert(step_feedback.keys() == output_names_ && "Only full feedback is supported.");
             last_output_ = step_feedback.data();
@@ -263,6 +262,19 @@ public:
           output_w_.dims()
           == (af::dim4{output_names_.size(), input_names_.size() + state_.elements() + 1}));
         return {.predictors = std::move(predictors), .output_w = output_w_};
+    }
+
+    /// Clear the stored feedback which would otherwise be used in the next step.
+    void clear_feedback() override
+    {
+        update_output();
+    }
+
+    // Update the output using the current state.
+    void update_output()
+    {
+        af::array predictors = af_utils::add_ones(state_, 0);
+        last_output_ = af::matmul(output_w_, predictors);
     }
 
     /// Get the current state of the network.

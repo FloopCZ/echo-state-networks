@@ -61,6 +61,8 @@ public:
 
     virtual train_result_t train(feed_result_t data) = 0;
 
+    virtual void clear_feedback() = 0;
+
     virtual const af::array& state() const = 0;
 
     virtual void state(af::array new_state) = 0;

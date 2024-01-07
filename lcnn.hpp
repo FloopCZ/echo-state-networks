@@ -321,7 +321,6 @@ public:
     {
         // TODO desired and feedback is the same, only one should be provided and there should be
         // teacher-force bool param
-        // TODO take params as references and do not change in place
         update_last_output_via_teacher_force(prev_step_feedback_);
         prev_step_feedback_ = step_feedback;
 
@@ -474,6 +473,12 @@ public:
         update_last_output();
         assert(output_w_.dims() == (af::dim4{output_names_.size(), n_predictors}));
         return {.predictors = std::move(predictors), .output_w = output_w_};
+    }
+
+    /// Clear the stored feedback which would otherwise be used in the next step.
+    void clear_feedback() override
+    {
+        prev_step_feedback_.clear();
     }
 
     /// Get the current state of the network.
