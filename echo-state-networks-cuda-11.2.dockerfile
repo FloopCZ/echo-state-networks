@@ -27,7 +27,7 @@ RUN if [ "${tag}" = "cuda" ]; then \
   fi
 
 # Install dependencis.
-RUN pacman -Syu --noconfirm --needed arrayfire ninja cmake boost eigen openmp tbb clang
+RUN pacman -Syu --noconfirm --needed arrayfire fmt ninja cmake boost eigen openmp tbb clang
 
 # Install Floop's linux environment.
 RUN pacman -Syu --noconfirm --needed git
@@ -42,7 +42,7 @@ RUN /root/bin/aur-install libcmaes --noconfirm --needed
 RUN /root/bin/aur-install googletest-git --noconfirm --needed
 
 # Compile echo-state-networks.
-ADD ./* ${HOME}/echo-state-networks/
+COPY ./ ${HOME}/echo-state-networks/
 WORKDIR ${HOME}/echo-state-networks/
 RUN source /etc/profile.d/cuda.sh && cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release .
 RUN LD_LIBRARY_PATH=/opt/cuda/targets/x86_64-linux/lib/stubs/ cmake --build build
