@@ -279,18 +279,26 @@ public:
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
-            if (epoch == 0)
-                net.train(
-                  {.input = xs_groups.at(1),
-                   .feedback = ys_groups.at(1),
-                   .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()});
-            else
-                net.train(
+            train_result_t train_result = [&]() {
+                if (epoch == 0)
+                    return net.train(
+                      {.input = xs_groups.at(1),
+                       .feedback = ys_groups.at(1),
+                       .desired = ys_groups.at(1),
+                       .input_transform = input_transform_fn()});
+                return net.train(
                   {.input = xs_groups.at(1),
                    .feedback = {},
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
+            }();
+            {
+                // Print train mse error
+                af::array train_prediction =
+                  af::matmul(train_result.predictors, train_result.output_w.T());
+                double err = af_utils::mse<double>(train_prediction.T(), ys_groups.at(1).data());
+                std::cout << "Train MSE error: " << err << std::endl;
+            }
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
@@ -375,20 +383,20 @@ public:
                        .feedback = ys_groups.at(1),
                        .desired = ys_groups.at(1),
                        .input_transform = input_transform_fn()});
-                train_result_t train_result = net.train(
+                return net.train(
                   {.input = xs_groups.at(1).probably_nan(output_names(), .5 * epoch / n_epochs_),
                    .feedback = {},
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
-                // give the network an unimpaired input of length `init-steps` after training
-                // epoch>0 with probabilistically skipped values
+            }();
+            // give the network an unimpaired input of length `init-steps` after training
+            // epoch>0 with probabilistically skipped values
+            if (epoch > 0)
                 net.feed(
                   {.input = xs_groups.at(1).tail(split_sizes_.at(0)),
                    .feedback = ys_groups.at(1).tail(split_sizes_.at(0)),
                    .desired = ys_groups.at(1).tail(split_sizes_.at(0)),
                    .input_transform = input_transform_fn()});
-                return train_result;
-            }();
             net.random_noise(false);
             net.clear_feedback();
             {
@@ -400,7 +408,7 @@ public:
             }
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
-            long n_validations =
+            [[maybe_unused]] const long n_validations =
               (xs_groups.at(2).length() - n_steps_ahead_ + validation_stride_ - 1)
               / validation_stride_;
             std::vector<data_map> all_predicted;
@@ -423,7 +431,7 @@ public:
                        .input_transform = input_transform_fn()});
                 }
                 // create a copy of the network before the validation so that we can simply
-                // continue training of the original net in the next iteration
+                // continue feeding of the original net in the next iteration
                 std::unique_ptr<net_base> net_copy = net.clone();
                 // evaluate the performance of the network on the validation subsequence
                 data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
@@ -461,14 +469,12 @@ public:
 
 /// The parameters are from Reservoir Topology in Deep Echo State Networks [2019]
 /// by Gallicchio and Micheli.
-class narma10_benchmark_set : public benchmark_set {
+class narma10_generator {
 protected:
     long tau_;
-    std::set<std::string> input_names_{"xs"};
-    std::set<std::string> output_names_{"ys"};
 
-    std::tuple<data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<af::array, af::array>
+    generate_narma(long len, af::dtype dtype, std::mt19937& prng) const
     {
         // NARMA10 can diverge, let's regenerate until it all fits in [-1, 1].
         af::array xs, ys;
@@ -477,13 +483,29 @@ protected:
             xs = af::randu({len}, dtype, af_prng) * 0.5;
             ys = narma(xs, 10, tau_, {0.3, 0.05, 1.5, 0.1});
         } while (af::anyTrue<bool>(af::abs(ys) > 1.0));
-        return {{"xs", xs}, {"ys", ys}};
+        return {xs, ys};
     }
 
 public:
+    narma10_generator(po::variables_map config) : tau_{config.at("bench.narma-tau").as<long>()} {}
+};
+
+class narma10_benchmark_set : public benchmark_set, public narma10_generator {
+protected:
+    std::set<std::string> input_names_{"xs"};
+    std::set<std::string> output_names_{"ys"};
+
+public:
     narma10_benchmark_set(po::variables_map config)
-      : benchmark_set{std::move(config)}, tau_{config_.at("bench.narma-tau").as<long>()}
+      : benchmark_set{std::move(config)}, narma10_generator{config_}
     {
+    }
+
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    {
+        auto [xs, ys] = generate_narma(len + 1, dtype, prng);
+        return {{"xs", xs}, {"ys", ys}};
     }
 
     const std::set<std::string>& input_names() const override
@@ -827,6 +849,53 @@ public:
     }
 };
 
+/// Sanity check benchmark for NARMA - with n-steps-ahead of size 1,
+/// and the second in-weight (i.e., ys) equal to fb-weight, the results should
+/// be the slightly better than for regular NARMA benchmark. The reason is,
+/// that loop benchmark always feeds ground truth to the input when
+/// doing "extra-feed", whereas the standard benchmark only uses the network's
+/// own output as feedback during validation.
+class narma10_loop_benchmark_set : public loop_benchmark_set, narma10_generator {
+protected:
+    std::set<std::string> persistent_input_names_{"xs"};
+    std::set<std::string> input_names_{"xs", "ys"};
+    std::set<std::string> output_names_{"ys"};
+    std::set<std::string> target_names_{"ys"};
+
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    {
+        long len = rg::accumulate(split_sizes_, 0L);
+        auto [xs, ys] = generate_narma(len, dtype, prng);
+        return {std::map<std::string, af::array>{{"xs", xs}, {"ys", af::shift(ys, 1)}}, {"ys", ys}};
+    }
+
+public:
+    narma10_loop_benchmark_set(po::variables_map config)
+      : loop_benchmark_set{std::move(config)}, narma10_generator{config_}
+    {
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
 class etth_loop_benchmark_set : public loop_benchmark_set, public etth_loader {
 protected:
     std::set<std::string> persistent_input_names_{
@@ -1140,6 +1209,9 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
 {
     if (args.at("gen.benchmark-set").as<std::string>() == "narma10") {
         return std::make_unique<narma10_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "narma10-loop") {
+        return std::make_unique<narma10_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "narma30") {
         return std::make_unique<narma30_benchmark_set>(args);

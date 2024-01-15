@@ -21,7 +21,7 @@ private:
 
     std::map<std::string, double> key_indices(const std::set<std::string>& keys) const
     {
-        for (const std::string& key : keys) assert(keys_.contains(key));
+        for ([[maybe_unused]] const std::string& key : keys) assert(keys_.contains(key));
         std::vector<double> indices;
         for (const auto& [i, key] : rgv::enumerate(keys_))
             if (keys.contains(key)) indices.push_back(i);

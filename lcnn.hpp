@@ -459,7 +459,7 @@ public:
         data.outputs = af::array{};  // free memory
         data.states = af::moddims(data.states, state_.elements(), data.desired->dims(1));
         data.states = data.states.T();
-        long n_predictors = state_.elements() + 1;
+        [[maybe_unused]] long n_predictors = state_.elements() + 1;
         if (!state_predictor_indices_.isempty()) {
             data.states = data.states(af::span, state_predictor_indices_);
             n_predictors = state_predictor_indices_.elements() + 1;
