@@ -723,7 +723,7 @@ public:
         while (std::getline(in, line)) {
             std::vector<std::string> words;
             boost::split(words, line, boost::is_any_of(","));
-            for (const auto& [col, value] : rgv::zip(header_, words))
+            for (const auto& [col, value] : rgv::zip(header_, words)) {
                 if (col == "date") {
                     std::tm tm = {};
                     std::stringstream ss{value};
@@ -739,8 +739,10 @@ public:
                       std::sin((tm.tm_wday * 24 + tm.tm_hour) * 2. * M_PI / (7 * 24)) * 10);
                     data["date-hour"].push_back(std::sin(tm.tm_hour * 2. * M_PI / 24) * 10);
                     data["date-min"].push_back(std::sin(tm.tm_min * 2. * M_PI / 60) * 10);
-                } else
+                } else {
                     data[col].push_back(std::stod(value));
+                }
+            }
         };
 
         long long n_features = header_.size() - 1;
