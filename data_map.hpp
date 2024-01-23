@@ -117,14 +117,14 @@ public:
         return {std::move(keys), data_(index_array, af::span)};
     }
 
-    data_map shift(long shift) const
+    data_map shift(long shift, double fill = af::NaN) const
     {
         if (keys_.empty()) return *this;
         af::array shifted = af::shift(data_, 0, shift);
         if (shift < 0)
-            shifted(af::span, af::seq(af::end - (-shift), af::end)) = af::NaN;
+            shifted(af::span, af::seq(af::end - (-shift), af::end)) = fill;
         else if (shift > 0)
-            shifted(af::span, af::seq(0, shift - 1)) = af::NaN;
+            shifted(af::span, af::seq(0, shift - 1)) = fill;
         return {keys_, std::move(shifted)};
     }
 

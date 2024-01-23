@@ -231,7 +231,7 @@ std::vector<af::array> split_data(const af::array& data, const std::vector<long>
 }
 
 /// Shift array and set the overflown items to the specified value
-af::array default_shift(const af::array& data, long shift, long dim, double value = af::NaN)
+af::array shift(const af::array& data, long shift, long dim, double fill = af::NaN)
 {
     // nan selector for positive and negative shifts
     af::seq negative_selector(af::end - (-shift), af::end);
@@ -239,17 +239,17 @@ af::array default_shift(const af::array& data, long shift, long dim, double valu
     if (dim == 0) {
         af::array shifted = af::shift(data, shift);
         if (shift < 0)
-            shifted(negative_selector) = value;
+            shifted(negative_selector) = fill;
         else if (shift > 0)
-            shifted(positive_selector) = value;
+            shifted(positive_selector) = fill;
         return shifted;
     }
     if (dim == 1) {
         af::array shifted = af::shift(data, 0, shift);
         if (shift < 0)
-            shifted(af::span, negative_selector) = value;
+            shifted(af::span, negative_selector) = fill;
         else if (shift > 0)
-            shifted(af::span, positive_selector) = value;
+            shifted(af::span, positive_selector) = fill;
         return shifted;
     }
     throw std::invalid_argument{"Unsupported dimension in nan_shift."};
