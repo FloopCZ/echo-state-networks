@@ -960,9 +960,10 @@ class ettm_loop_benchmark_set : public loop_benchmark_set, public ettm_loader {
 protected:
     std::set<std::string> persistent_input_names_{
       "date-mon", "date-mday", "date-wday", "date-hour", "date-min"};
-    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
-                                       "date-min", "HUFL",      "HULL",      "MUFL",
-                                       "MULL",     "LUFL",      "LULL",      "OT"};
+    std::set<std::string> original_input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                                "date-min", "HUFL",      "HULL",      "MUFL",
+                                                "MULL",     "LUFL",      "LULL",      "OT"};
+    std::set<std::string> input_names_;
     std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
     std::set<std::string> target_names_{"OT"};
 
@@ -974,8 +975,22 @@ protected:
     std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
         data_map dataset = get_dataset(dtype, prng);
-        data_map xs = dataset.filter(input_names());
-        data_map ys = dataset.filter(output_names()).shift(-1);
+        std::map<std::string, af::array> shifted_xs;
+        std::map<std::string, af::array> shifted_ys;
+        for (int i = 0; i < 100; i += 25) {
+            for (const std::string& key : original_input_names_) {
+                if (!persistent_input_names_.contains(key)) {
+                    af::array shifted_data = af_utils::shift(dataset.at(key), i, 0, 0.);
+                    shifted_xs.emplace(key + "+" + std::to_string(i), shifted_data);
+                    shifted_ys.emplace(key + "+" + std::to_string(i), shifted_data);
+                    std::cout << "adding " << key + "+" + std::to_string(i) << std::endl;
+                }
+            }
+        }
+        // xs = xs.extend(data_map{shifted_xs});
+        // ys = ys.extend(data_map{shifted_ys});
+        data_map xs = dataset.extend(data_map{shifted_xs}).filter(input_names_);
+        data_map ys = dataset.extend(data_map{shifted_ys}).filter(output_names_).shift(-1);
         return {std::move(xs), std::move(ys)};
     }
 
@@ -983,6 +998,16 @@ public:
     ettm_loop_benchmark_set(po::variables_map config)
       : loop_benchmark_set{std::move(config)}, ettm_loader{config_}
     {
+        input_names_ = original_input_names_;
+        for (int i = 0; i < 100; i += 25) {
+            for (const std::string& key : original_input_names_) {
+                if (!persistent_input_names_.contains(key)) {
+                    input_names_.insert(key + "+" + std::to_string(i));
+                    output_names_.insert(key + "+" + std::to_string(i));
+                    std::cout << "adding input " << key + "+" + std::to_string(i) << std::endl;
+                }
+            }
+        }
     }
 
     const std::set<std::string>& persistent_input_names() const override
