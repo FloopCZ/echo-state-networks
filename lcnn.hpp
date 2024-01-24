@@ -13,8 +13,10 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <cassert>
+#include <fmt/format.h>
 #include <random>
 #include <range/v3/all.hpp>
+#include <stdexcept>
 
 namespace esn {
 
@@ -719,8 +721,14 @@ lcnn<DType> random_lcnn(
     double mu_res = args.at("lcnn.mu-res").as<double>();
     // The input weight for each input.
     std::vector<double> in_weight = args.at("lcnn.in-weight").as<std::vector<double>>();
+    if (in_weight.size() < n_ins)
+        throw std::invalid_argument{
+          fmt::format("in-weight ({}) < n_ins ({})", in_weight.size(), n_ins)};
     // The feedback weights will be generated from [0, fb_weight].
     std::vector<double> fb_weight = args.at("lcnn.fb-weight").as<std::vector<double>>();
+    if (fb_weight.size() < n_outs)
+        throw std::invalid_argument{
+          fmt::format("fb-weight ({}) < n_outs ({})", fb_weight.size(), n_outs)};
     // Standard deviation of the normal distribution generating the biases.
     double sigma_b = args.at("lcnn.sigma-b").as<double>();
     // The mean of the normal distribution generating the biases.

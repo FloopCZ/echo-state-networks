@@ -34,6 +34,7 @@ find_package(Boost COMPONENTS program_options REQUIRED)
 find_package(CUDAToolkit)
 find_package(Eigen3 REQUIRED)
 find_package(Forge REQUIRED)
+find_package(fmt REQUIRED)
 cmake_policy(SET CMP0072 NEW)
 find_package(OpenGL REQUIRED)
 # find_package(OpenCL)  # OpenCL in unsupported for now
@@ -138,6 +139,7 @@ function(link_without_backend EXECUTABLE_NAME EXECUTABLE_SUFFIX)
     PUBLIC "${FORGE_LIBRARIES}"
     PUBLIC OpenGL::GLX
     PUBLIC tbb
+    PUBLIC fmt::fmt
   )
 endfunction(link_without_backend)
 

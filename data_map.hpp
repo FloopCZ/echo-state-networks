@@ -51,7 +51,7 @@ public:
         data_ = std::move(data);
     }
 
-    data_map(const std::map<std::string, af::array>& data_vectors)
+    explicit data_map(const std::map<std::string, af::array>& data_vectors)
     {
         if (data_vectors.empty()) return;
         long data_len = -1;

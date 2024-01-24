@@ -116,7 +116,7 @@ protected:
                 shifted_seqs.emplace(name + "-" + std::to_string(i), std::move(shifted));
             }
         }
-        return shifted_seqs;
+        return data_map{std::move(shifted_seqs)};
     }
 
     mutable std::mutex data_cache_mutex_;
@@ -233,7 +233,8 @@ public:
             error = multi_error_fnc(predicted, desired);
             std::cout << "Epoch " << epoch << " error " << error << "\n"
                       << "Error of the last target "
-                      << error_fnc(last_shift_predicted, last_shift_desired) << std::endl;
+                      << error_fnc(data_map{last_shift_predicted}, data_map{last_shift_desired})
+                      << std::endl;
         }
         return error;
     }
@@ -750,7 +751,7 @@ public:
 
         std::map<std::string, af::array> array_data;
         for (const auto& [key, values] : data) array_data[key] = af_utils::to_array(values);
-        data_ = array_data;
+        data_ = data_map{array_data};
 
         std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
                   << " points.\n";
@@ -868,7 +869,9 @@ protected:
     {
         long len = rg::accumulate(split_sizes_, 0L);
         auto [xs, ys] = generate_narma(len, dtype, prng);
-        return {std::map<std::string, af::array>{{"xs", xs}, {"ys", af::shift(ys, 1)}}, {"ys", ys}};
+        data_map xs_dm{std::map<std::string, af::array>{{"xs", xs}, {"ys", af::shift(ys, 1)}}};
+        data_map ys_dm{"ys", ys};
+        return {std::move(xs_dm), std::move(ys_dm)};
     }
 
 public:
