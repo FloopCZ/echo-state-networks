@@ -977,7 +977,7 @@ protected:
         data_map dataset = get_dataset(dtype, prng);
         std::map<std::string, af::array> shifted_xs;
         std::map<std::string, af::array> shifted_ys;
-        for (int i = 0; i < 100; i += 25) {
+        for (int i = 25; i < 100; i += 25) {
             for (const std::string& key : original_input_names_) {
                 if (!persistent_input_names_.contains(key)) {
                     af::array shifted_data = af_utils::shift(dataset.at(key), i, 0, 0.);
@@ -999,7 +999,7 @@ public:
       : loop_benchmark_set{std::move(config)}, ettm_loader{config_}
     {
         input_names_ = original_input_names_;
-        for (int i = 0; i < 100; i += 25) {
+        for (int i = 25; i < 100; i += 25) {
             for (const std::string& key : original_input_names_) {
                 if (!persistent_input_names_.contains(key)) {
                     input_names_.insert(key + "+" + std::to_string(i));
