@@ -129,17 +129,32 @@ af::array add_ones(const af::array& A, long dim = 1)
     return A1;
 }
 
+/// Linear regression solver
+///
+/// Assume A = [1 | A0], where [1 | A0] is a matrix A0 with an extra column of ones.
+/// Then trains X, such that A * X == B, optionally regularizing the coefficients (not the bias).
+af::array solve(const af::array& A, const af::array& B, double l2 = 0.)
+{
+    assert(B.numdims() <= 2);
+    assert(A.dims(0) == B.dims(0));
+    assert(A.dims(1) > 1);
+    if (l2 == 0.) return af::solve(A, B);
+    af::array P = A;
+    P(af::seq(A.dims(0) + 1, A.elements() - 1, A.dims(0) + 1)) += l2;
+    return af::solve(P, B);
+}
+
 /// Linear regression training.
 ///
 /// Train X, such as [1 | A] * X == B, where [1 | A] is the
 /// matrix A with an extra column of ones.
-af::array lstsq_train(const af::array& A, const af::array& B)
+af::array lstsq_train(const af::array& A, const af::array& B, double l2 = 0.0)
 {
     assert(B.numdims() <= 2);
     assert(A.dims(0) == B.dims(0));
     // add biases (i.e., 1's) as the first column of the coefficient matrix
     af::array A1 = af::join(1, af::constant(1, A.dims(0), A.type()), A);
-    af::array X = af::solve(A1, B);
+    af::array X = solve(A1, B, l2);
     assert((X.dims() == af::dim4{A.dims(1) + 1, B.dims(1)}));  // + 1 for biases
     return X;
 }

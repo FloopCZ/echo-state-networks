@@ -68,6 +68,8 @@ struct lcnn_config {
     double noise = 0;
     /// The leakage of the potential.
     double leakage = 1.0;
+    /// The L2 regularization coefficient.
+    double l2 = 0;
     /// Indices of neurons used as predictors during training.
     /// Leave empty to use all neurons.
     af::array state_predictor_indices = {};
@@ -88,6 +90,7 @@ struct lcnn_config {
         random_spike_std = args.at("lcnn.random-spike-std").as<double>();
         noise = args.at("lcnn.noise").as<double>();
         leakage = args.at("lcnn.leakage").as<double>();
+        l2 = args.at("lcnn.l2").as<double>();
     }
 };
 
@@ -129,6 +132,7 @@ protected:
     double random_spike_std_;
     double noise_;
     double leakage_;
+    double l2_;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
@@ -297,6 +301,7 @@ public:
       , random_spike_std_{cfg.random_spike_std}
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
+      , l2_{cfg.l2}
     {
         state(std::move(cfg.init_state));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
@@ -469,7 +474,7 @@ public:
         af::array predictors = af_utils::add_ones(data.states, 1);
         data.states = af::array{};  // free memory
         data.desired = data.desired->T();
-        output_w_ = af::solve(predictors, *data.desired).T();
+        output_w_ = af_utils::solve(predictors, *data.desired, l2_).T();
         data.desired = af::array{};  // free memory
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         update_last_output();
@@ -1037,6 +1042,8 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.noise", po::value<double>()->default_value(0),                 //
        "See lcnn_config class.")                                            //
       ("lcnn.leakage", po::value<double>()->default_value(1),               //
+       "See lcnn_config class.")                                            //
+      ("lcnn.l2", po::value<double>()->default_value(0),                    //
        "See lcnn_config class.")                                            //
       ("lcnn.n-state-predictors", po::value<long>()->default_value(0),      //
        "See random_lcnn().")                                                //
