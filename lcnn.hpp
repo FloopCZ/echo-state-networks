@@ -70,6 +70,8 @@ struct lcnn_config {
     double leakage = 1.0;
     /// The L2 regularization coefficient.
     double l2 = 0;
+    /// The L2 regularization coefficient.
+    long intermediate_steps = 1;
     /// Indices of neurons used as predictors during training.
     /// Leave empty to use all neurons.
     af::array state_predictor_indices = {};
@@ -91,6 +93,7 @@ struct lcnn_config {
         noise = args.at("lcnn.noise").as<double>();
         leakage = args.at("lcnn.leakage").as<double>();
         l2 = args.at("lcnn.l2").as<double>();
+        intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
     }
 };
 
@@ -133,6 +136,7 @@ protected:
     double noise_;
     double leakage_;
     double l2_;
+    long intermediate_steps_;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
@@ -302,6 +306,7 @@ public:
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
       , l2_{cfg.l2}
+      , intermediate_steps_{cfg.intermediate_steps}
     {
         state(std::move(cfg.init_state));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
@@ -326,8 +331,8 @@ public:
       const data_map& step_desired,
       input_transform_fn_t input_transform) override
     {
-        // TODO desired and feedback is the same, only one should be provided and there should be
-        // teacher-force bool param
+        // TODO desired and feedback is the same, only one should be provided and there should
+        // be teacher-force bool param
         update_last_output_via_teacher_force(prev_step_feedback_);
         prev_step_feedback_ = step_feedback;
 
@@ -349,39 +354,41 @@ public:
         }
 
         // Update the internal state.
-        // Perform matrix multiplication instead of state unwrapping for large kernels.
-        if (do_matmul_step()) {
-            update_via_weights_matmul();
-        } else {
-            // Use state unwrapping for small kernels
-            update_via_weights();
+        for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
+            // Perform matrix multiplication instead of state unwrapping for large kernels.
+            if (do_matmul_step()) {
+                update_via_weights_matmul();
+            } else {
+                // Use state unwrapping for small kernels
+                update_via_weights();
+            }
+
+            // add input
+            update_via_input(tr_step_input.data());
+
+            // add feedback
+            if (!tr_last_output.empty()) {
+                assert(tr_last_output.keys() == output_names_);
+                update_via_feedback(tr_last_output.data());
+            }
+
+            // add bias
+            update_via_bias();
+
+            // activation function
+            update_via_activation();
+
+            // Learning is not available at the moment.
+            // if (learning_rate_ != 0) {
+            //     // update state exponential moving average
+            //     update_state_ema();
+            //     // update the weights
+            //     update_weights(unwrapped_weights, unwrapped_state);
+            // }
+            assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
-
-        // add input
-        update_via_input(tr_step_input.data());
-
-        // add feedback
-        if (!tr_last_output.empty()) {
-            assert(tr_last_output.keys() == output_names_);
-            update_via_feedback(tr_last_output.data());
-        }
-
-        // add bias
-        update_via_bias();
-
-        // activation function
-        update_via_activation();
-
-        // Learning is not available at the moment.
-        // if (learning_rate_ != 0) {
-        //     // update state exponential moving average
-        //     update_state_ema();
-        //     // update the weights
-        //     update_weights(unwrapped_weights, unwrapped_state);
-        // }
 
         update_last_output();
-        assert(!af::anyTrue<bool>(af::isNaN(state_)));
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
@@ -1042,6 +1049,8 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.noise", po::value<double>()->default_value(0),                 //
        "See lcnn_config class.")                                            //
       ("lcnn.leakage", po::value<double>()->default_value(1),               //
+       "See lcnn_config class.")                                            //
+      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),      //
        "See lcnn_config class.")                                            //
       ("lcnn.l2", po::value<double>()->default_value(0),                    //
        "See lcnn_config class.")                                            //
