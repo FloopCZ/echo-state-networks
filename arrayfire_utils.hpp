@@ -270,4 +270,14 @@ af::array shift(const af::array& data, long shift, long dim, double fill = af::N
     throw std::invalid_argument{"Unsupported dimension in nan_shift."};
 }
 
+/// Random shuffle of the rows of a matrix (or of a vector).
+af::array shuffle(const af::array& data)
+{
+    assert(data.isvector());
+    af::array tmp = af::randu(data.dims(0));
+    af::array val, idx;
+    af::sort(val, idx, tmp);
+    return data(idx, af::span);
+}
+
 }  // end namespace af_utils

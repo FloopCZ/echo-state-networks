@@ -14,6 +14,7 @@
 #include <boost/program_options.hpp>
 #include <cassert>
 #include <fmt/format.h>
+#include <limits>
 #include <random>
 #include <range/v3/all.hpp>
 #include <stdexcept>
@@ -72,9 +73,11 @@ struct lcnn_config {
     double l2 = 0;
     /// The L2 regularization coefficient.
     long intermediate_steps = 1;
+    /// The number of training trials (select random indices, train, repeat).
+    long n_train_trials = 1;
     /// Indices of neurons used as predictors during training.
     /// Leave empty to use all neurons.
-    af::array state_predictor_indices = {};
+    long n_state_predictors = 0;
 
     lcnn_config() = default;
     lcnn_config(const po::variables_map& args)
@@ -94,6 +97,8 @@ struct lcnn_config {
         leakage = args.at("lcnn.leakage").as<double>();
         l2 = args.at("lcnn.l2").as<double>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
+        n_train_trials = args.at("lcnn.n-train-trials").as<long>();
+        n_state_predictors = args.at("lcnn.n-state-predictors").as<long>();
     }
 };
 
@@ -105,7 +110,6 @@ protected:
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
-    af::array state_predictor_indices_;
     data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
     af::array reservoir_w_;
@@ -113,11 +117,13 @@ protected:
     af::array reservoir_b_;
     af::array input_w_;
     af::array feedback_w_;
-    af::array output_w_;
+    std::vector<af::array> state_predictor_indices_;
+    std::vector<af::array> output_w_;
     bool force_matmul_;
 
     // Random engines.
-    std::mt19937* prng_;
+    std::mt19937 prng_init_;
+    std::mt19937 prng_;
     af::randomEngine af_prng_;
 
     // Learning is not available at the moment.
@@ -137,6 +143,8 @@ protected:
     double leakage_;
     double l2_;
     long intermediate_steps_;
+    long n_train_trials_;
+    long n_state_predictors_;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
@@ -254,15 +262,21 @@ protected:
     /// Update the last output of the network after having a new state.
     virtual void update_last_output()
     {
-        if (output_w_.isempty()) {
+        if (output_w_.empty()) {
             last_output_.clear();
             return;
         }
-        af::array state_predictors = af::flat(state_);
-        if (!state_predictor_indices_.isempty())
-            state_predictors = state_predictors(state_predictor_indices_);
-        af::array predictors = af_utils::add_ones(state_predictors, 0);
-        last_output_ = {output_names_, af::matmul(output_w_, predictors)};
+        af::array output = af::constant(0, output_names_.size(), state_.type());
+        assert(output_w_.size() == state_predictor_indices_.size());
+        // Evaluate every output_w and aggregate them to the final output.
+        for (long i = 0; i < output_w_.size(); ++i) {
+            af::array predictors = af::flat(state_);
+            if (!state_predictor_indices_.at(i).isempty())
+                predictors = predictors(state_predictor_indices_.at(i));
+            predictors = af_utils::add_ones(predictors, 0);
+            output += af::matmul(output_w_.at(i), predictors);
+        }
+        last_output_ = {output_names_, output};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
     }
@@ -277,19 +291,29 @@ protected:
         last_output_ = nonnan_step_feedback.extend(last_output_).filter(output_names_);
     }
 
+    /// Generate random indices to a flattened state matrix.
+    af::array generate_random_state_indices(long n)
+    {
+        std::vector<double> indices =
+          rgv::ints(0L, (long)state_.elements()) | rg::to<std::vector<double>>;
+        indices = rga::shuffle(indices, prng_) | rgv::take_exactly(n) | rg::to_vector;
+        return af::sort(af_utils::to_array(indices));
+    }
+
 public:
     lcnn() = default;
 
     /// Locally connected echo state network constructor.
-    lcnn(lcnn_config cfg, std::mt19937& prng)
+    lcnn(lcnn_config cfg, std::mt19937 prng)
       : input_names_{cfg.input_names}
       , output_names_{cfg.output_names}
-      , state_predictor_indices_{std::move(cfg.state_predictor_indices)}
       , last_output_{}
+      , state_predictor_indices_{}
       , output_w_{}
       , force_matmul_{false}
-      , prng_{&prng}
-      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_->operator()()}
+      , prng_init_{std::move(prng)}
+      , prng_{prng_init_}
+      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_()}
 
       // Learning is not available at the moment.
       // , learning_rate_       {cfg.learning_rate}
@@ -307,6 +331,8 @@ public:
       , leakage_{cfg.leakage}
       , l2_{cfg.l2}
       , intermediate_steps_{cfg.intermediate_steps}
+      , n_train_trials_{cfg.n_train_trials}
+      , n_state_predictors_{cfg.n_state_predictors}
     {
         state(std::move(cfg.init_state));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
@@ -453,9 +479,19 @@ public:
         return train(feed(input));
     }
 
+    /// Clear the network output weights and reset prng to the initial state.
+    void reset() override
+    {
+        prng_ = prng_init_;
+        // TODO state predictors and output_w should be bundled.
+        state_predictor_indices_.clear();
+        output_w_.clear();
+    }
+
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    train_result_t train(feed_result_t data) override
+    train_result_t
+    train_impl(const feed_result_t& data, const af::array& state_predictor_indices) const
     {
         assert(data.states.type() == DType);
         assert(
@@ -470,23 +506,71 @@ public:
         assert(data.desired->dims(0) == output_names_.size());
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
-        data.outputs = af::array{};  // free memory
-        data.states = af::moddims(data.states, state_.elements(), data.desired->dims(1));
-        data.states = data.states.T();
-        [[maybe_unused]] long n_predictors = state_.elements() + 1;
-        if (!state_predictor_indices_.isempty()) {
-            data.states = data.states(af::span, state_predictor_indices_);
-            n_predictors = state_predictor_indices_.elements() + 1;
+        af::array predictors =
+          af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
+        if (!state_predictor_indices.isempty())
+            predictors = predictors(af::span, state_predictor_indices);
+        predictors = af_utils::add_ones(predictors, 1);
+        af::array output_w = af_utils::solve(predictors, data.desired->T(), l2_).T();
+        output_w(af::isNaN(output_w) || af::isInf(output_w)) = 0.;
+        assert(output_w.dims() == (af::dim4{output_names_.size(), predictors.dims(1)}));
+        return {.predictors = std::move(predictors), .output_w = std::move(output_w)};
+    }
+
+    /// Train the network on already processed feed result.
+    /// \param data Training data.
+    train_result_t train(const feed_result_t data) override
+    {
+        if (!data.desired) throw std::runtime_error{"No desired data to train to."};
+
+        feed_result_t train_trial_data = data;
+        // Prepare for difference training (epoch 1 and later).
+        if (!output_w_.empty()) {
+            double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
+            std::cout << fmt::format("Before train {} MSE error: {}", output_w_.size(), feed_err)
+                      << std::endl;
+            // if we are training two or more epochs, we only train the difference
+            train_trial_data.desired = *data.desired - data.outputs;
         }
-        af::array predictors = af_utils::add_ones(data.states, 1);
-        data.states = af::array{};  // free memory
-        data.desired = data.desired->T();
-        output_w_ = af_utils::solve(predictors, *data.desired, l2_).T();
-        data.desired = af::array{};  // free memory
-        output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
+
+        struct train_trial_result_t {
+            train_result_t train_result;
+            af::array state_predictor_indices;
+            af::array train_prediction;
+            double train_err;
+        } best_train_result{.train_err = std::numeric_limits<double>::max()};
+
+        assert(n_train_trials_ > 0);
+        for (long i = 0; i < n_train_trials_; ++i) {
+            af::array state_predictor_indices;
+            if (n_state_predictors_ > 0 && n_state_predictors_ < state_.elements()) {
+                state_predictor_indices = generate_random_state_indices(n_state_predictors_);
+            } else {
+                if (n_train_trials_ != 1)
+                    throw std::runtime_error{
+                      "n-train_trials_ > 1 does not make sense with n-state-predictors set to all "
+                      "neurons."};
+            }
+            train_result_t train_result = train_impl(train_trial_data, state_predictor_indices);
+            af::array train_prediction =
+              af::matmulNT(train_result.predictors, train_result.output_w);
+            double train_err =
+              af_utils::mse<double>(train_prediction.T(), *train_trial_data.desired);
+            std::cout << fmt::format(
+              "Train {} trial {} MSE error: {}", output_w_.size(), i, train_err)
+                      << std::endl;
+            if (train_err < best_train_result.train_err)
+                best_train_result = {
+                  .train_result = std::move(train_result),
+                  .state_predictor_indices = std::move(state_predictor_indices),
+                  .train_prediction = std::move(train_prediction),
+                  .train_err = train_err};
+        }
+
+        state_predictor_indices_.push_back(best_train_result.state_predictor_indices);
+        output_w_.push_back(best_train_result.train_result.output_w);
         update_last_output();
-        assert(output_w_.dims() == (af::dim4{output_names_.size(), n_predictors}));
-        return {.predictors = std::move(predictors), .output_w = output_w_};
+        return best_train_result.train_result;
     }
 
     /// Clear the stored feedback which would otherwise be used in the next step.
@@ -755,9 +839,6 @@ lcnn<DType> random_lcnn(
     // Put input to all neurons. In such a case, the input weights are
     // distributed uniformly from [0, in_weight].
     bool input_to_all = args.at("lcnn.input-to-all").as<bool>();
-    // How many neurons are used as predictors for training.
-    // 0 means all neurons.
-    long n_state_predictors = args.at("lcnn.n-state-predictors").as<long>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -971,15 +1052,6 @@ lcnn<DType> random_lcnn(
         }
     }
 
-    // choose random state predictor indices
-    cfg.state_predictor_indices = af::array{};
-    if (n_state_predictors > 0 && n_state_predictors < state_height * state_width) {
-        std::vector<double> indices =
-          rgv::ints(0L, (long)state_height * state_width) | rg::to<std::vector<double>>;
-        indices = rga::shuffle(indices, prng) | rgv::take(n_state_predictors) | rg::to_vector;
-        cfg.state_predictor_indices = af::sort(af_utils::to_array(indices));
-    }
-
     // the initial state is full of zeros
     cfg.init_state = af::constant(0, state_height, state_width, DType);
     // the initial state is random
@@ -1054,8 +1126,10 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                            //
       ("lcnn.l2", po::value<double>()->default_value(0),                    //
        "See lcnn_config class.")                                            //
-      ("lcnn.n-state-predictors", po::value<long>()->default_value(0),      //
+      ("lcnn.n-train-trials", po::value<long>()->default_value(1),          //
        "See random_lcnn().")                                                //
+      ("lcnn.n-state-predictors", po::value<long>()->default_value(0),      //
+       "How many neurons are used for regression training.")                //
       ;
     return lcnn_arg_desc;
 }

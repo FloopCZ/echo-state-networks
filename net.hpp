@@ -77,6 +77,8 @@ public:
 
     virtual void random_noise(bool) = 0;
 
+    virtual void reset() = 0;
+
     /// Add a callback to call when the state has changed.
     virtual void add_on_state_change(on_state_change_callback_t fnc)
     {

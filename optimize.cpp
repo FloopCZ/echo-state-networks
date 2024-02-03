@@ -100,6 +100,7 @@ int main(int argc, char* argv[])
                 } else if (param == "trial") {
                     fout << trial;
                 } else if (param == "f-value") {
+                    best_evaluation.net->reset();
                     double f_value = opt->evaluate_net(*best_evaluation.net, global_prng);
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << f_value;
                 } else if (param == net_type + ".topology") {

@@ -31,7 +31,7 @@ class simple_esn : public net_base {
     // each row are the input weights for a single input neuron
     af::array input_w_;
     // output weights
-    // each col are the output weights for a single neuron, the last col is the intercept
+    // each col are the output weights for a single neuron, the first col is the intercept
     af::array output_w_;
     // feedback weights
     af::array feedback_w_;
@@ -50,7 +50,8 @@ class simple_esn : public net_base {
     af::array last_output_;
 
     // random engines
-    std::mt19937* prng_;
+    std::mt19937 prng_init_;
+    std::mt19937 prng_;
     af::randomEngine af_prng_;
 
 public:
@@ -67,7 +68,7 @@ public:
       af::array biases,
       double noise,
       double leakage,
-      std::mt19937& prng)
+      std::mt19937 prng)
       : n_{n}
       , input_names_{std::move(input_names)}
       , output_names_{std::move(output_names)}
@@ -81,8 +82,9 @@ public:
       , leakage_{leakage}
       , state_{af::constant(0, n_, DType)}
       , last_output_{af::constant(0, output_names_.size(), DType)}
-      , prng_{&prng}
-      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_->operator()()}
+      , prng_init_{std::move(prng)}
+      , prng_{prng_init_}
+      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_()}
     {
         // check types
         assert((reservoir_w_.type() == DType));
@@ -109,7 +111,7 @@ public:
       af::array feedback_w,
       double noise,
       double leakage,
-      std::mt19937& prng)
+      std::mt19937 prng)
       : simple_esn{
         n,
         std::move(input_names),
@@ -337,6 +339,12 @@ public:
     void random_noise(bool enable) override
     {
         noise_enabled_ = enable;
+    }
+
+    void reset() override
+    {
+        prng_ = prng_init_;
+        output_w_ = af::constant(af::NaN, output_names_.size(), n_ + 1, DType);
     }
 
     std::unique_ptr<net_base> clone() const override

@@ -177,19 +177,11 @@ public:
                .input_transform = input_transform_fn()});
             // train the network on the training sequence
             net.event("train-start");
-            {
-                train_result_t train_result = net.train(
-                  {.input = xs_groups.at(1),
-                   .feedback = {},
-                   .desired = ys_shifted_groups.at(1),
-                   .input_transform = input_transform_fn()});
-                // Print train mse error
-                af::array train_prediction =
-                  af::matmul(train_result.predictors, train_result.output_w.T());
-                double err =
-                  af_utils::mse<double>(train_prediction.T(), ys_shifted_groups.at(1).data());
-                std::cout << "Train MSE error: " << err << std::endl;
-            }
+            train_result_t train_result = net.train(
+              {.input = xs_groups.at(1),
+               .feedback = {},
+               .desired = ys_shifted_groups.at(1),
+               .input_transform = input_transform_fn()});
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
@@ -293,13 +285,6 @@ public:
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
             }();
-            {
-                // Print train mse error
-                af::array train_prediction =
-                  af::matmul(train_result.predictors, train_result.output_w.T());
-                double err = af_utils::mse<double>(train_prediction.T(), ys_groups.at(1).data());
-                std::cout << "Train MSE error: " << err << std::endl;
-            }
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
@@ -385,28 +370,13 @@ public:
                        .desired = ys_groups.at(1),
                        .input_transform = input_transform_fn()});
                 return net.train(
-                  {.input = xs_groups.at(1).probably_nan(output_names(), .5 * epoch / n_epochs_),
+                  {.input = xs_groups.at(1),
                    .feedback = {},
                    .desired = ys_groups.at(1),
                    .input_transform = input_transform_fn()});
             }();
-            // give the network an unimpaired input of length `init-steps` after training
-            // epoch>0 with probabilistically skipped values
-            if (epoch > 0)
-                net.feed(
-                  {.input = xs_groups.at(1).tail(split_sizes_.at(0)),
-                   .feedback = ys_groups.at(1).tail(split_sizes_.at(0)),
-                   .desired = ys_groups.at(1).tail(split_sizes_.at(0)),
-                   .input_transform = input_transform_fn()});
             net.random_noise(false);
             net.clear_feedback();
-            {
-                // Print train mse error
-                af::array train_prediction =
-                  af::matmul(train_result.predictors, train_result.output_w.T());
-                double err = af_utils::mse<double>(train_prediction.T(), ys_groups.at(1).data());
-                std::cout << "Train MSE error: " << err << std::endl;
-            }
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
             [[maybe_unused]] const long n_validations =
