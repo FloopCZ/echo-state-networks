@@ -543,14 +543,8 @@ public:
         assert(n_train_trials_ > 0);
         for (long i = 0; i < n_train_trials_; ++i) {
             af::array state_predictor_indices;
-            if (n_state_predictors_ > 0 && n_state_predictors_ < state_.elements()) {
+            if (n_state_predictors_ > 0 && n_state_predictors_ < state_.elements())
                 state_predictor_indices = generate_random_state_indices(n_state_predictors_);
-            } else {
-                if (n_train_trials_ != 1)
-                    throw std::runtime_error{
-                      "n-train_trials_ > 1 does not make sense with n-state-predictors set to all "
-                      "neurons."};
-            }
             train_result_t train_result = train_impl(train_trial_data, state_predictor_indices);
             af::array train_prediction =
               af::matmulNT(train_result.predictors, train_result.output_w);
