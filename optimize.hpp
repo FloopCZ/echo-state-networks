@@ -489,7 +489,7 @@ public:
         if (params.contains("lcnn.input-to-n")) {
             long state_elements =
               cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-            long input_to_n = std::clamp(params.at("lcnn.input_to_n"), 0.0, 1.0) * state_elements;
+            long input_to_n = std::clamp(params.at("lcnn.input-to-n"), 0.0, 1.0) * state_elements;
             cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
             params.erase("lcnn.input-to-n");
         }
