@@ -830,9 +830,8 @@ lcnn<DType> random_lcnn(
     std::string topology = args.at("lcnn.topology").as<std::string>();
     std::set<std::string> topo_params;
     boost::split(topo_params, topology, boost::is_any_of("-"));
-    // Put input to all neurons. In such a case, the input weights are
-    // distributed uniformly from [0, in_weight].
-    bool input_to_all = args.at("lcnn.input-to-all").as<bool>();
+    // How many neurons are injected with each input.
+    long input_to_n = args.at("lcnn.input-to-n").as<long>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1015,10 +1014,8 @@ lcnn<DType> random_lcnn(
     };
     auto free_position = nice_positions.begin();
     // if we run out of nice positions, have a generator prepared
-    std::uniform_int_distribution<long> vert_dist{0, state_height - 1};
-    std::uniform_int_distribution<long> horiz_dist{0, state_width - 1};
 
-    if (input_to_all) {
+    if (input_to_n == 0 || input_to_n == state_height * state_width) {
         // put input and feedback into all the neurons
         cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng);
         for (long i = 0; i < n_ins; ++i) cfg.input_w(af::span, af::span, i) *= in_weight.at(i);
@@ -1028,20 +1025,28 @@ lcnn<DType> random_lcnn(
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
         for (long i = 0; i < n_ins; ++i) {
-            if (free_position != nice_positions.end()) {
+            if (input_to_n == 1 && free_position != nice_positions.end()) {
                 cfg.input_w(free_position->first, free_position->second, i) = in_weight.at(i);
                 ++free_position;
             } else {
-                cfg.input_w(vert_dist(prng), horiz_dist(prng), i) = in_weight.at(i);
+                af::array input_w_single = af::constant(0, state_height, state_width, DType);
+                af::array idxs =
+                  af_utils::shuffle(af::seq(state_height * state_width - 1))(af::seq(input_to_n));
+                input_w_single(idxs) = in_weight.at(i);
+                cfg.input_w(af::span, af::span, i) = input_w_single;
             }
         }
         cfg.feedback_w = af::constant(0, state_height, state_width, n_outs, DType);
         for (long i = 0; i < n_outs; ++i) {
-            if (free_position != nice_positions.end()) {
+            if (input_to_n == 1 && free_position != nice_positions.end()) {
                 cfg.feedback_w(free_position->first, free_position->second, i) = fb_weight.at(i);
                 ++free_position;
             } else {
-                cfg.feedback_w(vert_dist(prng), horiz_dist(prng), i) = fb_weight.at(i);
+                af::array feedback_w_single = af::constant(0, state_height, state_width, DType);
+                af::array idxs =
+                  af_utils::shuffle(af::seq(state_height * state_width - 1))(af::seq(input_to_n));
+                feedback_w_single(idxs) = fb_weight.at(i);
+                cfg.feedback_w(af::span, af::span, i) = feedback_w_single;
             }
         }
     }
@@ -1106,7 +1111,7 @@ inline po::options_description lcnn_arg_description()
 
       ("lcnn.topology", po::value<std::string>()->default_value("sparse"),  //
        "See random_lcnn().")                                                //
-      ("lcnn.input-to-all", po::value<bool>()->default_value(false),        //
+      ("lcnn.input-to-n", po::value<long>()->default_value(0),              //
        "See random_lcnn().")                                                //
       ("lcnn.random-spike-prob", po::value<double>()->default_value(0),     //
        "See lcnn_config class.")                                            //

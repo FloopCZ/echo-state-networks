@@ -473,6 +473,10 @@ public:
             cfg.insert_or_assign(p + "mu-b", powval(params.at(p + "mu-b")));
             params.erase(p + "mu-b");
         }
+        if (params.contains("lcnn.l2")) {
+            cfg.insert_or_assign("lcnn.l2", expval(params.at("lcnn.l2")));
+            params.erase("lcnn.l2");
+        }
         if (params.contains("lcnn.n-state-predictors")) {
             long state_elements =
               cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
@@ -481,6 +485,13 @@ public:
             cfg.insert_or_assign(
               "lcnn.n-state-predictors", po::variable_value(n_predictors, false));
             params.erase("lcnn.n-state-predictors");
+        }
+        if (params.contains("lcnn.input-to-n")) {
+            long state_elements =
+              cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
+            long input_to_n = std::clamp(params.at("lcnn.input_to_n"), 0.0, 1.0) * state_elements;
+            cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
+            params.erase("lcnn.input-to-n");
         }
         assert(params.empty());  // make sure all the params have been consumed
         return cfg;
@@ -528,9 +539,16 @@ public:
     {
         // Deduce initial sigma-res from the number of connections to each neuron.
         double unit_sigma = inv_exp_transform(1.0);
-        param_x0_ = {{"lcnn.sigma-res", unit_sigma},  {"lcnn.mu-res", 0.0}, {"lcnn.sparsity", 0.1},
-                     {"lcnn.leakage", 0.9},           {"lcnn.noise", 0.2},  {"lcnn.mu-b", 0.0},
-                     {"lcnn.n-state-predictors", 0.9}};
+        param_x0_ = {
+          {"lcnn.sigma-res", unit_sigma},
+          {"lcnn.mu-res", 0.0},
+          {"lcnn.sparsity", 0.1},
+          {"lcnn.leakage", 0.9},
+          {"lcnn.noise", 0.2},
+          {"lcnn.mu-b", 0.0},
+          {"lcnn.n-state-predictors", 0.9},
+          {"lcnn.l2", 0.0},
+          {"lcnn.input-to-n", 0.9}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -546,9 +564,10 @@ public:
 
     std::set<std::string> available_params() const override
     {
-        std::set<std::string> params = {"lcnn.sigma-res",         "lcnn.mu-res", "lcnn.sparsity",
-                                        "lcnn.leakage",           "lcnn.noise",  "lcnn.mu-b",
-                                        "lcnn.n-state-predictors"};
+        std::set<std::string> params = {
+          "lcnn.sigma-res", "lcnn.mu-res", "lcnn.sparsity",           "lcnn.leakage",
+          "lcnn.noise",     "lcnn.mu-b",   "lcnn.n-state-predictors", "lcnn.l2",
+          "lcnn.input-to-n"};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("lcnn.in-weight-" + std::to_string(i));
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -573,9 +592,9 @@ public:
     std::map<std::string, double> named_param_sigmas() const override
     {
         std::map<std::string, double> params = {
-          {"lcnn.sigma-res", 0.01},        {"lcnn.mu-res", 0.05}, {"lcnn.sparsity", 0.05},
-          {"lcnn.leakage", 0.05},          {"lcnn.noise", 0.05},  {"lcnn.mu-b", 0.05},
-          {"lcnn.n-state-predictors", 0.1}};
+          {"lcnn.sigma-res", 0.01},         {"lcnn.mu-res", 0.05}, {"lcnn.sparsity", 0.05},
+          {"lcnn.leakage", 0.05},           {"lcnn.noise", 0.05},  {"lcnn.mu-b", 0.05},
+          {"lcnn.n-state-predictors", 0.1}, {"lcnn.l2", 0.01},     {"lcnn.input-to-n", 0.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -586,9 +605,15 @@ public:
     std::map<std::string, double> named_param_lbounds() const override
     {
         std::map<std::string, double> params = {
-          {"lcnn.sigma-res", -1.1},         {"lcnn.mu-res", -1.1}, {"lcnn.sparsity", -0.1},
-          {"lcnn.leakage", -0.1},           {"lcnn.noise", -0.1},  {"lcnn.mu-b", -1.1},
-          {"lcnn.n-state-predictors", -1.1}};
+          {"lcnn.sigma-res", -1.1},
+          {"lcnn.mu-res", -1.1},
+          {"lcnn.sparsity", -0.1},
+          {"lcnn.leakage", -0.1},
+          {"lcnn.noise", -0.1},
+          {"lcnn.mu-b", -1.1},
+          {"lcnn.n-state-predictors", -0.1},
+          {"lcnn.l2", -0.1},
+          {"lcnn.input-to-n", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), -1.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -599,9 +624,15 @@ public:
     std::map<std::string, double> named_param_ubounds() const override
     {
         std::map<std::string, double> params = {
-          {"lcnn.sigma-res", 1.1},         {"lcnn.mu-res", 1.1}, {"lcnn.sparsity", 1.1},
-          {"lcnn.leakage", 1.1},           {"lcnn.noise", 1.1},  {"lcnn.mu-b", 1.1},
-          {"lcnn.n-state-predictors", 1.1}};
+          {"lcnn.sigma-res", 1.1},
+          {"lcnn.mu-res", 1.1},
+          {"lcnn.sparsity", 1.1},
+          {"lcnn.leakage", 1.1},
+          {"lcnn.noise", 1.1},
+          {"lcnn.mu-b", 1.1},
+          {"lcnn.n-state-predictors", 1.1},
+          {"lcnn.l2", 1.1},
+          {"lcnn.input-to-n", 1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 1.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)

@@ -1164,7 +1164,7 @@ public:
     {
         assert(net.input_names() == input_names_ && net.output_names() == output_names_);
         for (long time = 0;; ++time) {
-            af::array in = af::constant(2. * (time / period_ % 2) - 1, 1);
+            af::array in = af::constant(2. * (time / period_ % 2) - 1, 1, net.state().type());
             net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, input_transform_fn());
         }
     }
