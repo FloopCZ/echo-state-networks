@@ -18,7 +18,6 @@ mkdir -p "${outdir}"
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.fb-weight \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
   --lcnn.state-width=20 \
   --gen.benchmark-set=narma30 \

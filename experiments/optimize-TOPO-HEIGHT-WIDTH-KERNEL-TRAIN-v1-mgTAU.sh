@@ -19,7 +19,6 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
-  --lcnn.input-to-all=true \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
   --gen.benchmark-set=mackey-glass \

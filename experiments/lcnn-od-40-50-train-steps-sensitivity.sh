@@ -25,7 +25,6 @@ mkdir -p ./log/
   --gen.net-type=lcnn \
   --lcnn.fb-weight=-7.7204784575605928e-05 \
   --lcnn.in-weight=0.00060086409072815947 \
-  --lcnn.input-to-all=1 \
   --lcnn.kernel-height=3 \
   --lcnn.kernel-width=3 \
   --lcnn.leakage=1 \

@@ -9,7 +9,6 @@
             "args": [
                 "--gen.net-type=lcnn",
                 "--lcnn.topology=sparse",
-                "--lcnn.input-to-all=true",
                 "--lcnn.state-height=20",
                 "--lcnn.state-width=25",
                 "--gen.benchmark-set=narma10",
@@ -40,7 +39,6 @@
             "args": [
                 "--gen.net-type=lcnn",
                 "--lcnn.topology=lcnn",
-                "--lcnn.input-to-all=true",
                 "--lcnn.state-height=20",
                 "--lcnn.state-width=25",
                 "--bench.init-steps=10",
@@ -72,7 +70,6 @@
                 "--gen.net-type=lcnn",
                 "--gen.benchmark-set=etth",
                 "--lcnn.topology=lcnn",
-                "--lcnn.input-to-all=true",
                 "--lcnn.state-height=10",
                 "--lcnn.state-width=10",
                 "--lcnn.in-weight=0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01", "0.01",

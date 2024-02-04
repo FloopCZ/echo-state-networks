@@ -16,7 +16,6 @@
 --gen.net-type=lcnn \
 --lcnn.fb-weight=4.8298956212179069e-05 \
 --lcnn.in-weight=-0.00034845278491508027 \
---lcnn.input-to-all=1 \
 --lcnn.kernel-height=7 \
 --lcnn.kernel-width=7 \
 --lcnn.leakage=0.97154066669700345 \

@@ -14,7 +14,6 @@ mkdir -p "${outdir}"
   --opt.exclude-params=lcnn.fb-weight \
   --lcnn.fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
   --lcnn.state-width=25 \
   --gen.benchmark-set=etth-loop \

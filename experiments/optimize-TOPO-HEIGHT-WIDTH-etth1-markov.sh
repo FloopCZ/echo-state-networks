@@ -15,7 +15,6 @@ mkdir -p "${outdir}"
   --opt.exclude-params=lcnn.sparsity lcnn.fb-weight lcnn.n-state-predictors \
   --lcnn.fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-all=true \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
   --gen.benchmark-set=etth-markov \

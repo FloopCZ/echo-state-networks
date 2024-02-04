@@ -17,7 +17,6 @@ mkdir -p "${outdir}"
   --opt.exclude-params=lcnn.fb-weight \
   --gen.kernel-sizes=${KERNELS} \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-all=true \
   --gen.state-heights=20 \
   --gen.state-widths=25 \
   --gen.benchmark-set=mackey-glass \

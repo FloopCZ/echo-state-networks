@@ -15,7 +15,6 @@ mkdir -p "${outdir}"
 ./build/optimize_cpu \
   --gen.net-type=lcnn \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-all=true \
   --lcnn.state-height=20 \
   --lcnn.state-width=25 \
   --gen.benchmark-set=narma10 \

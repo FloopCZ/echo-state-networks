@@ -22,7 +22,6 @@
 --gen.net-type=lcnn \
 --lcnn.fb-weight=0 --lcnn.fb-weight=0 --lcnn.fb-weight=0 --lcnn.fb-weight=0 --lcnn.fb-weight=0 --lcnn.fb-weight=0 --lcnn.fb-weight=0  \
 --lcnn.in-weight=-0.13216811669249229 --lcnn.in-weight=0.19759284812133016 --lcnn.in-weight=1.0587302427155862 --lcnn.in-weight=0.0052566365760278394 --lcnn.in-weight=0.18615471220214749 --lcnn.in-weight=0.42105732152347386 --lcnn.in-weight=0.16942437235168781 --lcnn.in-weight=1.0749092818084878 --lcnn.in-weight=0.16271331106847364 --lcnn.in-weight=-0.013065968370296627 --lcnn.in-weight=-0.00029183901674441283  \
---lcnn.input-to-all=1 \
 --lcnn.kernel-height=5 \
 --lcnn.kernel-width=5 \
 --lcnn.leakage=1 \

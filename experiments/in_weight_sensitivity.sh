@@ -18,7 +18,6 @@ mkdir -p ./log/
     --gen.output-dir=./log/in_weight_sensitivity/ \
     --lcnn.fb-weight=6.2648011134027403e-05 \
     --lcnn.in-weight=0.00051516737276618573 \
-    --lcnn.input-to-all=1 \
     --lcnn.leakage=1 \
     --lcnn.mu-b=0 \
     --lcnn.mu-res=0.0039757053820765973 \

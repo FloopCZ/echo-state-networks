@@ -15,7 +15,6 @@ mkdir -p "${outdir}"
   --gen.net-type=lcnn \
   --gen.kernel-sizes=${KERNELS} \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-all=true \
   --gen.state-heights="${HEIGHT}" \
   --gen.state-widths="${WIDTH}" \
   --gen.benchmark-set=narma30 \

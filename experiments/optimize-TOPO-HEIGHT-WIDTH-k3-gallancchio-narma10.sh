@@ -14,7 +14,6 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.kernel-height=3 \
   --lcnn.kernel-width=3 \
-  --lcnn.input-to-all=true \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
   --gen.benchmark-set=narma10 \
