@@ -172,7 +172,7 @@ public:
             net.random_noise(true);
             net.feed(
               {.input = xs_groups.at(0),
-               .feedback = ys_shifted_groups.at(0),
+               .feedback = {},
                .desired = ys_shifted_groups.at(0),
                .input_transform = input_transform_fn()});
             // train the network on the training sequence
@@ -272,19 +272,11 @@ public:
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
-            train_result_t train_result = [&]() {
-                if (epoch == 0)
-                    return net.train(
-                      {.input = xs_groups.at(1),
-                       .feedback = ys_groups.at(1),
-                       .desired = ys_groups.at(1),
-                       .input_transform = input_transform_fn()});
-                return net.train(
-                  {.input = xs_groups.at(1),
-                   .feedback = {},
-                   .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()});
-            }();
+            train_result_t train_result = net.train(
+              {.input = xs_groups.at(1),
+               .feedback = ys_groups.at(1),
+               .desired = ys_groups.at(1),
+               .input_transform = input_transform_fn()});
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
@@ -361,20 +353,12 @@ public:
                .desired = ys_groups.at(0),
                .input_transform = input_transform_fn()});
             // train the network on the training sequence with teacher forcing
-            train_result_t train_result = [&]() {
-                net.event("train-start");
-                if (epoch == 0)
-                    return net.train(
-                      {.input = xs_groups.at(1),
-                       .feedback = ys_groups.at(1),
-                       .desired = ys_groups.at(1),
-                       .input_transform = input_transform_fn()});
-                return net.train(
-                  {.input = xs_groups.at(1),
-                   .feedback = {},
-                   .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()});
-            }();
+            net.event("train-start");
+            train_result_t train_result = net.train(
+              {.input = xs_groups.at(1),
+               .feedback = ys_groups.at(1),
+               .desired = ys_groups.at(1),
+               .input_transform = input_transform_fn()});
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on all continuous intervals of the validation
