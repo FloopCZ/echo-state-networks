@@ -506,11 +506,10 @@ public:
         assert(data.desired->dims(0) == output_names_.size());
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
-        af::array predictors =
-          af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
+        af::array predictors = af::moddims(data.states, state_.elements(), data.desired->dims(1));
         if (!state_predictor_indices.isempty())
-            predictors = predictors(af::span, state_predictor_indices);
-        predictors = af_utils::add_ones(predictors, 1);
+            predictors = predictors(state_predictor_indices, af::span);
+        predictors = af_utils::add_ones(predictors.T(), 1);
         af::array output_w = af_utils::solve(predictors, data.desired->T(), l2_).T();
         output_w(af::isNaN(output_w) || af::isInf(output_w)) = 0.;
         assert(output_w.dims() == (af::dim4{output_names_.size(), predictors.dims(1)}));
