@@ -482,6 +482,7 @@ public:
               cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
             long n_predictors =
               std::clamp(params.at("lcnn.n-state-predictors"), 0.0, 1.0) * state_elements;
+            n_predictors = std::clamp(n_predictors, 1L, state_elements);
             cfg.insert_or_assign(
               "lcnn.n-state-predictors", po::variable_value(n_predictors, false));
             params.erase("lcnn.n-state-predictors");
@@ -490,6 +491,7 @@ public:
             long state_elements =
               cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
             long input_to_n = std::clamp(params.at("lcnn.input-to-n"), 0.0, 1.0) * state_elements;
+            input_to_n = std::clamp(input_to_n, 1L, state_elements);
             cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
             params.erase("lcnn.input-to-n");
         }
