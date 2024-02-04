@@ -546,9 +546,9 @@ public:
           {"lcnn.leakage", 0.9},
           {"lcnn.noise", 0.2},
           {"lcnn.mu-b", 0.0},
-          {"lcnn.n-state-predictors", 0.9},
-          {"lcnn.l2", 0.0},
-          {"lcnn.input-to-n", 0.9}};
+          {"lcnn.n-state-predictors", 0.1},
+          {"lcnn.l2", 0.2},
+          {"lcnn.input-to-n", 0.01}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
