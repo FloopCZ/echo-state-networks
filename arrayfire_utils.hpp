@@ -271,10 +271,10 @@ af::array shift(const af::array& data, long shift, long dim, double fill = af::N
 }
 
 /// Random shuffle of the rows of a matrix (or of a vector).
-af::array shuffle(const af::array& data)
+af::array shuffle(const af::array& data, af::randomEngine& af_prng)
 {
     assert(data.isvector());
-    af::array tmp = af::randu(data.dims(0));
+    af::array tmp = af::randu(data.dims(0), af::dtype::f32, af_prng);
     af::array val, idx;
     af::sort(val, idx, tmp);
     return data(idx, af::span);

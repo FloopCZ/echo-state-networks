@@ -297,10 +297,8 @@ protected:
     /// Generate random indices to a flattened state matrix.
     af::array generate_random_state_indices(long n)
     {
-        std::vector<double> indices =
-          rgv::ints(0L, (long)state_.elements()) | rg::to<std::vector<double>>;
-        indices = rga::shuffle(indices, prng_) | rgv::take_exactly(n) | rg::to_vector;
-        return af::sort(af_utils::to_array(indices));
+        af::array idxs = af_utils::shuffle(af::seq(state_.elements()), af_prng_)(af::seq(n));
+        return af::sort(std::move(idxs));
     }
 
 public:
@@ -484,6 +482,7 @@ public:
     void reset() override
     {
         prng_ = prng_init_;
+        af_prng_ = af::randomEngine{AF_RANDOM_ENGINE_DEFAULT, prng_()};
         indiced_output_w_.clear();
     }
 
@@ -1030,8 +1029,8 @@ lcnn<DType> random_lcnn(
                 ++free_position;
             } else {
                 af::array input_w_single = af::constant(0, state_height, state_width, DType);
-                af::array idxs =
-                  af_utils::shuffle(af::seq(state_height * state_width - 1))(af::seq(input_to_n));
+                af::array idxs = af_utils::shuffle(af::seq(state_height * state_width), af_prng)(
+                  af::seq(input_to_n));
                 input_w_single(idxs) = in_weight.at(i);
                 cfg.input_w(af::span, af::span, i) = input_w_single;
             }
@@ -1043,8 +1042,8 @@ lcnn<DType> random_lcnn(
                 ++free_position;
             } else {
                 af::array feedback_w_single = af::constant(0, state_height, state_width, DType);
-                af::array idxs =
-                  af_utils::shuffle(af::seq(state_height * state_width - 1))(af::seq(input_to_n));
+                af::array idxs = af_utils::shuffle(af::seq(state_height * state_width), af_prng)(
+                  af::seq(input_to_n));
                 feedback_w_single(idxs) = fb_weight.at(i);
                 cfg.feedback_w(af::span, af::span, i) = feedback_w_single;
             }

@@ -344,6 +344,7 @@ public:
     void reset() override
     {
         prng_ = prng_init_;
+        af_prng_ = af::randomEngine{AF_RANDOM_ENGINE_DEFAULT, prng_()};
         output_w_ = af::constant(af::NaN, output_names_.size(), n_ + 1, DType);
     }
 
