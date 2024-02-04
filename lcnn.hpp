@@ -78,6 +78,8 @@ struct lcnn_config {
     /// Indices of neurons used as predictors during training.
     /// Leave empty to use all neurons.
     long n_state_predictors = 0;
+    // How should the result of multiple calls to train() be aggregated.
+    std::string train_aggregation = "ensemble";
 
     lcnn_config() = default;
     lcnn_config(const po::variables_map& args)
@@ -99,6 +101,7 @@ struct lcnn_config {
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
         n_state_predictors = args.at("lcnn.n-state-predictors").as<long>();
+        train_aggregation = args.at("lcnn.train-aggregation").as<std::string>();
     }
 };
 
@@ -149,6 +152,7 @@ protected:
     long intermediate_steps_;
     long n_train_trials_;
     long n_state_predictors_;
+    std::string train_aggregation_;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
@@ -270,15 +274,20 @@ protected:
             last_output_.clear();
             return;
         }
-        af::array output = af::constant(0, output_names_.size(), state_.type());
+        af::array output =
+          af::constant(af::NaN, output_names_.size(), indiced_output_w_.size(), state_.type());
         // Evaluate every output_w and aggregate them to the final output.
-        for (const indiced_output_w& iow : indiced_output_w_) {
+        for (int i = 0; i < indiced_output_w_.size(); ++i) {
+            const indiced_output_w& iow = indiced_output_w_.at(i);
             af::array predictors = af::flat(state_);
             if (!iow.state_predictor_indices.isempty())
                 predictors = predictors(iow.state_predictor_indices);
             predictors = af_utils::add_ones(predictors, 0);
-            output += af::matmul(iow.output_w, predictors);
+            output(af::span, i) = af::matmul(iow.output_w, predictors);
         }
+        assert(train_aggregation_ == "ensemble" || train_aggregation_ == "delta");
+        if (train_aggregation_ == "ensemble") output = af::median(output, 1);
+        if (train_aggregation_ == "delta") output = af::sum(output, 1);
         last_output_ = {output_names_, output};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
@@ -332,6 +341,7 @@ public:
       , intermediate_steps_{cfg.intermediate_steps}
       , n_train_trials_{cfg.n_train_trials}
       , n_state_predictors_{cfg.n_state_predictors}
+      , train_aggregation_{cfg.train_aggregation}
     {
         state(std::move(cfg.init_state));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
@@ -521,15 +531,18 @@ public:
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
 
         feed_result_t train_trial_data = data;
-        // Prepare for difference training (epoch 1 and later).
         if (!indiced_output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
             std::cout << fmt::format(
               "Before train {} MSE error: {}", indiced_output_w_.size(), feed_err)
                       << std::endl;
-            // if we are training two or more epochs, we only train the difference
-            train_trial_data.desired = *data.desired - data.outputs;
         }
+
+        assert(train_aggregation_ == "ensemble" || train_aggregation_ == "delta");
+        // Prepare for delta training (epoch 1 and later).
+        // In the second and later epochs, we only train the difference.
+        if (train_aggregation_ == "delta" && !indiced_output_w_.empty())
+            train_trial_data.desired = *data.desired - data.outputs;
 
         struct train_trial_result_t {
             train_result_t train_result;
@@ -1108,26 +1121,28 @@ inline po::options_description lcnn_arg_description()
       // ("lcnn.state-ema-decay", po::value<double>()->default_value(0),
       //    "See random_lcnn().")
 
-      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),  //
-       "See random_lcnn().")                                                //
-      ("lcnn.input-to-n", po::value<long>()->default_value(0),              //
-       "See random_lcnn().")                                                //
-      ("lcnn.random-spike-prob", po::value<double>()->default_value(0),     //
-       "See lcnn_config class.")                                            //
-      ("lcnn.random-spike-std", po::value<double>()->default_value(0),      //
-       "See lcnn_config class.")                                            //
-      ("lcnn.noise", po::value<double>()->default_value(0),                 //
-       "See lcnn_config class.")                                            //
-      ("lcnn.leakage", po::value<double>()->default_value(1),               //
-       "See lcnn_config class.")                                            //
-      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),      //
-       "See lcnn_config class.")                                            //
-      ("lcnn.l2", po::value<double>()->default_value(0),                    //
-       "See lcnn_config class.")                                            //
-      ("lcnn.n-train-trials", po::value<long>()->default_value(1),          //
-       "See random_lcnn().")                                                //
-      ("lcnn.n-state-predictors", po::value<long>()->default_value(0),      //
-       "How many neurons are used for regression training.")                //
+      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),             //
+       "See random_lcnn().")                                                           //
+      ("lcnn.input-to-n", po::value<long>()->default_value(0),                         //
+       "See random_lcnn().")                                                           //
+      ("lcnn.random-spike-prob", po::value<double>()->default_value(0),                //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.random-spike-std", po::value<double>()->default_value(0),                 //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.noise", po::value<double>()->default_value(0),                            //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.leakage", po::value<double>()->default_value(1),                          //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),                 //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.l2", po::value<double>()->default_value(0),                               //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.n-train-trials", po::value<long>()->default_value(1),                     //
+       "See random_lcnn().")                                                           //
+      ("lcnn.n-state-predictors", po::value<long>()->default_value(0),                 //
+       "How many neurons are used for regression training.")                           //
+      ("lcnn.train-aggregation", po::value<std::string>()->default_value("ensemble"),  //
+       "See lcnn_config class.")                                                       //
       ;
     return lcnn_arg_desc;
 }
