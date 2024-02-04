@@ -106,6 +106,11 @@ struct lcnn_config {
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 class lcnn : public net_base {
 protected:
+    struct indiced_output_w {
+        af::array state_predictor_indices;
+        af::array output_w;
+    };
+
     std::set<std::string> input_names_;
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
@@ -117,8 +122,7 @@ protected:
     af::array reservoir_b_;
     af::array input_w_;
     af::array feedback_w_;
-    std::vector<af::array> state_predictor_indices_;
-    std::vector<af::array> output_w_;
+    std::vector<indiced_output_w> indiced_output_w_;
     bool force_matmul_;
 
     // Random engines.
@@ -262,19 +266,18 @@ protected:
     /// Update the last output of the network after having a new state.
     virtual void update_last_output()
     {
-        if (output_w_.empty()) {
+        if (indiced_output_w_.empty()) {
             last_output_.clear();
             return;
         }
         af::array output = af::constant(0, output_names_.size(), state_.type());
-        assert(output_w_.size() == state_predictor_indices_.size());
         // Evaluate every output_w and aggregate them to the final output.
-        for (long i = 0; i < output_w_.size(); ++i) {
+        for (const indiced_output_w& iow : indiced_output_w_) {
             af::array predictors = af::flat(state_);
-            if (!state_predictor_indices_.at(i).isempty())
-                predictors = predictors(state_predictor_indices_.at(i));
+            if (!iow.state_predictor_indices.isempty())
+                predictors = predictors(iow.state_predictor_indices);
             predictors = af_utils::add_ones(predictors, 0);
-            output += af::matmul(output_w_.at(i), predictors);
+            output += af::matmul(iow.output_w, predictors);
         }
         last_output_ = {output_names_, output};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
@@ -308,8 +311,6 @@ public:
       : input_names_{cfg.input_names}
       , output_names_{cfg.output_names}
       , last_output_{}
-      , state_predictor_indices_{}
-      , output_w_{}
       , force_matmul_{false}
       , prng_init_{std::move(prng)}
       , prng_{prng_init_}
@@ -483,9 +484,7 @@ public:
     void reset() override
     {
         prng_ = prng_init_;
-        // TODO state predictors and output_w should be bundled.
-        state_predictor_indices_.clear();
-        output_w_.clear();
+        indiced_output_w_.clear();
     }
 
     /// Train the network on already processed feed result.
@@ -524,9 +523,10 @@ public:
 
         feed_result_t train_trial_data = data;
         // Prepare for difference training (epoch 1 and later).
-        if (!output_w_.empty()) {
+        if (!indiced_output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
-            std::cout << fmt::format("Before train {} MSE error: {}", output_w_.size(), feed_err)
+            std::cout << fmt::format(
+              "Before train {} MSE error: {}", indiced_output_w_.size(), feed_err)
                       << std::endl;
             // if we are training two or more epochs, we only train the difference
             train_trial_data.desired = *data.desired - data.outputs;
@@ -550,7 +550,7 @@ public:
             double train_err =
               af_utils::mse<double>(train_prediction.T(), *train_trial_data.desired);
             std::cout << fmt::format(
-              "Train {} trial {} MSE error: {}", output_w_.size(), i, train_err)
+              "Train {} trial {} MSE error: {}", indiced_output_w_.size(), i, train_err)
                       << std::endl;
             if (train_err < best_train_result.train_err)
                 best_train_result = {
@@ -560,8 +560,9 @@ public:
                   .train_err = train_err};
         }
 
-        state_predictor_indices_.push_back(best_train_result.state_predictor_indices);
-        output_w_.push_back(best_train_result.train_result.output_w);
+        indiced_output_w_.push_back(
+          {.state_predictor_indices = best_train_result.state_predictor_indices,
+           .output_w = best_train_result.train_result.output_w});
         update_last_output();
         return best_train_result.train_result;
     }
