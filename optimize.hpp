@@ -25,7 +25,8 @@ namespace rg = ranges;
 namespace rgv = ranges::views;
 
 inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
-  "lcnn.noise", "lcnn.sparsity", "lcnn.n-state-predictors", "esn.noise", "esn.sparsity"};
+  "lcnn.noise",      "lcnn.sparsity", "lcnn.n-state-predictors",
+  "lcnn.input-to-n", "esn.noise",     "esn.sparsity"};
 inline const std::string DEFAULT_EXCLUDED_PARAMS_STR =
   rgv::join(DEFAULT_EXCLUDED_PARAMS, ',') | rg::to<std::string>();
 
@@ -548,9 +549,9 @@ public:
           {"lcnn.leakage", 0.9},
           {"lcnn.noise", 0.2},
           {"lcnn.mu-b", 0.0},
-          {"lcnn.n-state-predictors", 0.1},
+          {"lcnn.n-state-predictors", 0.5},
           {"lcnn.l2", 0.2},
-          {"lcnn.input-to-n", 0.01}};
+          {"lcnn.input-to-n", 0.5}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
