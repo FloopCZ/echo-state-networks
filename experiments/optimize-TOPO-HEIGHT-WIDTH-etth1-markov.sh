@@ -12,7 +12,7 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
-  --opt.exclude-params=lcnn.noise lcnn.sparsity lcnn.fb-weight \
+  --opt.exclude-params=lcnn.noise lcnn.sparsity lcnn.fb-weight lcnn.input-to-n \
   --lcnn.fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
