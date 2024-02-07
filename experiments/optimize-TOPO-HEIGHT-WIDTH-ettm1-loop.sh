@@ -20,11 +20,11 @@ mkdir -p "${outdir}"
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
-  --bench.init-steps=100 \
-  --bench.train-steps=34461 \
+  --bench.init-steps=500 \
+  --bench.train-steps=34061 \
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead=64 \
-  --bench.validation-stride=1500 \
+  --bench.validation-stride=500 \
   --opt.max-fevals=15000 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \

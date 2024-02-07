@@ -24,7 +24,7 @@ mkdir -p "${outdir}"
   --bench.train-steps=8540 \
   --bench.valid-steps=2880 \
   --bench.n-steps-ahead=64 \
-  --bench.validation-stride=300 \
+  --bench.validation-stride=100 \
   --opt.max-fevals=15000 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
