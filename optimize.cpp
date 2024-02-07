@@ -70,6 +70,12 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.state-width");
         param_names.push_back("lcnn.kernel-height");
         param_names.push_back("lcnn.kernel-width");
+        param_names.push_back("lcnn.input-to-n");
+        param_names.push_back("lcnn.n-state-predictors");
+        param_names.push_back("lcnn.n-train-trials");
+        param_names.push_back("lcnn.intermediate-steps");
+        param_names.push_back("lcnn.train-aggregation");
+        param_names.push_back("lcnn.l2");
     }
     fout << boost::join(param_names, ",") << std::endl;
 
