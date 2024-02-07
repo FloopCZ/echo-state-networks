@@ -437,6 +437,16 @@ public:
         event_ = std::nullopt;
     }
 
+    const data_map& last_output() const
+    {
+        return last_output_;
+    }
+
+    void last_output(data_map value)
+    {
+        last_output_ = std::move(value);
+    }
+
     /// TODO fix docs
     /// Perform multiple steps with multiple input seqences.
     /// \param inputs Input sequence of dimensions [n_ins, time].
@@ -1145,22 +1155,6 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                       //
       ;
     return lcnn_arg_desc;
-}
-
-inline std::unique_ptr<net_base> make_net(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
-  const po::variables_map& args,
-  std::mt19937& prng)
-{
-    if (args.at("gen.net-type").as<std::string>() == "lcnn") {
-        return std::make_unique<lcnn<>>(random_lcnn(input_names, output_names, args, prng));
-    }
-    if (args.at("gen.net-type").as<std::string>() == "simple-esn") {
-        return std::make_unique<simple_esn<>>(random_esn(input_names, output_names, args, prng));
-    }
-    throw std::runtime_error{
-      "Unknown net type \"" + args.at("gen.net-type").as<std::string>() + "\"."};
 }
 
 }  // namespace esn

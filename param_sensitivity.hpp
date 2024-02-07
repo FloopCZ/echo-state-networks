@@ -2,6 +2,7 @@
 #include "argument_utils.hpp"
 #include "benchmarks.hpp"
 #include "lcnn.hpp"
+#include "lcnn_ensemble.hpp"
 #include "simple_esn.hpp"
 
 #include <filesystem>
@@ -37,9 +38,10 @@ int param_sensitivity(int argc, char* argv[])
     arg_desc.add(esn::benchmark_arg_description());
     po::variables_map args = esn::parse_conditional(
       argc, argv, arg_desc,
-      {{"gen.net-type",                                   //
-        {{"lcnn", esn::lcnn_arg_description()},           //
-         {"simple-esn", esn::esn_arg_description()}}}});  //
+      {{"gen.net-type",                                            //
+        {{"lcnn", esn::lcnn_arg_description()},                    //
+         {"lcnn-ensemble", esn::lcnn_ensemble_arg_description()},  //
+         {"simple-esn", esn::esn_arg_description()}}}});           //
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();

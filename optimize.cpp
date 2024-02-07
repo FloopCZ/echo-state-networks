@@ -39,9 +39,10 @@ int main(int argc, char* argv[])
     arg_desc.add(esn::optimizer_arg_description());
     po::variables_map args = esn::parse_conditional(
       argc, argv, arg_desc,
-      {{"gen.net-type",                                   //
-        {{"lcnn", esn::lcnn_arg_description()},           //
-         {"simple-esn", esn::esn_arg_description()}}}});  //
+      {{"gen.net-type",                                            //
+        {{"lcnn", esn::lcnn_arg_description()},                    //
+         {"lcnn-ensemble", esn::lcnn_ensemble_arg_description()},  //
+         {"simple-esn", esn::esn_arg_description()}}}});           //
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();

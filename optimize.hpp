@@ -6,6 +6,7 @@
 #include "benchmark_results.hpp"
 #include "benchmarks.hpp"
 #include "lcnn.hpp"
+#include "lcnn_ensemble.hpp"
 #include "net.hpp"
 #include "simple_esn.hpp"
 
