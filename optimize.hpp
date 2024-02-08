@@ -434,11 +434,11 @@ public:
             } else if (key.starts_with(in_weight_prefix)) {
                 long idx = std::stol(key.substr(in_weight_prefix.length()));
                 std::vector<double> in_weights = vm.at(p + "in-weight").as<std::vector<double>>();
-                params.emplace(key, in_weights.at(idx));
+                params.emplace(key, inv_pow_transform(in_weights.at(idx)));
             } else if (key.starts_with(fb_weight_prefix)) {
                 long idx = std::stol(key.substr(fb_weight_prefix.length()));
                 std::vector<double> fb_weights = vm.at(p + "fb-weight").as<std::vector<double>>();
-                params.emplace(key, fb_weights.at(idx));
+                params.emplace(key, inv_pow_transform(fb_weights.at(idx)));
             } else if (key == p + "sparsity") {
                 params.emplace(p + "sparsity", vm.at(p + "sparsity").as<double>());
             } else if (key == p + "leakage") {
