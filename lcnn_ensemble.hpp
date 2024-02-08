@@ -86,8 +86,8 @@ public:
         check_data(input.desired);
 
         feed_result_t result;
-        result.states =
-          af::array(nets_.at(0)->state().dims(0), nets_.at(0)->state().dims(1), data_len, DType);
+        result.states = af::constant(
+          af::NaN, nets_.at(0)->state().dims(0), nets_.at(0)->state().dims(1), data_len, DType);
         result.outputs = af::constant(af::NaN, nets_.at(0)->output_names().size(), data_len, DType);
         result.desired = input.desired.data();
         for (long i = 0; i < data_len; ++i) {
@@ -96,7 +96,6 @@ public:
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
             step(step_input, step_feedback, step_desired, input.input_transform);
-            result.states(af::span, af::span, i) = nets_.at(0)->state();
             if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
         return result;
@@ -104,7 +103,9 @@ public:
 
     train_result_t train(const input_t& input) override
     {
-        return train(feed(input));
+        train_result_t tr;
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) tr = net->train(net->feed(input));
+        return tr;
     }
 
     void reset() override
