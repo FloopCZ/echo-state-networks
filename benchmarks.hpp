@@ -177,7 +177,7 @@ public:
                .input_transform = input_transform_fn()});
             // train the network on the training sequence
             net.event("train-start");
-            train_result_t train_result = net.train(
+            net.train(
               {.input = xs_groups.at(1),
                .feedback = {},
                .desired = ys_shifted_groups.at(1),
@@ -272,7 +272,7 @@ public:
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
-            train_result_t train_result = net.train(
+            net.train(
               {.input = xs_groups.at(1),
                .feedback = ys_groups.at(1),
                .desired = ys_groups.at(1),
@@ -354,7 +354,7 @@ public:
                .input_transform = input_transform_fn()});
             // train the network on the training sequence with teacher forcing
             net.event("train-start");
-            train_result_t train_result = net.train(
+            net.train(
               {.input = xs_groups.at(1),
                .feedback = ys_groups.at(1),
                .desired = ys_groups.at(1),

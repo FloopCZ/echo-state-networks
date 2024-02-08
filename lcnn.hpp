@@ -226,8 +226,6 @@ protected:
         state_ *= 1. - leakage_;
         // Apply the activation function.
         state_ += af::tanh(std::move(state_delta_));
-        // Update the state with the proper leakage.
-        af::eval(state_);
     }
 
     // Learning is not available at the moment.

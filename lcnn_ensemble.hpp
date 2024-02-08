@@ -103,21 +103,19 @@ public:
 
     train_result_t train(const input_t& input) override
     {
-        train_result_t tr;
-        for (std::unique_ptr<lcnn<DType>>& net : nets_) tr = net->train(net->feed(input));
-        return tr;
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->train(net->feed(input));
+        return {};
     }
 
     void reset() override
     {
-        for (std::unique_ptr<lcnn<DType>>& net : nets_) net.reset();
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->reset();
     }
 
     train_result_t train(const feed_result_t data) override
     {
-        train_result_t tr;
-        for (std::unique_ptr<lcnn<DType>>& net : nets_) tr = net->train(data);
-        return tr;
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->train(data);
+        return {};
     }
 
     void clear_feedback() override

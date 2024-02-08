@@ -654,6 +654,20 @@ public:
     }
 };
 
+class lcnn_ensemble_optimizer : public lcnn_optimizer {
+public:
+    using lcnn_optimizer::lcnn_optimizer;
+
+    std::unique_ptr<net_base>
+    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const override
+    {
+        af::setDevice(af_device_);
+        po::variables_map cfg = to_variables_map(params);
+        return std::make_unique<lcnn_ensemble<>>(
+          random_lcnn_ensemble(bench_->input_names(), bench_->output_names(), cfg, prng));
+    }
+};
+
 class esn_optimizer : public net_optimizer {
 protected:
     std::string arg_prefix_() const override
@@ -791,6 +805,12 @@ std::unique_ptr<net_optimizer> make_optimizer(
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn") {
             return std::make_unique<lcnn_optimizer>(args, std::move(bench), prng);
+        }
+        throw std::invalid_argument{"Unknown lcnn optimizer type."};
+    }
+    if (args.at("gen.net-type").as<std::string>() == "lcnn-ensemble") {
+        if (args.at("gen.optimizer-type").as<std::string>() == "lcnn-ensemble") {
+            return std::make_unique<lcnn_ensemble_optimizer>(args, std::move(bench), prng);
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
