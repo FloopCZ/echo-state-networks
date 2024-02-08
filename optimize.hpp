@@ -418,6 +418,58 @@ public:
         return to_variables_map(name_and_filter_params(params));
     }
 
+    std::map<std::string, double>
+    from_variables_map(const std::set<std::string>& keys, const po::variables_map& vm) const
+    {
+        std::map<std::string, double> params;
+        for (const std::string& key : keys) {
+            const std::string& p = arg_prefix_();
+            po::variables_map cfg = config_;
+            std::string in_weight_prefix = p + "in-weight-";
+            std::string fb_weight_prefix = p + "fb-weight-";
+            if (key == p + "sigma-res") {
+                params.emplace(key, inv_exp_transform(vm.at(p + "sigma-res").as<double>()));
+            } else if (key == p + "mu-res") {
+                params.emplace(key, inv_pow_transform(vm.at(p + "mu-res").as<double>()));
+            } else if (key.starts_with(in_weight_prefix)) {
+                long idx = std::stol(key.substr(in_weight_prefix.length()));
+                std::vector<double> in_weights = vm.at(p + "in-weight").as<std::vector<double>>();
+                params.emplace(key, in_weights.at(idx));
+            } else if (key.starts_with(fb_weight_prefix)) {
+                long idx = std::stol(key.substr(fb_weight_prefix.length()));
+                std::vector<double> fb_weights = vm.at(p + "fb-weight").as<std::vector<double>>();
+                params.emplace(key, fb_weights.at(idx));
+            } else if (key == p + "sparsity") {
+                params.emplace(p + "sparsity", vm.at(p + "sparsity").as<double>());
+            } else if (key == p + "leakage") {
+                params.emplace(p + "leakage", vm.at(p + "leakage").as<double>());
+            } else if (key == p + "noise") {
+                params.emplace(
+                  p + "noise",
+                  inv_exp_transform(std::clamp(vm.at(p + "noise").as<double>(), 1e-18, 1.)));
+            } else if (key == p + "mu-b") {
+                params.emplace(p + "mu-b", inv_pow_transform(vm.at(p + "mu-b").as<double>()));
+            } else if (key == "lcnn.l2") {
+                params.emplace(
+                  "lcnn.l2",
+                  inv_exp_transform(std::clamp(vm.at("lcnn.l2").as<double>(), 1e-18, 1.)));
+            } else if (key == "lcnn.n-state-predictors") {
+                long state_elements =
+                  cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
+                double predictors_frac =
+                  vm.at("lcnn.n-state-predictors").as<long>() / (double)state_elements;
+                params.emplace("lcnn.n-state-predictors", predictors_frac);
+            } else if (key == "lcnn.input-to-n") {
+                long state_elements =
+                  cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
+                double input_to_n_frac =
+                  vm.at("lcnn.input-to-n").as<long>() / (double)state_elements;
+                params.emplace("lcnn.input-to-n", input_to_n_frac);
+            }
+        }
+        return params;
+    }
+
     po::variables_map to_variables_map(std::map<std::string, double> params) const
     {
         // syntactic sugar
@@ -541,6 +593,10 @@ public:
       po::variables_map config, std::unique_ptr<benchmark_set_base> bench, std::mt19937& prng)
       : net_optimizer{std::move(config), std::move(bench), prng}
     {
+        if (config_.at("opt.x0-from-params").as<bool>()) {
+            param_x0_ = from_variables_map(available_params(), config_);
+            return;
+        }
         // Deduce initial sigma-res from the number of connections to each neuron.
         double unit_sigma = inv_exp_transform(1.0);
         param_x0_ = {
@@ -795,7 +851,9 @@ inline po::options_description optimizer_arg_description()
       ("opt.exclude-params",                                                                //
        po::value<std::vector<std::string>>()->multitoken()->default_value(                  //
          DEFAULT_EXCLUDED_PARAMS, DEFAULT_EXCLUDED_PARAMS_STR),                             //
-       "The list of parameters that should be excluded from optimization.");                //
+       "The list of parameters that should be excluded from optimization.")                 //
+      ("opt.x0-from-params", po::bool_switch(),                                             //
+       "Start optimization from input arguments.");                                         //
     return optimizer_arg_desc;
 }
 

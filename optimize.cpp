@@ -78,6 +78,9 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.train-aggregation");
         param_names.push_back("lcnn.l2");
     }
+    if (net_type == "lcnn-ensemble") {
+        param_names.push_back("lcnn-ensemble.n");
+    }
     fout << boost::join(param_names, ",") << std::endl;
 
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
@@ -106,6 +109,8 @@ int main(int argc, char* argv[])
                     fout << run;
                 } else if (param == "trial") {
                     fout << trial;
+                } else if (param == "lcnn.train-aggregation") {
+                    fout << params.at("lcnn.train-aggregation").as<std::string>();
                 } else if (param == "f-value") {
                     best_evaluation.net->reset();
                     double f_value = opt->evaluate_net(*best_evaluation.net, global_prng);
