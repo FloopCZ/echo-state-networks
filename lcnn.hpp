@@ -13,6 +13,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <cassert>
+#include <cmath>
 #include <fmt/format.h>
 #include <limits>
 #include <random>
@@ -555,29 +556,61 @@ public:
         struct train_trial_result_t {
             train_result_t train_result;
             af::array state_predictor_indices;
-            af::array train_prediction;
-            double train_err;
-        } best_train_result{.train_err = std::numeric_limits<double>::max()};
+            double valid_err;
+        } best_train_result{.valid_err = std::numeric_limits<double>::max()};
 
         assert(n_train_trials_ > 0);
         for (long i = 0; i < n_train_trials_; ++i) {
+            // select random state predictor indices
             af::array state_predictor_indices;
             if (n_state_predictors_ > 0 && n_state_predictors_ < state_.elements())
                 state_predictor_indices = generate_random_state_indices(n_state_predictors_);
-            train_result_t train_result = train_impl(train_trial_data, state_predictor_indices);
+            // split the data to train/valid
+            feed_result_t train_data = train_trial_data;
+            feed_result_t valid_data = train_trial_data;
+            if (!state_predictor_indices.isempty() && n_train_trials_ > 0) {
+                af::array train_set_idx = af::seq(train_trial_data.states.dims(2)) % 5 != 0;
+                af::array valid_set_idx = af::seq(train_trial_data.states.dims(2)) % 5 == 0;
+                train_data = {
+                  .states = train_trial_data.states(af::span, af::span, train_set_idx),
+                  .outputs = train_trial_data.outputs(af::span, train_set_idx),
+                  .desired = (*train_trial_data.desired)(af::span, train_set_idx)};
+                valid_data = {
+                  .states = train_trial_data.states(af::span, af::span, valid_set_idx),
+                  .outputs = train_trial_data.outputs(af::span, valid_set_idx),
+                  .desired = (*train_trial_data.desired)(af::span, valid_set_idx)};
+            }
+            // train
+            train_result_t train_result = train_impl(train_data, state_predictor_indices);
             af::array train_prediction =
               af::matmulNT(train_result.predictors, train_result.output_w);
-            double train_err =
-              af_utils::mse<double>(train_prediction.T(), *train_trial_data.desired);
+            double train_err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);
+            double valid_err = std::numeric_limits<double>::quiet_NaN();
+            // predict out of sample (only if we have non-full state predictors)
+            if (!state_predictor_indices.isempty() && n_train_trials_ > 0) {
+                af::array valid_predictors =
+                  af::moddims(valid_data.states, state_.elements(), valid_data.states.dims(2));
+                if (!state_predictor_indices.isempty())
+                    valid_predictors = valid_predictors(state_predictor_indices, af::span);
+                valid_predictors = af_utils::add_ones(valid_predictors.T(), 1);
+                af::array valid_prediction = af::matmulNT(valid_predictors, train_result.output_w);
+                valid_err = af_utils::mse<double>(valid_prediction.T(), *valid_data.desired);
+            }
+            // print statistics
             std::cout << fmt::format(
-              "Train {} trial {} MSE error: {}", indiced_output_w_.size(), i, train_err)
-                      << std::endl;
-            if (train_err < best_train_result.train_err)
+              "Train {} trial {} MSE error (train): {}\n", indiced_output_w_.size(), i, train_err);
+            if (!std::isnan(valid_err))
+                std::cout << fmt::format(
+                  "Train {} trial {} MSE error (valid): {}\n", indiced_output_w_.size(), i,
+                  valid_err);
+            // select the best train trial
+            if (state_predictor_indices.isempty() || valid_err < best_train_result.valid_err)
                 best_train_result = {
                   .train_result = std::move(train_result),
-                  .state_predictor_indices = std::move(state_predictor_indices),
-                  .train_prediction = std::move(train_prediction),
-                  .train_err = train_err};
+                  .state_predictor_indices = state_predictor_indices,
+                  .valid_err = valid_err};
+            // no need to keep on trying if use all state predictors (the result will be the same)
+            if (state_predictor_indices.isempty()) break;
         }
 
         indiced_output_w_.push_back(
