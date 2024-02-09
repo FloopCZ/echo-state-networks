@@ -569,8 +569,9 @@ public:
             feed_result_t train_data = train_trial_data;
             feed_result_t valid_data = train_trial_data;
             if (!state_predictor_indices.isempty() && n_train_trials_ > 0) {
-                af::array train_set_idx = af::seq(train_trial_data.states.dims(2)) % 5 != 0;
-                af::array valid_set_idx = af::seq(train_trial_data.states.dims(2)) % 5 == 0;
+                af::array train_set_idx =
+                  af::randu(train_trial_data.states.dims(2), af::dtype::f32, af_prng_) < 0.2;
+                af::array valid_set_idx = !train_set_idx;
                 train_data = {
                   .states = train_trial_data.states(af::span, af::span, train_set_idx),
                   .outputs = train_trial_data.outputs(af::span, train_set_idx),
