@@ -598,11 +598,12 @@ public:
             }
             // print statistics
             std::cout << fmt::format(
-              "Train {} trial {} MSE error (train): {}\n", indiced_output_w_.size(), i, train_err);
+              "Train {} trial {} MSE error (train): {}", indiced_output_w_.size(), i, train_err)
+                      << std::endl;
             if (!std::isnan(valid_err))
                 std::cout << fmt::format(
-                  "Train {} trial {} MSE error (valid): {}\n", indiced_output_w_.size(), i,
-                  valid_err);
+                  "Train {} trial {} MSE error (valid): {}", indiced_output_w_.size(), i, valid_err)
+                          << std::endl;
             // select the best train trial
             if (state_predictor_indices.isempty() || valid_err < best_train_result.valid_err)
                 best_train_result = {
