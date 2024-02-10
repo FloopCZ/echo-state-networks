@@ -552,7 +552,7 @@ public:
         if (params.contains("lcnn.train-valid-ratio")) {
             cfg.insert_or_assign(
               "lcnn.train-valid-ratio",
-              val(std::clamp(params.at("lcnn.train-valid-ratio"), 0.05, 0.95)));
+              val(std::clamp(params.at("lcnn.train-valid-ratio"), 0.01, 0.99)));
             params.erase("lcnn.train-valid-ratio");
         }
         if (params.contains("lcnn.input-to-n")) {
