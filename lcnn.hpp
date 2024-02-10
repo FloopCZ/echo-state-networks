@@ -618,7 +618,7 @@ public:
             // select the best train trial
             if (state_predictor_indices.isempty() || valid_err < best_train.valid_err)
                 best_train = {
-                  .train_result = std::move(train_result),
+                  .result = std::move(train_result),
                   .state_predictor_indices = state_predictor_indices,
                   .valid_err = valid_err};
             // no need to keep on trying if use all state predictors (the result will be the same)
