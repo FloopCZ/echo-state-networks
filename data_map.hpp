@@ -122,7 +122,7 @@ public:
         if (keys_.empty()) return *this;
         af::array shifted = af::shift(data_, 0, shift);
         if (shift < 0)
-            shifted(af::span, af::seq(af::end - (-shift), af::end)) = fill;
+            shifted(af::span, af::seq(af::end - (-shift) + 1, af::end)) = fill;
         else if (shift > 0)
             shifted(af::span, af::seq(0, shift - 1)) = fill;
         return {keys_, std::move(shifted)};

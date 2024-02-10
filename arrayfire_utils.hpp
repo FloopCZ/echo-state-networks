@@ -249,7 +249,7 @@ std::vector<af::array> split_data(const af::array& data, const std::vector<long>
 af::array shift(const af::array& data, long shift, long dim, double fill = af::NaN)
 {
     // nan selector for positive and negative shifts
-    af::seq negative_selector(af::end - (-shift), af::end);
+    af::seq negative_selector(af::end - (-shift) + 1, af::end);
     af::seq positive_selector(0, shift - 1);
     if (dim == 0) {
         af::array shifted = af::shift(data, shift);
