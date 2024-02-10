@@ -625,7 +625,7 @@ public:
                   "Train {} trial {} MSE error (valid): {}", indiced_output_w_.size(), i, valid_err)
                           << std::endl;
             // select the best train trial
-            if (state_predictor_indices.isempty() || valid_err < best_train.valid_err)
+            if (std::isnan(valid_err) || valid_err < best_train.valid_err)
                 best_train = {
                   .result = std::move(train_result),
                   .state_predictor_indices = state_predictor_indices,
