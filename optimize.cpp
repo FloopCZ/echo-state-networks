@@ -73,6 +73,7 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.kernel-width");
         param_names.push_back("lcnn.input-to-n");
         param_names.push_back("lcnn.n-state-predictors");
+        param_names.push_back("lcnn.train-valid-ratio");
         param_names.push_back("lcnn.n-train-trials");
         param_names.push_back("lcnn.intermediate-steps");
         param_names.push_back("lcnn.train-aggregation");
