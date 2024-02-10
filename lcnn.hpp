@@ -571,9 +571,18 @@ public:
         feed_result_t train_data = data;
         feed_result_t valid_data = data;
         if (cross_validate) {
-            af::array train_set_idx =
-              af::randu(data.states.dims(2), af::dtype::f32, af_prng_) < valid_train_ratio_;
-            af::array valid_set_idx = !train_set_idx;
+            if (valid_train_ratio_ <= 0. || valid_train_ratio_ >= 1.)
+                throw std::invalid_argument{
+                  fmt::format("Invalid lcnn.valid_ratio {}", valid_train_ratio_)};
+            af::array train_set_idx;
+            af::array valid_set_idx;
+            long train_count = 0;
+            while (train_count < 2 || train_count > train_set_idx.elements() - 2) {
+                train_set_idx =
+                  af::randu(data.states.dims(2), af::dtype::f32, af_prng_) < valid_train_ratio_;
+                valid_set_idx = !train_set_idx;
+                train_count = af::count<long>(train_set_idx);
+            }
             train_data = {
               .states = data.states(af::span, af::span, train_set_idx),
               .outputs = data.outputs(af::span, train_set_idx),
