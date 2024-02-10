@@ -132,16 +132,18 @@ af::array add_ones(const af::array& A, long dim = 1)
 /// Linear regression solver
 ///
 /// Assume A = [1 | A0], where [1 | A0] is a matrix A0 with an extra column of ones.
-/// Then trains X, such that A * X == B, optionally regularizing the coefficients (not the bias).
+/// Then trains X, such that A * X == B, optionally regularizing the coefficients (not the
+/// intercept).
 af::array solve(const af::array& A, const af::array& B, double l2 = 0.)
 {
     assert(B.numdims() <= 2);
     assert(A.dims(0) == B.dims(0));
     assert(A.dims(1) > 1);
     if (l2 == 0.) return af::solve(A, B);
-    af::array P = A;
-    P(af::seq(A.dims(0) + 1, A.elements() - 1, A.dims(0) + 1)) += l2;
-    return af::solve(P, B);
+    af::array reg = l2 * af::identity(A.dims(1), A.dims(1), A.type());
+    reg(0, 0) = 0.;  // do not regularize intercept
+    af::array XTX = af::matmulTN(A, A);
+    return af::matmul(af::inverse(XTX + reg), A.T(), B);
 }
 
 /// Linear regression training.
