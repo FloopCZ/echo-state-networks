@@ -82,7 +82,7 @@ struct lcnn_config {
     // How should the result of multiple calls to train() be aggregated.
     std::string train_aggregation = "ensemble";
     // The probability that a single data point belongs to the valid set during train trial.
-    double valid_train_ratio = 0.2;
+    double train_valid_ratio = 0.8;
 
     lcnn_config() = default;
     lcnn_config(const po::variables_map& args)
@@ -105,7 +105,7 @@ struct lcnn_config {
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
         n_state_predictors = args.at("lcnn.n-state-predictors").as<long>();
         train_aggregation = args.at("lcnn.train-aggregation").as<std::string>();
-        valid_train_ratio = args.at("lcnn.valid-train-ratio").as<double>();
+        train_valid_ratio = args.at("lcnn.train-valid-ratio").as<double>();
     }
 };
 
@@ -157,7 +157,7 @@ protected:
     long n_train_trials_;
     long n_state_predictors_;
     std::string train_aggregation_;
-    double valid_train_ratio_;
+    double train_valid_ratio_;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
@@ -345,7 +345,7 @@ public:
       , n_train_trials_{cfg.n_train_trials}
       , n_state_predictors_{cfg.n_state_predictors}
       , train_aggregation_{cfg.train_aggregation}
-      , valid_train_ratio_{cfg.valid_train_ratio}
+      , train_valid_ratio_{cfg.train_valid_ratio}
     {
         state(std::move(cfg.init_state));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
@@ -571,15 +571,15 @@ public:
         feed_result_t train_data = data;
         feed_result_t valid_data = data;
         if (cross_validate) {
-            if (valid_train_ratio_ <= 0. || valid_train_ratio_ >= 1.)
+            if (train_valid_ratio_ <= 0. || train_valid_ratio_ >= 1.)
                 throw std::invalid_argument{
-                  fmt::format("Invalid lcnn.valid_ratio {}", valid_train_ratio_)};
+                  fmt::format("Invalid lcnn.train-valid-ratio {}", train_valid_ratio_)};
             af::array train_set_idx;
             af::array valid_set_idx;
             long train_count = 0;
             while (train_count < 2 || train_count > train_set_idx.elements() - 2) {
                 train_set_idx =
-                  af::randu(data.states.dims(2), af::dtype::f32, af_prng_) < valid_train_ratio_;
+                  af::randu(data.states.dims(2), af::dtype::f32, af_prng_) < train_valid_ratio_;
                 valid_set_idx = !train_set_idx;
                 train_count = af::count<long>(train_set_idx);
             }
@@ -1205,7 +1205,7 @@ inline po::options_description lcnn_arg_description()
        "How many neurons are used for regression training.")                           //
       ("lcnn.train-aggregation", po::value<std::string>()->default_value("ensemble"),  //
        "See lcnn_config class.")                                                       //
-      ("lcnn.valid-train-ratio", po::value<double>()->default_value(0.2),              //
+      ("lcnn.train-valid-ratio", po::value<double>()->default_value(0.8),              //
        "See lcnn_config class.")                                                       //
       ;
     return lcnn_arg_desc;

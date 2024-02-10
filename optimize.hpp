@@ -29,7 +29,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.noise",
   "lcnn.sparsity",
   "lcnn.n-state-predictors",
-  "lcnn.valid-train-ratio",
+  "lcnn.train-valid-ratio",
   "lcnn.input-to-n",
   "esn.noise",
   "esn.sparsity"};
@@ -464,9 +464,9 @@ public:
                 double predictors_frac =
                   vm.at("lcnn.n-state-predictors").as<long>() / (double)state_elements;
                 params.emplace("lcnn.n-state-predictors", predictors_frac);
-            } else if (key == "lcnn.valid-train-ratio") {
+            } else if (key == "lcnn.train-valid-ratio") {
                 params.emplace(
-                  "lcnn.valid-train-ratio", vm.at("lcnn.valid-train-ratio").as<double>());
+                  "lcnn.train-valid-ratio", vm.at("lcnn.train-valid-ratio").as<double>());
             } else if (key == "lcnn.input-to-n") {
                 long state_elements =
                   cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
@@ -549,11 +549,11 @@ public:
               "lcnn.n-state-predictors", po::variable_value(n_predictors, false));
             params.erase("lcnn.n-state-predictors");
         }
-        if (params.contains("lcnn.valid-train-ratio")) {
+        if (params.contains("lcnn.train-valid-ratio")) {
             cfg.insert_or_assign(
-              "lcnn.valid-train-ratio",
-              val(std::clamp(params.at("lcnn.valid-train-ratio"), 0.05, 0.95)));
-            params.erase("lcnn.valid-train-ratio");
+              "lcnn.train-valid-ratio",
+              val(std::clamp(params.at("lcnn.train-valid-ratio"), 0.05, 0.95)));
+            params.erase("lcnn.train-valid-ratio");
         }
         if (params.contains("lcnn.input-to-n")) {
             long state_elements =
@@ -621,7 +621,7 @@ public:
           {"lcnn.noise", 0.2},
           {"lcnn.mu-b", 0.0},
           {"lcnn.n-state-predictors", 0.5},
-          {"lcnn.valid-train-ratio", 0.2},
+          {"lcnn.train-valid-ratio", 0.2},
           {"lcnn.l2", 0.2},
           {"lcnn.input-to-n", 0.5}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
@@ -641,7 +641,7 @@ public:
     {
         std::set<std::string> params = {
           "lcnn.sigma-res", "lcnn.mu-res",    "lcnn.sparsity",           "lcnn.leakage",
-          "lcnn.noise",     "lcnn.mu-b",      "lcnn.n-state-predictors", "lcnn.valid-train-ratio",
+          "lcnn.noise",     "lcnn.mu-b",      "lcnn.n-state-predictors", "lcnn.train-valid-ratio",
           "lcnn.l2",        "lcnn.input-to-n"};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("lcnn.in-weight-" + std::to_string(i));
@@ -674,7 +674,7 @@ public:
           {"lcnn.noise", 0.05},
           {"lcnn.mu-b", 0.05},
           {"lcnn.n-state-predictors", 0.1},
-          {"lcnn.valid-train-ratio", 0.1},
+          {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.01},
           {"lcnn.input-to-n", 0.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
@@ -694,7 +694,7 @@ public:
           {"lcnn.noise", -0.1},
           {"lcnn.mu-b", -1.1},
           {"lcnn.n-state-predictors", -0.1},
-          {"lcnn.valid-train-ratio", -0.1},
+          {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
           {"lcnn.input-to-n", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
@@ -714,7 +714,7 @@ public:
           {"lcnn.noise", 1.1},
           {"lcnn.mu-b", 1.1},
           {"lcnn.n-state-predictors", 1.1},
-          {"lcnn.valid-train-ratio", 1.1},
+          {"lcnn.train-valid-ratio", 1.1},
           {"lcnn.l2", 1.1},
           {"lcnn.input-to-n", 1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
