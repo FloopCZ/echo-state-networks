@@ -540,11 +540,10 @@ public:
 
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    train_result_t train(const feed_result_t data) override
+    train_result_t train(feed_result_t data) override
     {
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
 
-        feed_result_t train_trial_data = data;
         if (!indiced_output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
             std::cout << fmt::format(
@@ -556,34 +555,34 @@ public:
         // Prepare for delta training (epoch 1 and later).
         // In the second and later epochs, we only train the difference.
         if (train_aggregation_ == "delta" && !indiced_output_w_.empty())
-            train_trial_data.desired = *data.desired - data.outputs;
+            data.desired = *data.desired - data.outputs;
 
         struct train_trial_result_t {
-            train_result_t train_result;
+            train_result_t result;
             af::array state_predictor_indices;
             double valid_err;
-        } best_train_result{.valid_err = std::numeric_limits<double>::max()};
+        } best_train{.valid_err = std::numeric_limits<double>::max()};
 
         bool predictor_subset = n_state_predictors_ > 0 && n_state_predictors_ < state_.elements();
         bool cross_validate = predictor_subset && n_train_trials_ > 1;
 
         // split the data to train/valid if not using all state neurons or there is just a single
         // train trial
-        feed_result_t train_data = train_trial_data;
-        feed_result_t valid_data = train_trial_data;
+        feed_result_t train_data = data;
+        feed_result_t valid_data = data;
         if (cross_validate) {
             af::array train_set_idx =
-              af::randu(train_trial_data.states.dims(2), af::dtype::f32, af_prng_)
-              < valid_train_ratio_;
+              af::randu(data.states.dims(2), af::dtype::f32, af_prng_) < valid_train_ratio_;
             af::array valid_set_idx = !train_set_idx;
             train_data = {
-              .states = train_trial_data.states(af::span, af::span, train_set_idx),
-              .outputs = train_trial_data.outputs(af::span, train_set_idx),
-              .desired = (*train_trial_data.desired)(af::span, train_set_idx)};
+              .states = data.states(af::span, af::span, train_set_idx),
+              .outputs = data.outputs(af::span, train_set_idx),
+              .desired = (*data.desired)(af::span, train_set_idx)};
             valid_data = {
-              .states = train_trial_data.states(af::span, af::span, valid_set_idx),
-              .outputs = train_trial_data.outputs(af::span, valid_set_idx),
-              .desired = (*train_trial_data.desired)(af::span, valid_set_idx)};
+              .states = data.states(af::span, af::span, valid_set_idx),
+              .outputs = data.outputs(af::span, valid_set_idx),
+              .desired = (*data.desired)(af::span, valid_set_idx)};
+            data = {};  // free memory
         }
 
         assert(n_train_trials_ > 0);
@@ -617,8 +616,8 @@ public:
                   "Train {} trial {} MSE error (valid): {}", indiced_output_w_.size(), i, valid_err)
                           << std::endl;
             // select the best train trial
-            if (state_predictor_indices.isempty() || valid_err < best_train_result.valid_err)
-                best_train_result = {
+            if (state_predictor_indices.isempty() || valid_err < best_train.valid_err)
+                best_train = {
                   .train_result = std::move(train_result),
                   .state_predictor_indices = state_predictor_indices,
                   .valid_err = valid_err};
@@ -627,10 +626,10 @@ public:
         }
 
         indiced_output_w_.push_back(
-          {.state_predictor_indices = best_train_result.state_predictor_indices,
-           .output_w = best_train_result.train_result.output_w});
+          {.state_predictor_indices = best_train.state_predictor_indices,
+           .output_w = best_train.result.output_w});
         update_last_output();
-        return best_train_result.train_result;
+        return best_train.result;
     }
 
     /// Clear the stored feedback which would otherwise be used in the next step.
