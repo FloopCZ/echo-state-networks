@@ -2,12 +2,13 @@
 set -e
 set -o pipefail
 
-if [ $# != 3 ]; then echo "Invalid usage"; exit 1; fi
+if [ $# != 4 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
+AHEAD="$4"
 
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-etth1-loop/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-etth1-ahead${AHEAD}-loop/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
@@ -20,12 +21,12 @@ mkdir -p "${outdir}"
   --gen.benchmark-set=etth-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
-  --bench.init-steps=100 \
-  --bench.train-steps=8540 \
-  --bench.valid-steps=2880 \
-  --bench.n-steps-ahead=64 \
-  --bench.validation-stride=100 \
-  --opt.max-fevals=15000 \
+  --bench.init-steps=300 \
+  --bench.train-steps=8339 \
+  --bench.valid-steps=2879 \
+  --bench.n-steps-ahead="${AHEAD}" \
+  --bench.validation-stride=20 \
+  --opt.max-fevals=10000 \
   --opt.n-trials=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \

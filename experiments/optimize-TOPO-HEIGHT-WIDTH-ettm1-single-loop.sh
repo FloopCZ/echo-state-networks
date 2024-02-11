@@ -8,7 +8,7 @@ HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
 
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-etth1-ahead${AHEAD}-markov/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-single-loop/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
@@ -18,13 +18,14 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --gen.benchmark-set=etth-markov \
+  --gen.benchmark-set=ettm-signle-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
-  --bench.init-steps=300 \
-  --bench.train-steps=8339 \
-  --bench.valid-steps=2879 \
+  --bench.init-steps=500 \
+  --bench.train-steps=34060 \
+  --bench.valid-steps=11519 \
   --bench.n-steps-ahead="${AHEAD}" \
+  --bench.validation-stride=100 \
   --opt.max-fevals=10000 \
   --opt.n-trials=1 \
   --gen.af-device=0 \
