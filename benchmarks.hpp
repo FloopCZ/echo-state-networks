@@ -858,7 +858,7 @@ protected:
                                        "HUFL",     "HULL",      "MUFL",      "MULL",
                                        "LUFL",     "LULL",      "OT"};
     std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
-    std::set<std::string> target_names_{"OT"};
+    std::set<std::string> target_names_ = output_names_;
 
     data_map input_transform(const data_map& xs) const override
     {
@@ -948,7 +948,7 @@ protected:
                                        "date-min", "HUFL",      "HULL",      "MUFL",
                                        "MULL",     "LUFL",      "LULL",      "OT"};
     std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
-    std::set<std::string> target_names_{"OT"};
+    std::set<std::string> target_names_ = output_names_;
 
     data_map input_transform(const data_map& xs) const override
     {
