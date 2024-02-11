@@ -713,12 +713,12 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    data_map get_dataset(af::dtype dtype, std::mt19937& prng) const
+    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
     {
-        if (set_type_ == "train") return train_data_.normalize_by(train_data_);
-        if (set_type_ == "valid") return valid_data_.normalize_by(train_data_);
-        if (set_type_ == "train-valid") return train_valid_data_.normalize_by(train_data_);
-        if (set_type_ == "test") return test_data_.normalize_by(train_data_);
+        if (set_type_ == "train") return train_data_;
+        if (set_type_ == "valid") return valid_data_;
+        if (set_type_ == "train-valid") return train_valid_data_;
+        if (set_type_ == "test") return test_data_;
         throw std::runtime_error{"Unknown dataset."};
     }
 
@@ -737,15 +737,19 @@ public:
 
         train_data_ = data_.select(af::seq(0, 12 * 30 * 24 - 1));
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
+        train_data_ = train_data_.normalize_by(train_data_);
 
         valid_data_ = data_.select(af::seq(12 * 30 * 24, (12 + 4) * 30 * 24 - 1));
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
+        valid_data_ = valid_data_.normalize_by(train_data_);
 
         train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 - 1));
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
+        train_valid_data_ = train_valid_data_.normalize_by(train_data_);
 
         test_data_ = data_.select(af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
+        test_data_ = test_data_.normalize_by(train_data_);
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
                   << af_utils::mse<double>(
@@ -759,13 +763,12 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    data_map get_dataset(af::dtype dtype, std::mt19937& prng) const
+    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
     {
-        data_map xs;
-        if (set_type_ == "train") return train_data_.normalize_by(train_data_);
-        if (set_type_ == "valid") return valid_data_.normalize_by(train_data_);
-        if (set_type_ == "train-valid") return train_valid_data_.normalize_by(train_data_);
-        if (set_type_ == "test") return test_data_.normalize_by(train_data_);
+        if (set_type_ == "train") return train_data_;
+        if (set_type_ == "valid") return valid_data_;
+        if (set_type_ == "train-valid") return train_valid_data_;
+        if (set_type_ == "test") return test_data_;
         throw std::runtime_error{"Unknown dataset."};
     }
 
@@ -784,15 +787,19 @@ public:
 
         train_data_ = data_.select(af::seq(0, 12 * 30 * 24 * 4 - 1));
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
+        train_data_ = train_data_.normalize_by(train_data_);
 
         valid_data_ = data_.select(af::seq(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
+        valid_data_ = valid_data_.normalize_by(train_data_);
 
         train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
+        train_valid_data_ = train_valid_data_.normalize_by(train_data_);
 
         test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
+        test_data_ = test_data_.normalize_by(train_data_);
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
                   << af_utils::mse<double>(
