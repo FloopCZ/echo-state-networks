@@ -28,6 +28,7 @@ mkdir -p "${outdir}"
   --bench.validation-stride=20 \
   --opt.max-fevals=10000 \
   --gen.n-trials=1 \
+  --gen.n-runs=3 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
   2>&1 | tee -a "${outdir}/out.txt"
