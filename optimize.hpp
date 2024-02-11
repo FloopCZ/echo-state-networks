@@ -621,7 +621,7 @@ public:
           {"lcnn.noise", 0.2},
           {"lcnn.mu-b", 0.0},
           {"lcnn.n-state-predictors", 0.5},
-          {"lcnn.train-valid-ratio", 0.2},
+          {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
           {"lcnn.input-to-n", 0.5}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
