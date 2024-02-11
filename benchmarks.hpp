@@ -717,13 +717,12 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
+    data_map get_dataset(af::dtype dtype, std::mt19937& prng) const
     {
-        data_map xs;
-        if (set_type_ == "train") return train_data_;
-        if (set_type_ == "valid") return valid_data_;
-        if (set_type_ == "train-valid") return train_valid_data_;
-        if (set_type_ == "test") return test_data_;
+        if (set_type_ == "train") return train_data_.normalize_by(train_data_);
+        if (set_type_ == "valid") return valid_data_.normalize_by(train_data_);
+        if (set_type_ == "train-valid") return train_valid_data_.normalize_by(train_data_);
+        if (set_type_ == "test") return test_data_.normalize_by(train_data_);
         throw std::runtime_error{"Unknown dataset."};
     }
 
@@ -740,16 +739,16 @@ public:
     {
         load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
 
-        train_data_ = data_.select(af::seq(0, 12 * 30 * 24));
+        train_data_ = data_.select(af::seq(0, 12 * 30 * 24 - 1));
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
 
-        valid_data_ = data_.select(af::seq(12 * 30 * 24, (12 + 4) * 30 * 24));
+        valid_data_ = data_.select(af::seq(12 * 30 * 24, (12 + 4) * 30 * 24 - 1));
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
 
-        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24));
+        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 - 1));
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
 
-        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24));
+        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
@@ -764,13 +763,13 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
+    data_map get_dataset(af::dtype dtype, std::mt19937& prng) const
     {
         data_map xs;
-        if (set_type_ == "train") return train_data_;
-        if (set_type_ == "valid") return valid_data_;
-        if (set_type_ == "train-valid") return train_valid_data_;
-        if (set_type_ == "test") return test_data_;
+        if (set_type_ == "train") return train_data_.normalize_by(train_data_);
+        if (set_type_ == "valid") return valid_data_.normalize_by(train_data_);
+        if (set_type_ == "train-valid") return train_valid_data_.normalize_by(train_data_);
+        if (set_type_ == "test") return test_data_.normalize_by(train_data_);
         throw std::runtime_error{"Unknown dataset."};
     }
 
@@ -787,16 +786,16 @@ public:
     {
         load_data("ETT-small/ETTm" + std::to_string(variant_) + ".csv");
 
-        train_data_ = data_.select(af::seq(0, 12 * 30 * 24 * 4));
+        train_data_ = data_.select(af::seq(0, 12 * 30 * 24 * 4 - 1));
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
 
-        valid_data_ = data_.select(af::seq(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4));
+        valid_data_ = data_.select(af::seq(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
 
-        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 * 4));
+        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
 
-        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4));
+        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
@@ -910,6 +909,41 @@ public:
     }
 };
 
+class etth_single_loop_benchmark_set : public etth_loop_benchmark_set {
+protected:
+    std::set<std::string> persistent_input_names_{
+      "date-mon", "date-mday", "date-wday", "date-hour"};
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour", "OT"};
+    std::set<std::string> output_names_{"OT"};
+    std::set<std::string> target_names_{"OT"};
+
+public:
+    etth_single_loop_benchmark_set(po::variables_map config)
+      : etth_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
 class ettm_loop_benchmark_set : public loop_benchmark_set, public ettm_loader {
 protected:
     std::set<std::string> persistent_input_names_{
@@ -962,6 +996,42 @@ public:
     bool constant_data() const override
     {
         return true;
+    }
+};
+
+class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
+protected:
+    std::set<std::string> persistent_input_names_{
+      "date-mon", "date-mday", "date-wday", "date-hour", "date-min"};
+    std::set<std::string> input_names_{"date-mon",  "date-mday", "date-wday",
+                                       "date-hour", "date-min",  "OT"};
+    std::set<std::string> output_names_{"OT"};
+    std::set<std::string> target_names_{"OT"};
+
+public:
+    ettm_single_loop_benchmark_set(po::variables_map config)
+      : ettm_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
     }
 };
 
@@ -1193,8 +1263,14 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     if (args.at("gen.benchmark-set").as<std::string>() == "etth-loop") {
         return std::make_unique<etth_loop_benchmark_set>(args);
     }
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth-single-loop") {
+        return std::make_unique<etth_single_loop_benchmark_set>(args);
+    }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
         return std::make_unique<ettm_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-single-loop") {
+        return std::make_unique<ettm_single_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "etth-markov") {
         return std::make_unique<etth_markov_benchmark_set>(args);

@@ -207,6 +207,17 @@ public:
         return {keys_, std::move(data)};
     }
 
+    data_map normalize_by(const data_map& ref) const
+    {
+        assert(keys_ == ref.keys_);
+        assert(ref.length() > 0);
+        if (keys_.empty()) return *this;
+        af::array data = data_;
+        data -= af::tile(af::mean(ref.data_, 1), 1, length());
+        data /= af::tile(af::stdev(ref.data_, AF_VARIANCE_POPULATION, 1), 1, length());
+        return {keys_, std::move(data)};
+    }
+
     data_map concat(const data_map& rhs) const
     {
         assert(keys_ == rhs.keys_);
