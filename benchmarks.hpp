@@ -402,10 +402,6 @@ public:
                                                .input_transform = input_transform_fn()})
                                             .outputs;
                 data_map predicted{output_names(), std::move(raw_predicted)};
-                {
-                    double err = af_utils::mse<double>(predicted.data(), desired.data());
-                    std::cout << "Valid MSE error: " << err << std::endl;
-                }
                 // extract the targets
                 all_predicted.push_back(predicted.filter(target_names()));
                 all_desired.push_back(desired.filter(target_names()));
