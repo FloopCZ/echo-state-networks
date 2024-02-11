@@ -253,6 +253,8 @@ af::array shift(const af::array& data, long shift, long dim, double fill = af::N
     // nan selector for positive and negative shifts
     af::seq negative_selector(af::end - (-shift) + 1, af::end);
     af::seq positive_selector(0, shift - 1);
+    // Avoid https://github.com/arrayfire/arrayfire/issues/3532
+    assert(data.dims(0) > 1 && "af::shift is broken for dims(0) == 1");
     if (dim == 0) {
         af::array shifted = af::shift(data, shift);
         if (shift < 0)

@@ -120,7 +120,15 @@ public:
     data_map shift(long shift, double fill = af::NaN) const
     {
         if (keys_.empty()) return *this;
-        af::array shifted = af::shift(data_, 0, shift);
+        af::array shifted;
+        if (data_.dims(0) > 1) {
+            shifted = af::shift(data_, 0, shift);
+        } else {
+            // Workaround for https://github.com/arrayfire/arrayfire/issues/3532
+            shifted = af::tile(data_, 2);
+            shifted = af::shift(shifted, 0, shift);
+            shifted = shifted(0, af::span);
+        }
         if (shift < 0)
             shifted(af::span, af::seq(af::end - (-shift) + 1, af::end)) = fill;
         else if (shift > 0)
