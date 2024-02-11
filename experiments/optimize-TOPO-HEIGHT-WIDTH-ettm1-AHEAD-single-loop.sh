@@ -18,7 +18,7 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --gen.benchmark-set=ettm-signle-loop \
+  --gen.benchmark-set=ettm-single-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
   --bench.init-steps=500 \
