@@ -1007,7 +1007,8 @@ public:
 class ettm_notime_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
     std::set<std::string> persistent_input_names_{"zero"};
-    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> input_names_{"zero", "HUFL", "HULL", "MUFL",
+                                       "MULL", "LUFL", "LULL", "OT"};
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
