@@ -1084,7 +1084,7 @@ public:
     }
 };
 
-class etth_markov_benchmark_set : public markov_benchmark_set, public etth_loader {
+class etth_single_markov_benchmark_set : public markov_benchmark_set, public etth_loader {
 protected:
     std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
                                        "HUFL",     "HULL",      "MUFL",      "MULL",
@@ -1106,8 +1106,56 @@ protected:
     }
 
 public:
-    etth_markov_benchmark_set(po::variables_map config)
+    etth_single_markov_benchmark_set(po::variables_map config)
       : markov_benchmark_set{std::move(config)}, etth_loader{config_}
+    {
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+
+    bool constant_data() const override
+    {
+        return true;
+    }
+};
+
+class ettm_markov_benchmark_set : public markov_benchmark_set, public ettm_loader {
+protected:
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                       "date-min", "HUFL",      "HULL",      "MUFL",
+                                       "MULL",     "LUFL",      "LULL",      "OT"};
+    std::set<std::string> target_names_ = {"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> output_names_ = make_shifted_seq_names(target_names_, n_steps_ahead_);
+
+    data_map input_transform(const data_map& xs) const override
+    {
+        return ett_input_transform(xs);
+    }
+
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    {
+        data_map xs = get_dataset(dtype, prng);
+        data_map ys = xs.filter(target_names());
+        return {std::move(xs), std::move(ys)};
+    }
+
+public:
+    ettm_markov_benchmark_set(po::variables_map config)
+      : markov_benchmark_set{std::move(config)}, ettm_loader{config_}
     {
     }
 
@@ -1324,8 +1372,11 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-single-loop") {
         return std::make_unique<ettm_single_loop_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "etth-markov") {
-        return std::make_unique<etth_markov_benchmark_set>(args);
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth-single-markov") {
+        return std::make_unique<etth_single_markov_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-markov") {
+        return std::make_unique<ettm_markov_benchmark_set>(args);
     }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
