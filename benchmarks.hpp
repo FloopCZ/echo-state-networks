@@ -1014,7 +1014,7 @@ protected:
     std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
         data_map dataset = get_dataset(dtype, prng);
-        dataset.extend({"zero", af::constant(0, dataset.length(), af::dtype::f64)});
+        dataset = dataset.extend({"zero", af::constant(0, dataset.length(), af::dtype::f64)});
         data_map xs = dataset.filter(input_names());
         data_map ys = dataset.filter(output_names()).shift(-1);
         return {std::move(xs), std::move(ys)};
