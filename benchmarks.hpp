@@ -1004,6 +1004,49 @@ public:
     }
 };
 
+class ettm_notime_loop_benchmark_set : public ettm_loop_benchmark_set {
+protected:
+    std::set<std::string> persistent_input_names_{"zero"};
+    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> output_names_ = input_names_;
+    std::set<std::string> target_names_ = output_names_;
+
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    {
+        data_map dataset = get_dataset(dtype, prng);
+        dataset.extend({"zero", af::constant(0, dataset.length(), af::dtype::f64)});
+        data_map xs = dataset.filter(input_names());
+        data_map ys = dataset.filter(output_names()).shift(-1);
+        return {std::move(xs), std::move(ys)};
+    }
+
+public:
+    ettm_notime_loop_benchmark_set(po::variables_map config)
+      : ettm_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
 class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
     std::set<std::string> persistent_input_names_{
@@ -1273,6 +1316,9 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
         return std::make_unique<ettm_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-notime-loop") {
+        return std::make_unique<ettm_notime_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-single-loop") {
         return std::make_unique<ettm_single_loop_benchmark_set>(args);
