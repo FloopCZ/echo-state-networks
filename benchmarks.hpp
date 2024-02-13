@@ -736,20 +736,21 @@ public:
         load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
 
         train_data_ = data_.select(af::seq(0, 12 * 30 * 24 - 1));
+        data_map norm_reference = train_data_;
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
-        train_data_ = train_data_.normalize_by(train_data_);
+        train_data_ = train_data_.normalize_by(norm_reference);
 
         valid_data_ = data_.select(af::seq(12 * 30 * 24, (12 + 4) * 30 * 24 - 1));
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
-        valid_data_ = valid_data_.normalize_by(train_data_);
+        valid_data_ = valid_data_.normalize_by(norm_reference);
 
         train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 - 1));
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
-        train_valid_data_ = train_valid_data_.normalize_by(train_data_);
+        train_valid_data_ = train_valid_data_.normalize_by(norm_reference);
 
         test_data_ = data_.select(af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
-        test_data_ = test_data_.normalize_by(train_data_);
+        test_data_ = test_data_.normalize_by(norm_reference);
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
                   << af_utils::mse<double>(
@@ -786,20 +787,21 @@ public:
         load_data("ETT-small/ETTm" + std::to_string(variant_) + ".csv");
 
         train_data_ = data_.select(af::seq(0, 12 * 30 * 24 * 4 - 1));
+        data_map norm_reference = train_data_;
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
-        train_data_ = train_data_.normalize_by(train_data_);
+        train_data_ = train_data_.normalize_by(norm_reference);
 
         valid_data_ = data_.select(af::seq(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
-        valid_data_ = valid_data_.normalize_by(train_data_);
+        valid_data_ = valid_data_.normalize_by(norm_reference);
 
         train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
-        train_valid_data_ = train_valid_data_.normalize_by(train_data_);
+        train_valid_data_ = train_valid_data_.normalize_by(norm_reference);
 
         test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1));
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
-        test_data_ = test_data_.normalize_by(train_data_);
+        test_data_ = test_data_.normalize_by(norm_reference);
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
                   << af_utils::mse<double>(
