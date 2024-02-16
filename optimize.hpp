@@ -436,9 +436,9 @@ public:
             std::string in_weight_prefix = p + "in-weight-";
             std::string fb_weight_prefix = p + "fb-weight-";
             if (key == p + "sigma-res") {
-                params.emplace(key, inv_exp_transform(vm.at(p + "sigma-res").as<double>()));
+                params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == p + "mu-res") {
-                params.emplace(key, inv_pow_transform(vm.at(p + "mu-res").as<double>()));
+                params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key.starts_with(in_weight_prefix)) {
                 long idx = std::stol(key.substr(in_weight_prefix.length()));
                 std::vector<double> in_weights = vm.at(p + "in-weight").as<std::vector<double>>();
@@ -448,43 +448,37 @@ public:
                 std::vector<double> fb_weights = vm.at(p + "fb-weight").as<std::vector<double>>();
                 params.emplace(key, inv_pow_transform(fb_weights.at(idx)));
             } else if (key == p + "sparsity") {
-                params.emplace(p + "sparsity", vm.at(p + "sparsity").as<double>());
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "leakage") {
-                params.emplace(p + "leakage", vm.at(p + "leakage").as<double>());
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "noise") {
                 params.emplace(
-                  p + "noise",
-                  inv_exp_transform(std::clamp(vm.at(p + "noise").as<double>(), 1e-18, 1.)));
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
             } else if (key == p + "sigma-b") {
-                params.emplace(key, inv_exp_transform(vm.at(p + "sigma-b").as<double>()));
+                params.emplace(
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
             } else if (key == p + "mu-b") {
-                params.emplace(p + "mu-b", inv_pow_transform(vm.at(p + "mu-b").as<double>()));
+                params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.l2") {
                 params.emplace(
-                  "lcnn.l2",
-                  inv_exp_transform(std::clamp(vm.at("lcnn.l2").as<double>(), 1e-18, 1.)));
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
             } else if (key == "lcnn.n-state-predictors") {
                 long state_elements =
                   cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-                double predictors_frac =
-                  vm.at("lcnn.n-state-predictors").as<long>() / (double)state_elements;
-                params.emplace("lcnn.n-state-predictors", predictors_frac);
+                double predictors_frac = vm.at(key).as<long>() / (double)state_elements;
+                params.emplace(key, predictors_frac);
             } else if (key == "lcnn.train-valid-ratio") {
-                params.emplace(
-                  "lcnn.train-valid-ratio", vm.at("lcnn.train-valid-ratio").as<double>());
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.input-to-n") {
                 long state_elements =
                   cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-                double input_to_n_frac =
-                  vm.at("lcnn.input-to-n").as<long>() / (double)state_elements;
-                params.emplace("lcnn.input-to-n", input_to_n_frac);
+                double input_to_n_frac = vm.at(key).as<long>() / (double)state_elements;
+                params.emplace(key, input_to_n_frac);
             } else if (key == p + "sigma-act-steepness") {
                 params.emplace(
-                  key, inv_exp_transform(vm.at(p + "sigma-act-steepness").as<double>()));
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
             } else if (key == p + "mu-act-steepness") {
-                params.emplace(
-                  p + "mu-act-steepness",
-                  inv_pow_transform(vm.at(p + "mu-act-steepness").as<double>()));
+                params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             }
         }
         return params;
@@ -647,14 +641,14 @@ public:
           {"lcnn.sparsity", 0.1},
           {"lcnn.leakage", 0.9},
           {"lcnn.noise", 0.2},
-          {"lcnn.sigma-b", 0.0},
+          {"lcnn.sigma-b", 0.2},
           {"lcnn.mu-b", 0.0},
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
           {"lcnn.input-to-n", 0.5},
-          {"lcnn.sigma-act-steepness", 0.0},
-          {"lcnn.mu-act-steepness", 1.0}};
+          {"lcnn.sigma-act-steepness", 0.2},
+          {"lcnn.mu-act-steepness", inv_pow_transform(1.0)}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
