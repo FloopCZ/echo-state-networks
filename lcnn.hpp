@@ -167,12 +167,6 @@ protected:
         state_delta_ += af::moddims(std::move(delta), state_.dims());
     }
 
-    /// Update the state matrix by adding the bias.
-    virtual void update_via_bias()
-    {
-        state_delta_ += reservoir_b_;
-    }
-
     /// Update the state matrix by applying the activation function.
     virtual void update_via_activation()
     {
@@ -182,7 +176,7 @@ protected:
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
-        state_ += af::tanh(act_steepness_ * std::move(state_delta_));
+        state_ += af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
     }
 
     /// Update the last output of the network after having a new state.
@@ -315,9 +309,6 @@ public:
                 assert(tr_last_output.keys() == output_names_);
                 update_via_feedback(tr_last_output.data());
             }
-
-            // add bias
-            update_via_bias();
 
             // activation function
             update_via_activation();
