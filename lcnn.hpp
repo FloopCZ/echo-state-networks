@@ -1109,9 +1109,9 @@ lcnn<DType> random_lcnn(
 
     if (input_to_n == 0 || input_to_n == state_height * state_width) {
         // put input and feedback into all the neurons
-        cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng);
+        cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_ins; ++i) cfg.input_w(af::span, af::span, i) *= in_weight.at(i);
-        cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng);
+        cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_outs; ++i) cfg.feedback_w(af::span, af::span, i) *= fb_weight.at(i);
     } else {
         // choose the locations for inputs and feedbacks
@@ -1124,7 +1124,8 @@ lcnn<DType> random_lcnn(
                 af::array input_w_single = af::constant(0, state_height, state_width, DType);
                 af::array idxs = af_utils::shuffle(af::seq(state_height * state_width), af_prng)(
                   af::seq(input_to_n));
-                input_w_single(idxs) = in_weight.at(i);
+                input_w_single(idxs) =
+                  (af::randu(input_to_n, DType, af_prng) * 2 - 1) * in_weight.at(i);
                 cfg.input_w(af::span, af::span, i) = input_w_single;
             }
         }
@@ -1137,7 +1138,8 @@ lcnn<DType> random_lcnn(
                 af::array feedback_w_single = af::constant(0, state_height, state_width, DType);
                 af::array idxs = af_utils::shuffle(af::seq(state_height * state_width), af_prng)(
                   af::seq(input_to_n));
-                feedback_w_single(idxs) = fb_weight.at(i);
+                feedback_w_single(idxs) =
+                  (af::randu(input_to_n, DType, af_prng) * 2 - 1) * fb_weight.at(i);
                 cfg.feedback_w(af::span, af::span, i) = feedback_w_single;
             }
         }
