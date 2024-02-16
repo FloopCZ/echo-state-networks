@@ -73,8 +73,6 @@ public:
 
     virtual double neuron_ins() const = 0;
 
-    virtual void learning_rate(double) = 0;
-
     virtual void random_noise(bool) = 0;
 
     virtual void reset() = 0;

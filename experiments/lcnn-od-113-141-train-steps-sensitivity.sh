@@ -31,8 +31,6 @@ mkdir -p ./log/
   --lcnn.mu-b=0.12653921111176292 \
   --lcnn.mu-res=-0.0089518078486233114 \
   --lcnn.noise=0 \
-  --lcnn.random-spike-prob=0 \
-  --lcnn.random-spike-std=0 \
   --lcnn.sigma-b=0 \
   --lcnn.sigma-res=0.17951386011617618 \
   --lcnn.sparsity=0 \

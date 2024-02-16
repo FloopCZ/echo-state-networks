@@ -47,27 +47,6 @@ struct lcnn_config {
     /// The steepness of the activation function.
     af::array act_steepness;
 
-    // Learning is not available at the moment.
-    // /// If it is set to 0.0, the network does not learn.
-    // double learning_rate = 0;
-    // /// The multiplier of the difference between the neuron's state and the
-    // /// exponential moving average.
-    // double learning_rate_ema = 0;
-    // /// The multiplier for the difference between two potentials (post - pre).
-    // double learning_rate_diff = 0;
-    // /// The constant towards which are the neurons biased.
-    // double learning_bias = 0;
-    // /// The rate by which do the weights change to get neurons towards the bias.
-    // double learning_rate_bias = 0;
-    // /// The rate of exponential weight decay.
-    // double weight_decay = 0;
-    // /// The decay rate of the exponential moving average of the state used for weight learning.
-    // double state_ema_decay = 0;
-    /// The probability that a neuron will fire in every moment.
-
-    double random_spike_prob = 0;
-    /// The standard deviation of the random spike.
-    double random_spike_std = 0;
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
     /// The leakage of the potential.
@@ -89,17 +68,6 @@ struct lcnn_config {
     lcnn_config() = default;
     lcnn_config(const po::variables_map& args)
     {
-        // Learning is not available at the moment.
-        // learning_rate      = args.at("lcnn.learning-rate").as<double>();
-        // learning_rate_ema  = args.at("lcnn.learning-rate-ema").as<double>();
-        // learning_rate_diff = args.at("lcnn.learning-rate-diff").as<double>();
-        // learning_bias      = args.at("lcnn.learning-bias").as<double>();
-        // learning_rate_bias = args.at("lcnn.learning-rate-bias").as<double>();
-        // weight_decay       = args.at("lcnn.weight-decay").as<double>();
-        // state_ema_decay    = args.at("lcnn.state-ema-decay").as<double>();
-
-        random_spike_prob = args.at("lcnn.random-spike-prob").as<double>();
-        random_spike_std = args.at("lcnn.random-spike-std").as<double>();
         noise = args.at("lcnn.noise").as<double>();
         leakage = args.at("lcnn.leakage").as<double>();
         l2 = args.at("lcnn.l2").as<double>();
@@ -140,19 +108,7 @@ protected:
     std::mt19937 prng_;
     af::randomEngine af_prng_;
 
-    // Learning is not available at the moment.
-    // af::array state_ema_;  // exponential moving average
-    // double learning_rate_;
-    // double learning_rate_ema_;
-    // double learning_rate_diff_;
-    // double learning_bias_;
-    // double learning_rate_bias_;
-    // double weight_decay_;
-    // double state_ema_decay_;
-
     bool noise_enabled_;
-    double random_spike_prob_;
-    double random_spike_std_;
     double noise_;
     double leakage_;
     double l2_;
@@ -220,13 +176,6 @@ protected:
     /// Update the state matrix by applying the activation function.
     virtual void update_via_activation()
     {
-        // Add spurious spikes.
-        if (noise_enabled_ && random_spike_prob_ > 0.) {
-            af::array spikes =
-              2. * af::randu({state_.dims()}, DType, af_prng_) < random_spike_prob_ - 1.;
-            spikes *= random_spike_std_;
-            state_delta_ += spikes;
-        }
         // Add noise to the states.
         if (noise_enabled_ && noise_ != 0.)
             state_delta_ *= 1. + af::randn({state_.dims()}, DType, af_prng_) * noise_;
@@ -235,43 +184,6 @@ protected:
         // Apply the activation function.
         state_ += af::tanh(act_steepness_ * std::move(state_delta_));
     }
-
-    // Learning is not available at the moment.
-    // /// Update the weights.
-    // ///
-    // /// WARNING: This algorithm does not sucessfully learn yet.
-    // virtual void update_weights(
-    //   const af::array& /* unwrapped_weights */,
-    //   const af::array& unwrapped_old_state)
-    // {
-    //     int kernel_height = reservoir_w_.dims(2);
-    //     int kernel_width = reservoir_w_.dims(3);
-    //     // calculate presynaptic and postsynaptic states for each connection
-    //     af::array presynaptic_state = unwrapped_old_state;
-    //     af::array postsynaptic_state =
-    //       af::tile(af::flat(state_), 1, kernel_height * kernel_width);
-    //     // match state_ema_ to each of the connections
-    //     af::array state_ema =
-    //       af::tile(af::flat(state_ema_), 1, kernel_height * kernel_width);
-
-    //     // Update the weights according to the difference from ema.
-    //     af::array weight_delta =
-    //       learning_rate_ema_ * af::pow(postsynaptic_state - state_ema, 3.);
-    //     // Update the weights according to the difference between pre and
-    //     // postsynaptic state.
-    //     weight_delta +=
-    //       learning_rate_diff_ * af::pow(postsynaptic_state - presynaptic_state, 3.);
-    //     // Update the weights towards the bias.
-    //     weight_delta +=
-    //       learning_rate_bias_ * af::pow(postsynaptic_state - learning_bias_, 3.);
-
-    //     // Reshape the weight deltas back to the reservoir_w_ shape and update.
-    //     weight_delta = af::moddims(std::move(weight_delta), reservoir_w_.dims());
-    //     reservoir_w_ += learning_rate_ * std::move(weight_delta);
-    //     // decay the weights
-    //     reservoir_w_ *= 1. - weight_decay_;
-    //     af::eval(reservoir_w_);
-    // }
 
     /// Update the last output of the network after having a new state.
     virtual void update_last_output()
@@ -329,18 +241,7 @@ public:
       , prng_{prng_init_}
       , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_()}
 
-      // Learning is not available at the moment.
-      // , learning_rate_       {cfg.learning_rate}
-      // , learning_rate_ema_   {cfg.learning_rate_ema}
-      // , learning_rate_diff_  {cfg.learning_rate_diff}
-      // , learning_bias_       {cfg.learning_bias}
-      // , learning_rate_bias_  {cfg.learning_rate_bias}
-      // , weight_decay_        {cfg.weight_decay}
-      // , state_ema_decay_     {cfg.state_ema_decay}
-
       , noise_enabled_{true}
-      , random_spike_prob_{cfg.random_spike_prob}
-      , random_spike_std_{cfg.random_spike_std}
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
       , l2_{cfg.l2}
@@ -421,13 +322,6 @@ public:
             // activation function
             update_via_activation();
 
-            // Learning is not available at the moment.
-            // if (learning_rate_ != 0) {
-            //     // update state exponential moving average
-            //     update_state_ema();
-            //     // update the weights
-            //     update_weights(unwrapped_weights, unwrapped_state);
-            // }
             assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
 
@@ -665,17 +559,6 @@ public:
         state_ = std::move(new_state);
     }
 
-    // Learning is not available at the moment.
-    // /// Update the state exponential moving average using the current state.
-    // void update_state_ema()
-    // {
-    //     if (state_ema_.isempty()) {
-    //         state_ema_ = state_;
-    //     } else {
-    //         state_ema_ = (1. - state_ema_decay_) * state_ema_ + state_ema_decay_ * state_;
-    //     }
-    // }
-
     /// The input names.
     const std::set<std::string>& input_names() const override
     {
@@ -843,20 +726,6 @@ public:
     const af::array& reservoir_biases() const
     {
         return reservoir_b_;
-    }
-
-    // Learning is not available at the moment.
-    // /// Get the learning rate.
-    // double learning_rate() const
-    // {
-    //     return learning_rate_;
-    // }
-
-    /// Set the learning rate.
-    void learning_rate(double learning_rate) override
-    {
-        // Learning is not available at the moment.
-        // learning_rate_ = learning_rate;
     }
 
     /// Disable random noise e.g., for lyapunov testing.
@@ -1159,60 +1028,39 @@ lcnn<DType> random_lcnn(
 inline po::options_description lcnn_arg_description()
 {
     po::options_description lcnn_arg_desc{"Locally connected network options"};
-    lcnn_arg_desc.add_options()                                    //
-      ("lcnn.state-height", po::value<long>()->default_value(11),  //
-       "The fixed height of the kernel.")                          //
-      ("lcnn.state-width", po::value<long>()->default_value(11),   //
-       "The width of the state matrix.")                           //
-      ("lcnn.kernel-height", po::value<long>()->default_value(5),  //
-       "The height of the kernel.")                                //
-      ("lcnn.kernel-width", po::value<long>()->default_value(5),   //
-       "The width of the kernel.")                                 //
-      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),  //
-       "See random_lcnn().")                                       //
-      ("lcnn.mu-res", po::value<double>()->default_value(0),       //
-       "See random_lcnn().")                                       //
-      ("lcnn.in-weight",                                           //
-       po::value<std::vector<double>>()                            //
-         ->multitoken()                                            //
-         ->default_value(std::vector<double>{0.1}, "0.1"),         //
-       "See random_lcnn().")                                       //
-      ("lcnn.fb-weight",                                           //
-       po::value<std::vector<double>>()                            //
-         ->multitoken()                                            //
-         ->default_value(std::vector<double>{0}, "0"),             //
-       "See random_lcnn().")                                       //
-      ("lcnn.sigma-b", po::value<double>()->default_value(0),      //
-       "See random_lcnn().")                                       //
-      ("lcnn.mu-b", po::value<double>()->default_value(0),         //
-       "See random_lcnn().")                                       //
-      ("lcnn.sparsity", po::value<double>()->default_value(0),     //
-       "See random_lcnn().")                                       //
-
-      // Learning is not available at the moment.
-      // ("lcnn.learning-rate", po::value<double>()->default_value(0),
-      //    "See lcnn_config struct.")
-      // ("lcnn.learning-rate-ema", po::value<double>()->default_value(0),
-      //    "See lcnn_config struct.")
-      // ("lcnn.learning-rate-diff", po::value<double>()->default_value(0),
-      //    "See lcnn_config struct.")
-      // ("lcnn.learning-bias", po::value<double>()->default_value(0),
-      //    "See lcnn_config struct.")
-      // ("lcnn.learning-rate-bias", po::value<double>()->default_value(0),
-      //    "See lcnn_config struct.")
-      // ("lcnn.weight-decay", po::value<double>()->default_value(0),
-      //    "See random_lcnn().")
-      // ("lcnn.state-ema-decay", po::value<double>()->default_value(0),
-      //    "See random_lcnn().")
-
+    lcnn_arg_desc.add_options()                                                        //
+      ("lcnn.state-height", po::value<long>()->default_value(11),                      //
+       "The fixed height of the kernel.")                                              //
+      ("lcnn.state-width", po::value<long>()->default_value(11),                       //
+       "The width of the state matrix.")                                               //
+      ("lcnn.kernel-height", po::value<long>()->default_value(5),                      //
+       "The height of the kernel.")                                                    //
+      ("lcnn.kernel-width", po::value<long>()->default_value(5),                       //
+       "The width of the kernel.")                                                     //
+      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),                      //
+       "See random_lcnn().")                                                           //
+      ("lcnn.mu-res", po::value<double>()->default_value(0),                           //
+       "See random_lcnn().")                                                           //
+      ("lcnn.in-weight",                                                               //
+       po::value<std::vector<double>>()                                                //
+         ->multitoken()                                                                //
+         ->default_value(std::vector<double>{0.1}, "0.1"),                             //
+       "See random_lcnn().")                                                           //
+      ("lcnn.fb-weight",                                                               //
+       po::value<std::vector<double>>()                                                //
+         ->multitoken()                                                                //
+         ->default_value(std::vector<double>{0}, "0"),                                 //
+       "See random_lcnn().")                                                           //
+      ("lcnn.sigma-b", po::value<double>()->default_value(0),                          //
+       "See random_lcnn().")                                                           //
+      ("lcnn.mu-b", po::value<double>()->default_value(0),                             //
+       "See random_lcnn().")                                                           //
+      ("lcnn.sparsity", po::value<double>()->default_value(0),                         //
+       "See random_lcnn().")                                                           //
       ("lcnn.topology", po::value<std::string>()->default_value("sparse"),             //
        "See random_lcnn().")                                                           //
       ("lcnn.input-to-n", po::value<long>()->default_value(0),                         //
        "See random_lcnn().")                                                           //
-      ("lcnn.random-spike-prob", po::value<double>()->default_value(0),                //
-       "See lcnn_config class.")                                                       //
-      ("lcnn.random-spike-std", po::value<double>()->default_value(0),                 //
-       "See lcnn_config class.")                                                       //
       ("lcnn.noise", po::value<double>()->default_value(0),                            //
        "See lcnn_config class.")                                                       //
       ("lcnn.leakage", po::value<double>()->default_value(1),                          //

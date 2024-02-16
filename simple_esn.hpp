@@ -329,12 +329,6 @@ public:
         return af::mean<double>(reservoir_w_);
     }
 
-    /// Set the learning rate.
-    void learning_rate(double) override
-    {
-        // Not implemented.
-    }
-
     /// Disable random noise e.g., for lyapunov testing.
     void random_noise(bool enable) override
     {

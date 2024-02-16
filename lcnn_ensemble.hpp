@@ -149,12 +149,6 @@ public:
         return nets_.at(0)->neuron_ins();
     }
 
-    /// Set the learning rate.
-    void learning_rate(double learning_rate) override
-    {
-        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->learning_rate(learning_rate);
-    }
-
     /// Disable random noise e.g., for lyapunov testing.
     void random_noise(bool enable) override
     {

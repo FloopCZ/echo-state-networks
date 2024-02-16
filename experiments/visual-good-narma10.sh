@@ -22,8 +22,6 @@
 --lcnn.mu-b=-0.49644024155936922 \
 --lcnn.mu-res=-4.8546183633372179e-05 \
 --lcnn.noise=0 \
---lcnn.random-spike-prob=0 \
---lcnn.random-spike-std=0 \
 --lcnn.sigma-b=0 \
 --lcnn.sigma-res=0.08557353072505626 \
 --lcnn.sparsity=0 \
