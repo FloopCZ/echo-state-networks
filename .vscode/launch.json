@@ -17,7 +17,6 @@
                 "--bench.valid-steps=100",
                 "--gen.af-device=0",
                 "--gen.n-runs=1",
-                "--opt.no-multithreading",
                 "--opt.max-fevals=50"
             ],
             "stopAtEntry": false,

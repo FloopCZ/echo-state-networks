@@ -49,7 +49,7 @@ protected:
     cma::CMAParameters<GenoPheno> cmaparams_;
     int n_evals_;
     std::string f_value_agg_;
-    bool no_multithreading_;
+    bool multithreading_;
     EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
     std::mutex best_evaluation_mutex_;
     std::mt19937* prng_;
@@ -99,7 +99,7 @@ public:
       : config_{std::move(config)}
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
-      , no_multithreading_{config_.at("opt.no-multithreading").as<bool>()}
+      , multithreading_{config_.at("opt.multithreading").as<bool>()}
       , prng_{&prng}
     {
     }
@@ -141,7 +141,7 @@ public:
         if (config_.count("opt.cmaes-fplot")) {
             cmaparams_.set_fplot(config_.at("opt.cmaes-fplot").as<std::string>());
         }
-        cmaparams_.set_mt_feval(!no_multithreading_);
+        cmaparams_.set_mt_feval(multithreading_);
         cmaparams_.set_elitism(config_.at("opt.elitism").as<int>());
         cmaparams_.set_max_fevals(config_.at("opt.max-fevals").as<int>());
         if (config_.at("opt.uncertainty").as<bool>()) cmaparams_.set_uh(true);
@@ -920,8 +920,8 @@ inline po::options_description optimizer_arg_description()
        "Elitism mode. 0 -> disabled, 1 -> reinject the best, 2 -> reinject x0 "             //
        "till improvement, 3 -> restart if the best encountered solution "                   //
        "is not the final solution.")                                                        //
-      ("opt.no-multithreading", po::bool_switch(),                                          //
-       "Do not evaluate the individuals in the population in parallel.")                    //
+      ("opt.multithreading", po::bool_switch(),                                             //
+       "Evaluate the individuals in the population in parallel.")                           //
       ("opt.exclude-params",                                                                //
        po::value<std::vector<std::string>>()->multitoken()->default_value(                  //
          DEFAULT_EXCLUDED_PARAMS, DEFAULT_EXCLUDED_PARAMS_STR),                             //
