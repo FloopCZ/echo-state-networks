@@ -26,10 +26,13 @@ namespace rg = ranges;
 namespace rgv = ranges::views;
 
 inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
+  "lcnn.sigma-b",
   "lcnn.noise",
   "lcnn.sparsity",
   "lcnn.n-state-predictors",
   "lcnn.train-valid-ratio",
+  "lcnn.sigma-act-steepness",
+  "lcnn.mu-act-steepness",
   "lcnn.input-to-n",
   "esn.noise",
   "esn.sparsity"};
@@ -452,6 +455,8 @@ public:
                 params.emplace(
                   p + "noise",
                   inv_exp_transform(std::clamp(vm.at(p + "noise").as<double>(), 1e-18, 1.)));
+            } else if (key == p + "sigma-b") {
+                params.emplace(key, inv_exp_transform(vm.at(p + "sigma-b").as<double>()));
             } else if (key == p + "mu-b") {
                 params.emplace(p + "mu-b", inv_pow_transform(vm.at(p + "mu-b").as<double>()));
             } else if (key == "lcnn.l2") {
@@ -473,6 +478,13 @@ public:
                 double input_to_n_frac =
                   vm.at("lcnn.input-to-n").as<long>() / (double)state_elements;
                 params.emplace("lcnn.input-to-n", input_to_n_frac);
+            } else if (key == p + "sigma-act-steepness") {
+                params.emplace(
+                  key, inv_exp_transform(vm.at(p + "sigma-act-steepness").as<double>()));
+            } else if (key == p + "mu-act-steepness") {
+                params.emplace(
+                  p + "mu-act-steepness",
+                  inv_pow_transform(vm.at(p + "mu-act-steepness").as<double>()));
             }
         }
         return params;
@@ -531,6 +543,10 @@ public:
             cfg.insert_or_assign(p + "noise", expval(params.at(p + "noise")));
             params.erase(p + "noise");
         }
+        if (params.contains(p + "sigma-b")) {
+            cfg.insert_or_assign(p + "sigma-b", expval(params.at(p + "sigma-b")));
+            params.erase(p + "sigma-b");
+        }
         if (params.contains(p + "mu-b")) {
             cfg.insert_or_assign(p + "mu-b", powval(params.at(p + "mu-b")));
             params.erase(p + "mu-b");
@@ -563,7 +579,19 @@ public:
             cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
             params.erase("lcnn.input-to-n");
         }
-        assert(params.empty());  // make sure all the params have been consumed
+        if (params.contains(p + "sigma-act-steepness")) {
+            cfg.insert_or_assign(
+              p + "sigma-act-steepness", expval(params.at(p + "sigma-act-steepness")));
+            params.erase(p + "sigma-act-steepness");
+        }
+        if (params.contains(p + "mu-act-steepness")) {
+            cfg.insert_or_assign(p + "mu-act-steepness", powval(params.at(p + "mu-act-steepness")));
+            params.erase(p + "mu-act-steepness");
+        }
+        assert(
+          params.empty() || (params.size() == 1 && params.contains("none")));  // make sure all
+                                                                               // the params have
+                                                                               // been consumed
         return cfg;
     }
 
@@ -619,11 +647,14 @@ public:
           {"lcnn.sparsity", 0.1},
           {"lcnn.leakage", 0.9},
           {"lcnn.noise", 0.2},
+          {"lcnn.sigma-b", 0.0},
           {"lcnn.mu-b", 0.0},
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
-          {"lcnn.input-to-n", 0.5}};
+          {"lcnn.input-to-n", 0.5},
+          {"lcnn.sigma-act-steepness", 0.0},
+          {"lcnn.mu-act-steepness", 1.0}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -640,9 +671,19 @@ public:
     std::set<std::string> available_params() const override
     {
         std::set<std::string> params = {
-          "lcnn.sigma-res", "lcnn.mu-res",    "lcnn.sparsity",           "lcnn.leakage",
-          "lcnn.noise",     "lcnn.mu-b",      "lcnn.n-state-predictors", "lcnn.train-valid-ratio",
-          "lcnn.l2",        "lcnn.input-to-n"};
+          "lcnn.sigma-res",
+          "lcnn.mu-res",
+          "lcnn.sparsity",
+          "lcnn.leakage",
+          "lcnn.noise",
+          "lcnn.sigma-b",
+          "lcnn.mu-b",
+          "lcnn.n-state-predictors",
+          "lcnn.train-valid-ratio",
+          "lcnn.l2",
+          "lcnn.input-to-n",
+          "lcnn.sigma-act-steepness",
+          "lcnn.mu-act-steepness"};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert("lcnn.in-weight-" + std::to_string(i));
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -672,11 +713,14 @@ public:
           {"lcnn.sparsity", 0.05},
           {"lcnn.leakage", 0.05},
           {"lcnn.noise", 0.05},
+          {"lcnn.sigma-b", 0.01},
           {"lcnn.mu-b", 0.05},
           {"lcnn.n-state-predictors", 0.1},
           {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.05},
-          {"lcnn.input-to-n", 0.1}};
+          {"lcnn.input-to-n", 0.1},
+          {"lcnn.sigma-act-steepness", 0.01},
+          {"lcnn.mu-act-steepness", 0.05}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -692,11 +736,14 @@ public:
           {"lcnn.sparsity", -0.1},
           {"lcnn.leakage", -0.1},
           {"lcnn.noise", -0.1},
+          {"lcnn.sigma-b", -1.1},
           {"lcnn.mu-b", -1.1},
           {"lcnn.n-state-predictors", -0.1},
           {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
-          {"lcnn.input-to-n", -1.1}};
+          {"lcnn.input-to-n", -1.1},
+          {"lcnn.sigma-act-steepness", -1.1},
+          {"lcnn.mu-act-steepness", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), -1.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)
@@ -712,11 +759,14 @@ public:
           {"lcnn.sparsity", 1.1},
           {"lcnn.leakage", 1.1},
           {"lcnn.noise", 1.1},
+          {"lcnn.sigma-b", 1.1},
           {"lcnn.mu-b", 1.1},
           {"lcnn.n-state-predictors", 1.1},
           {"lcnn.train-valid-ratio", 1.1},
           {"lcnn.l2", 1.1},
-          {"lcnn.input-to-n", 1.1}};
+          {"lcnn.input-to-n", 1.1},
+          {"lcnn.sigma-act-steepness", 1.1},
+          {"lcnn.mu-act-steepness", 1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i)
             params.insert({"lcnn.in-weight-" + std::to_string(i), 1.1});
         for (int i = 0; i < bench_->output_names().size(); ++i)

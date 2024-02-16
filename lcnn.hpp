@@ -44,6 +44,8 @@ struct lcnn_config {
     af::array input_w;
     /// The feedback weights of size [state_height, state_width, n_outs].
     af::array feedback_w;
+    /// The steepness of the activation function.
+    af::array act_steepness;
 
     // Learning is not available at the moment.
     // /// If it is set to 0.0, the network does not learn.
@@ -129,6 +131,7 @@ protected:
     af::array reservoir_b_;
     af::array input_w_;
     af::array feedback_w_;
+    af::array act_steepness_;
     std::vector<indiced_output_w> indiced_output_w_;
     bool force_matmul_;
 
@@ -230,7 +233,7 @@ protected:
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
-        state_ += af::tanh(std::move(state_delta_));
+        state_ += af::tanh(act_steepness_ * std::move(state_delta_));
     }
 
     // Learning is not available at the moment.
@@ -355,6 +358,7 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
+        activation_steepness(std::move(cfg.act_steepness));
     }
 
     /// TODO fix docs
@@ -695,6 +699,16 @@ public:
         return af::mean<double>(in);
     }
 
+    /// Set the activation steepness.
+    ///
+    /// The shape has to be [state.dims(0), state.dims(1)].
+    void activation_steepness(af::array new_steepness)
+    {
+        assert(new_steepness.type() == DType);
+        assert((new_steepness.dims() == af::dim4{state_.dims(0), state_.dims(1)}));
+        act_steepness_ = std::move(new_steepness);
+    }
+
     /// Set the input weights of the network.
     ///
     /// The shape has to be [state.dims(0), state.dims(1), n_ins].
@@ -888,7 +902,7 @@ lcnn<DType> random_lcnn(
     if (in_weight.size() < n_ins)
         throw std::invalid_argument{
           fmt::format("in-weight ({}) < n_ins ({})", in_weight.size(), n_ins)};
-    // The feedback weights will be generated from [0, fb_weight].
+    // The feedback weights for each output.
     std::vector<double> fb_weight = args.at("lcnn.fb-weight").as<std::vector<double>>();
     if (fb_weight.size() < n_outs)
         throw std::invalid_argument{
@@ -900,6 +914,10 @@ lcnn<DType> random_lcnn(
     // The sparsity of the reservoir weight matrix. For 0, the matrix is
     // fully connected. For 1, the matrix is completely zero.
     double sparsity = args.at("lcnn.sparsity").as<double>();
+    // The sigma of the steepness of the activation function.
+    double sigma_act_steepness = args.at("lcnn.sigma-act-steepness").as<double>();
+    // The mean of the steepness of the activation function.
+    double mu_act_steepness = args.at("lcnn.mu-act-steepness").as<double>();
     // The reservoir topology.
     std::string topology = args.at("lcnn.topology").as<std::string>();
     std::set<std::string> topo_params;
@@ -1124,6 +1142,8 @@ lcnn<DType> random_lcnn(
             }
         }
     }
+    cfg.act_steepness = af::randu({state_height, state_width}, DType, af_prng) * 2 - 1;
+    cfg.act_steepness = cfg.act_steepness * sigma_act_steepness + mu_act_steepness;
 
     // the initial state is full of zeros
     cfg.init_state = af::constant(0, state_height, state_width, DType);
@@ -1206,6 +1226,10 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.train-aggregation", po::value<std::string>()->default_value("ensemble"),  //
        "See lcnn_config class.")                                                       //
       ("lcnn.train-valid-ratio", po::value<double>()->default_value(0.8),              //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.sigma-act-steepness", po::value<double>()->default_value(0.0),            //
+       "See lcnn_config class.")                                                       //
+      ("lcnn.mu-act-steepness", po::value<double>()->default_value(1.0),               //
        "See lcnn_config class.")                                                       //
       ;
     return lcnn_arg_desc;
