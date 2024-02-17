@@ -749,12 +749,12 @@ public:
     std::map<std::string, double> named_param_lbounds() const override
     {
         std::map<std::string, double> params = {
-          {"lcnn.sigma-res", -1.1},
+          {"lcnn.sigma-res", -0.1},
           {"lcnn.mu-res", -1.1},
           {"lcnn.sparsity", -0.1},
           {"lcnn.leakage", -0.1},
           {"lcnn.noise", -0.1},
-          {"lcnn.sigma-b", -1.1},
+          {"lcnn.sigma-b", -0.1},
           {"lcnn.mu-b", -1.1},
           {"lcnn.n-state-predictors", -0.1},
           {"lcnn.train-valid-ratio", -0.1},
@@ -763,11 +763,11 @@ public:
           {"lcnn.act-steepness", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
-            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -1.1});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -0.1});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), -1.1});
-            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), -1.1});
+            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), -0.1});
         }
         return params;
     }
