@@ -34,4 +34,4 @@
 --lcnn.state-height=20 \
 --lcnn.state-width=25 \
 --lcnn.topology=sparse \
---lcnn.n-state-predictors=500
+--lcnn.n-state-predictors=0.25

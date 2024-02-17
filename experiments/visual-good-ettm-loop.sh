@@ -24,7 +24,7 @@
 --lcnn.leakage=1 \
 --lcnn.mu-b=0.021543169765815048 \
 --lcnn.mu-res=0.013560752898089596 \
---lcnn.n-state-predictors=1148 \
+--lcnn.n-state-predictors=0.6 \
 --lcnn.noise=0.040758673383509574 \
 --lcnn.sigma-b=0 \
 --lcnn.sigma-res=0.013467673894940864 \

@@ -13,7 +13,7 @@ mkdir -p "${outdir}"
   --gen.net-type=lcnn \
   --gen.kernel-sizes=${KERNELS} \
   --lcnn.topology="${TOPO}" \
-  --lcnn.input-to-n=1 \
+  --lcnn.input-to-n=0 \
   --gen.state-heights=20 \
   --gen.state-widths=25 \
   --gen.benchmark-set=narma10 \

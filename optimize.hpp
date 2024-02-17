@@ -478,17 +478,11 @@ public:
                 params.emplace(
                   key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
             } else if (key == "lcnn.n-state-predictors") {
-                long state_elements =
-                  cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-                double predictors_frac = vm.at(key).as<long>() / (double)state_elements;
-                params.emplace(key, predictors_frac);
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.train-valid-ratio") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.input-to-n") {
-                long state_elements =
-                  cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-                double input_to_n_frac = vm.at(key).as<long>() / (double)state_elements;
-                params.emplace(key, input_to_n_frac);
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "act-steepness") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             }
@@ -570,11 +564,7 @@ public:
             params.erase("lcnn.l2");
         }
         if (params.contains("lcnn.n-state-predictors")) {
-            long state_elements =
-              cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-            long n_predictors =
-              std::clamp(params.at("lcnn.n-state-predictors"), 0.0, 1.0) * state_elements;
-            n_predictors = std::clamp(n_predictors, 1L, state_elements);
+            double n_predictors = std::clamp(params.at("lcnn.n-state-predictors"), 0.0, 1.0);
             cfg.insert_or_assign(
               "lcnn.n-state-predictors", po::variable_value(n_predictors, false));
             params.erase("lcnn.n-state-predictors");
@@ -586,10 +576,7 @@ public:
             params.erase("lcnn.train-valid-ratio");
         }
         if (params.contains("lcnn.input-to-n")) {
-            long state_elements =
-              cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
-            long input_to_n = std::clamp(params.at("lcnn.input-to-n"), 0.0, 1.0) * state_elements;
-            input_to_n = std::clamp(input_to_n, 1L, state_elements);
+            double input_to_n = std::clamp(params.at("lcnn.input-to-n"), 0.0, 1.0);
             cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
             params.erase("lcnn.input-to-n");
         }

@@ -56,8 +56,8 @@ struct lcnn_config {
     /// The number of training trials (select random indices, train, repeat).
     long n_train_trials = 1;
     /// Indices of neurons used as predictors during training.
-    /// Leave empty to use all neurons.
-    long n_state_predictors = 0;
+    /// Set to 1 to use all neurons.
+    double n_state_predictors = 1.;
     // How should the result of multiple calls to train() be aggregated.
     std::string train_aggregation = "ensemble";
     // The probability that a single data point belongs to the valid set during train trial.
@@ -73,7 +73,7 @@ struct lcnn_config {
         l2 = args.at("lcnn.l2").as<double>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
-        n_state_predictors = args.at("lcnn.n-state-predictors").as<long>();
+        n_state_predictors = std::clamp(args.at("lcnn.n-state-predictors").as<double>(), 0., 1.);
         train_aggregation = args.at("lcnn.train-aggregation").as<std::string>();
         train_valid_ratio = args.at("lcnn.train-valid-ratio").as<double>();
         act_steepness = args.at("lcnn.act-steepness").as<double>();
@@ -114,7 +114,7 @@ protected:
     double l2_;
     long intermediate_steps_;
     long n_train_trials_;
-    long n_state_predictors_;
+    double n_state_predictors_;
     std::string train_aggregation_;
     double train_valid_ratio_;
     double act_steepness_;
@@ -235,7 +235,6 @@ public:
       , prng_init_{std::move(prng)}
       , prng_{prng_init_}
       , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_()}
-
       , noise_enabled_{true}
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
@@ -453,7 +452,7 @@ public:
             double valid_err;
         } best_train{.valid_err = std::numeric_limits<double>::max()};
 
-        bool predictor_subset = n_state_predictors_ > 0 && n_state_predictors_ < state_.elements();
+        bool predictor_subset = n_state_predictors_ < 1.;
         bool cross_validate = predictor_subset && n_train_trials_ > 1;
 
         // split the data to train/valid if not using all state neurons or there is just a single
@@ -489,7 +488,8 @@ public:
             // select random state predictor indices
             af::array state_predictor_indices;
             if (predictor_subset)
-                state_predictor_indices = generate_random_state_indices(n_state_predictors_);
+                state_predictor_indices = generate_random_state_indices(
+                  std::lround(n_state_predictors_ * state_.elements()));
             // train
             train_result_t train_result = train_impl(train_data, state_predictor_indices);
             af::array train_prediction =
@@ -975,8 +975,7 @@ lcnn<DType> random_lcnn(
             cfg.feedback_w(af::span, af::span, i) += mu_fb_weight.at(i);
         }
     } else {
-        long n_input_neurons =
-          std::clamp(long(input_to_n * state_height * state_width), 1L, state_height * state_width);
+        long n_input_neurons = std::lround(input_to_n * state_height * state_width);
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
         for (long i = 0; i < n_ins; ++i) {
@@ -1075,8 +1074,8 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                       //
       ("lcnn.n-train-trials", po::value<long>()->default_value(1),                     //
        "See random_lcnn().")                                                           //
-      ("lcnn.n-state-predictors", po::value<long>()->default_value(0),                 //
-       "How many neurons are used for regression training.")                           //
+      ("lcnn.n-state-predictors", po::value<double>()->default_value(1.),              //
+       "What fraction of neurons is used for regression training.")                    //
       ("lcnn.train-aggregation", po::value<std::string>()->default_value("ensemble"),  //
        "See lcnn_config class.")                                                       //
       ("lcnn.train-valid-ratio", po::value<double>()->default_value(0.8),              //
