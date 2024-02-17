@@ -140,10 +140,11 @@ af::array solve(const af::array& A, const af::array& B, double l2 = 0.)
     assert(A.dims(0) == B.dims(0));
     assert(A.dims(1) > 1);
     if (l2 == 0.) return af::solve(A, B);
-    af::array reg = l2 * af::identity(A.dims(1), A.dims(1), A.type());
+    af::array reg = std::sqrt(l2) * af::identity(A.dims(1), A.dims(1), A.type());
     reg(0, 0) = 0.;  // do not regularize intercept
-    af::array XTX = af::matmulTN(A, A);
-    return af::matmul(af::inverse(XTX + reg), A.T(), B);
+    af::array Areg = af::join(0, A, std::move(reg));
+    af::array Breg = af::join(0, B, af::constant(0, {A.dims(1), B.dims(1)}, B.type()));
+    return af::solve(std::move(Areg), std::move(Breg));
 }
 
 /// Linear regression training.
