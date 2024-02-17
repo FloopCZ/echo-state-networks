@@ -91,9 +91,18 @@ int main(int argc, char* argv[])
       "lcnn.kernel-width",
       "lcnn.topology",
       "lcnn.sigma-res",
+      "lcnn.n-state-predictors",
+      "lcnn.train-valid-ratio",
+      "lcnn.act-steepness",
+      "lcnn.input-to-n",
+      "lcnn.intermediate-steps",
+      "lcnn.train-aggregation",
+      "lcnn.l2",
       "lcnn.mu-res",
-      "lcnn.in-weight",
-      "lcnn.fb-weight",
+      "lcnn.mu-in-weight",
+      "lcnn.sigma-in-weight",
+      "lcnn.mu-fb-weight",
+      "lcnn.sigma-fb-weight",
       "lcnn.sparsity",
       "lcnn.leakage",
       "lcnn.noise",
@@ -155,8 +164,6 @@ int main(int argc, char* argv[])
                             fout << trial;
                         } else if (param == "kernel-size") {
                             fout << kernel_size;
-                        } else if (param == "lcnn.topology") {
-                            fout << args.at("lcnn.topology").as<std::string>();
                         } else if (param == "f-value") {
                             fout << std::setprecision(std::numeric_limits<double>::max_digits10)
                                  << f_value;
@@ -164,6 +171,22 @@ int main(int argc, char* argv[])
                             fout << params.at(param).as<int>();
                         } else if (typeid(long) == params.at(param).value().type()) {
                             fout << params.at(param).as<long>();
+                        } else if (typeid(std::string) == params.at(param).value().type()) {
+                            fout << params.at(param).as<std::string>();
+                        } else if (typeid(std::vector<long>) == params.at(param).value().type()) {
+                            const std::vector<long>& vec = params.at(param).as<std::vector<long>>();
+                            for (auto it = vec.begin(); it != vec.end(); ++it) {
+                                if (it != vec.begin()) fout << " ";
+                                fout << *it;
+                            }
+                        } else if (typeid(std::vector<double>) == params.at(param).value().type()) {
+                            const std::vector<double>& vec =
+                              params.at(param).as<std::vector<double>>();
+                            for (auto it = vec.begin(); it != vec.end(); ++it) {
+                                if (it != vec.begin()) fout << " ";
+                                fout << std::setprecision(std::numeric_limits<double>::max_digits10)
+                                     << *it;
+                            }
                         } else {
                             double value = params.at(param).as<double>();
                             fout << std::setprecision(std::numeric_limits<double>::max_digits10)

@@ -31,7 +31,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.sparsity",
   "lcnn.n-state-predictors",
   "lcnn.train-valid-ratio",
-  "lcnn.sigma-act-steepness",
+  "lcnn.act-steepness",
   "lcnn.input-to-n",
   "esn.noise",
   "esn.sparsity"};
@@ -399,22 +399,22 @@ protected:
 
     virtual std::string arg_prefix_() const = 0;
 
-    virtual double exp_transform(double v) const
+    static double exp_transform(double v)
     {
         return std::exp(-50.0 * v);
     }
 
-    virtual double inv_exp_transform(double v) const
+    static double inv_exp_transform(double v)
     {
         return -std::log(v) / 50.;
     }
 
-    virtual double pow_transform(double v) const
+    static double pow_transform(double v)
     {
         return 2 * v * std::abs(v);
     }
 
-    virtual double inv_pow_transform(double v) const
+    static double inv_pow_transform(double v)
     {
         return std::copysign(std::sqrt(std::abs(v) / 2.), v);
     }
@@ -432,45 +432,51 @@ public:
         for (const std::string& key : keys) {
             const std::string& p = arg_prefix_();
             po::variables_map cfg = config_;
-            std::string in_weight_prefix = p + "in-weight-";
-            std::string in_bias_prefix = p + "in-bias-";
-            std::string fb_weight_prefix = p + "fb-weight-";
-            std::string fb_bias_prefix = p + "fb-bias-";
+            std::string mu_in_weight_prefix = p + "mu-in-weight-";
+            std::string sigma_in_weight_prefix = p + "sigma-in-weight-";
+            std::string mu_fb_weight_prefix = p + "mu-fb-weight-";
+            std::string sigma_fb_weight_prefix = p + "sigma-fb-weight-";
             if (key == p + "sigma-res") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == p + "mu-res") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
-            } else if (key.starts_with(in_weight_prefix)) {
-                long idx = std::stol(key.substr(in_weight_prefix.length()));
-                std::vector<double> in_weights = vm.at(p + "in-weight").as<std::vector<double>>();
-                params.emplace(key, inv_pow_transform(in_weights.at(idx)));
-            } else if (key.starts_with(in_bias_prefix)) {
-                long idx = std::stol(key.substr(in_bias_prefix.length()));
-                std::vector<double> in_biases = vm.at(p + "in-bias").as<std::vector<double>>();
-                params.emplace(key, inv_pow_transform(in_biases.at(idx)));
-            } else if (key.starts_with(fb_weight_prefix)) {
-                long idx = std::stol(key.substr(fb_weight_prefix.length()));
-                std::vector<double> fb_weights = vm.at(p + "fb-weight").as<std::vector<double>>();
-                params.emplace(key, inv_pow_transform(fb_weights.at(idx)));
-            } else if (key.starts_with(fb_bias_prefix)) {
-                long idx = std::stol(key.substr(fb_bias_prefix.length()));
-                std::vector<double> fb_biases = vm.at(p + "fb-bias").as<std::vector<double>>();
-                params.emplace(key, inv_pow_transform(fb_biases.at(idx)));
+            } else if (key.starts_with(mu_in_weight_prefix)) {
+                long idx = std::stol(key.substr(mu_in_weight_prefix.length()));
+                std::vector<double> mu_in_weights =
+                  vm.at(p + "mu-in-weight").as<std::vector<double>>();
+                params.emplace(key, inv_pow_transform(mu_in_weights.at(idx)));
+            } else if (key.starts_with(sigma_in_weight_prefix)) {
+                long idx = std::stol(key.substr(sigma_in_weight_prefix.length()));
+                std::vector<double> sigma_in_weights =
+                  vm.at(p + "sigma-in-weight").as<std::vector<double>>();
+                params.emplace(
+                  key, inv_exp_transform(std::clamp(sigma_in_weights.at(idx), 1e-40, 1.)));
+            } else if (key.starts_with(mu_fb_weight_prefix)) {
+                long idx = std::stol(key.substr(mu_fb_weight_prefix.length()));
+                std::vector<double> mu_fb_weights =
+                  vm.at(p + "mu-fb-weight").as<std::vector<double>>();
+                params.emplace(key, inv_pow_transform(mu_fb_weights.at(idx)));
+            } else if (key.starts_with(sigma_fb_weight_prefix)) {
+                long idx = std::stol(key.substr(sigma_fb_weight_prefix.length()));
+                std::vector<double> sigma_fb_weights =
+                  vm.at(p + "sigma-fb-weight").as<std::vector<double>>();
+                params.emplace(
+                  key, inv_exp_transform(std::clamp(sigma_fb_weights.at(idx), 1e-40, 1.)));
             } else if (key == p + "sparsity") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "leakage") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "noise") {
                 params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
             } else if (key == p + "sigma-b") {
                 params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
             } else if (key == p + "mu-b") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.l2") {
                 params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
+                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
             } else if (key == "lcnn.n-state-predictors") {
                 long state_elements =
                   cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
@@ -483,10 +489,7 @@ public:
                   cfg.at("lcnn.state-height").as<long>() * cfg.at("lcnn.state-width").as<long>();
                 double input_to_n_frac = vm.at(key).as<long>() / (double)state_elements;
                 params.emplace(key, input_to_n_frac);
-            } else if (key == p + "sigma-act-steepness") {
-                params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-20, 1.)));
-            } else if (key == p + "mu-act-steepness") {
+            } else if (key == p + "act-steepness") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             }
         }
@@ -499,12 +502,12 @@ public:
         auto val = [](double v) { return po::variable_value{v, false}; };
         auto expval = [&](double v) { return val(exp_transform(v)); };
         auto powval = [&](double v) { return val(pow_transform(v)); };
-        auto vector_powval = [&params, this](const std::string& name) {
+        auto vector_val = [&params](const std::string& name, auto& proj) {
             std::vector<double> values;
             for (int i = 0; true; ++i) {
                 std::string param_name = name + "-" + std::to_string(i);
                 if (params.contains(param_name)) {
-                    values.push_back(pow_transform(params.at(param_name)));
+                    values.push_back(proj(params.at(param_name)));
                     params.erase(param_name);
                 } else {
                     break;
@@ -524,21 +527,21 @@ public:
             cfg.insert_or_assign(p + "mu-res", powval(params.at(p + "mu-res")));
             params.erase(p + "mu-res");
         }
-        std::vector<double> in_weight = vector_powval(p + "in-weight");
-        if (!in_weight.empty()) {
-            cfg.insert_or_assign(p + "in-weight", po::variable_value{in_weight, false});
+        std::vector<double> mu_in_weight = vector_val(p + "mu-in-weight", pow_transform);
+        if (!mu_in_weight.empty()) {
+            cfg.insert_or_assign(p + "mu-in-weight", po::variable_value{mu_in_weight, false});
         }
-        std::vector<double> in_bias = vector_powval(p + "in-bias");
-        if (!in_bias.empty()) {
-            cfg.insert_or_assign(p + "in-bias", po::variable_value{in_bias, false});
+        std::vector<double> sigma_in_weight = vector_val(p + "sigma-in-weight", exp_transform);
+        if (!sigma_in_weight.empty()) {
+            cfg.insert_or_assign(p + "sigma-in-weight", po::variable_value{sigma_in_weight, false});
         }
-        std::vector<double> fb_weight = vector_powval(p + "fb-weight");
-        if (!fb_weight.empty()) {
-            cfg.insert_or_assign(p + "fb-weight", po::variable_value(fb_weight, false));
+        std::vector<double> mu_fb_weight = vector_val(p + "mu-fb-weight", pow_transform);
+        if (!mu_fb_weight.empty()) {
+            cfg.insert_or_assign(p + "mu-fb-weight", po::variable_value(mu_fb_weight, false));
         }
-        std::vector<double> fb_bias = vector_powval(p + "fb-bias");
-        if (!fb_bias.empty()) {
-            cfg.insert_or_assign(p + "fb-bias", po::variable_value(fb_bias, false));
+        std::vector<double> sigma_fb_weight = vector_val(p + "sigma-fb-weight", exp_transform);
+        if (!sigma_fb_weight.empty()) {
+            cfg.insert_or_assign(p + "sigma-fb-weight", po::variable_value(sigma_fb_weight, false));
         }
         if (params.contains(p + "sparsity")) {
             cfg.insert_or_assign(
@@ -590,14 +593,9 @@ public:
             cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
             params.erase("lcnn.input-to-n");
         }
-        if (params.contains(p + "sigma-act-steepness")) {
-            cfg.insert_or_assign(
-              p + "sigma-act-steepness", expval(params.at(p + "sigma-act-steepness")));
-            params.erase(p + "sigma-act-steepness");
-        }
-        if (params.contains(p + "mu-act-steepness")) {
-            cfg.insert_or_assign(p + "mu-act-steepness", powval(params.at(p + "mu-act-steepness")));
-            params.erase(p + "mu-act-steepness");
+        if (params.contains(p + "act-steepness")) {
+            cfg.insert_or_assign(p + "act-steepness", powval(params.at(p + "act-steepness")));
+            params.erase(p + "act-steepness");
         }
         assert(
           params.empty() || (params.size() == 1 && params.contains("none")));  // make sure all
@@ -664,15 +662,14 @@ public:
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
           {"lcnn.input-to-n", 0.5},
-          {"lcnn.sigma-act-steepness", 0.2},
-          {"lcnn.mu-act-steepness", inv_pow_transform(1.0)}};
+          {"lcnn.act-steepness", inv_pow_transform(1.0)}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
-            param_x0_.insert({"lcnn.in-weight-" + std::to_string(i), 0.1});
-            param_x0_.insert({"lcnn.in-bias-" + std::to_string(i), 0.0});
+            param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
+            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.1});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
-            param_x0_.insert({"lcnn.fb-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.fb-bias-" + std::to_string(i), 0.0});
+            param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
+            param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.1});
         }
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
         neuron_ins_ = sample_net->neuron_ins();
@@ -697,15 +694,14 @@ public:
           "lcnn.train-valid-ratio",
           "lcnn.l2",
           "lcnn.input-to-n",
-          "lcnn.sigma-act-steepness",
-          "lcnn.mu-act-steepness"};
+          "lcnn.act-steepness"};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
-            params.insert("lcnn.in-weight-" + std::to_string(i));
-            params.insert("lcnn.in-bias-" + std::to_string(i));
+            params.insert("lcnn.mu-in-weight-" + std::to_string(i));
+            params.insert("lcnn.sigma-in-weight-" + std::to_string(i));
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
-            params.insert("lcnn.fb-weight-" + std::to_string(i));
-            params.insert("lcnn.fb-bias-" + std::to_string(i));
+            params.insert("lcnn.mu-fb-weight-" + std::to_string(i));
+            params.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
         }
         return params;
     }
@@ -738,15 +734,14 @@ public:
           {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.05},
           {"lcnn.input-to-n", 0.1},
-          {"lcnn.sigma-act-steepness", 0.05},
-          {"lcnn.mu-act-steepness", 0.05}};
+          {"lcnn.act-steepness", 0.05}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
-            params.insert({"lcnn.in-weight-" + std::to_string(i), 0.05});
-            params.insert({"lcnn.in-bias-" + std::to_string(i), 0.05});
+            params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.05});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.05});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
-            params.insert({"lcnn.fb-weight-" + std::to_string(i), 0.01});
-            params.insert({"lcnn.fb-bias-" + std::to_string(i), 0.01});
+            params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.01});
+            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.01});
         }
         return params;
     }
@@ -765,15 +760,14 @@ public:
           {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
           {"lcnn.input-to-n", -1.1},
-          {"lcnn.sigma-act-steepness", -1.1},
-          {"lcnn.mu-act-steepness", -1.1}};
+          {"lcnn.act-steepness", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
-            params.insert({"lcnn.in-weight-" + std::to_string(i), -1.1});
-            params.insert({"lcnn.in-bias-" + std::to_string(i), -1.1});
+            params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -1.1});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
-            params.insert({"lcnn.fb-weight-" + std::to_string(i), -1.1});
-            params.insert({"lcnn.fb-bias-" + std::to_string(i), -1.1});
+            params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), -1.1});
+            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), -1.1});
         }
         return params;
     }
@@ -792,15 +786,14 @@ public:
           {"lcnn.train-valid-ratio", 1.1},
           {"lcnn.l2", 2.0},
           {"lcnn.input-to-n", 1.1},
-          {"lcnn.sigma-act-steepness", 1.1},
-          {"lcnn.mu-act-steepness", 1.1}};
+          {"lcnn.act-steepness", 1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
-            params.insert({"lcnn.in-weight-" + std::to_string(i), 1.1});
-            params.insert({"lcnn.in-bias-" + std::to_string(i), 1.1});
+            params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 1.1});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 1.1});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
-            params.insert({"lcnn.fb-weight-" + std::to_string(i), 1.1});
-            params.insert({"lcnn.fb-bias-" + std::to_string(i), 1.1});
+            params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 1.1});
+            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 1.1});
         }
         return params;
     }
@@ -811,8 +804,8 @@ public:
         std::set<std::string> fb_w_group;
         std::set<std::string> fb_b_group;
         for (int i = 0; i < bench_->output_names().size(); ++i) {
-            fb_w_group.insert("lcnn.fb-weight-" + std::to_string(i));
-            fb_b_group.insert("lcnn.fb-bias-" + std::to_string(i));
+            fb_w_group.insert("lcnn.mu-fb-weight-" + std::to_string(i));
+            fb_b_group.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
         }
         return {fb_w_group, fb_b_group};
     }

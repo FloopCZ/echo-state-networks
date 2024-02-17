@@ -74,6 +74,7 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.input-to-n");
         param_names.push_back("lcnn.n-state-predictors");
         param_names.push_back("lcnn.train-valid-ratio");
+        param_names.push_back("lcnn.act-steepness");
         param_names.push_back("lcnn.n-train-trials");
         param_names.push_back("lcnn.intermediate-steps");
         param_names.push_back("lcnn.train-aggregation");
@@ -110,18 +111,16 @@ int main(int argc, char* argv[])
                     fout << run;
                 } else if (param == "trial") {
                     fout << trial;
-                } else if (param == "lcnn.train-aggregation") {
-                    fout << params.at("lcnn.train-aggregation").as<std::string>();
                 } else if (param == "f-value") {
                     best_evaluation.net->reset();
                     double f_value = opt->evaluate_net(*best_evaluation.net, global_prng);
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << f_value;
-                } else if (param == net_type + ".topology") {
-                    fout << args.at(net_type + ".topology").as<std::string>();
                 } else if (typeid(int) == params.at(param).value().type()) {
                     fout << params.at(param).as<int>();
                 } else if (typeid(long) == params.at(param).value().type()) {
                     fout << params.at(param).as<long>();
+                } else if (typeid(std::string) == params.at(param).value().type()) {
+                    fout << params.at(param).as<std::string>();
                 } else if (typeid(std::vector<long>) == params.at(param).value().type()) {
                     const std::vector<long>& vec = params.at(param).as<std::vector<long>>();
                     for (auto it = vec.begin(); it != vec.end(); ++it) {
