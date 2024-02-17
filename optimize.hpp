@@ -34,7 +34,6 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.sigma-act-steepness",
   "lcnn.mu-act-steepness",
   "lcnn.input-to-n",
-  "lcnn.l2",  // With small l2, the solver seems to be broken.
   "esn.noise",
   "esn.sparsity"};
 inline const std::string DEFAULT_EXCLUDED_PARAMS_STR =
@@ -753,12 +752,12 @@ public:
           {"lcnn.mu-res", 1.1},
           {"lcnn.sparsity", 1.1},
           {"lcnn.leakage", 1.1},
-          {"lcnn.noise", 1.1},
+          {"lcnn.noise", 2.0},
           {"lcnn.sigma-b", 1.1},
           {"lcnn.mu-b", 1.1},
           {"lcnn.n-state-predictors", 1.1},
           {"lcnn.train-valid-ratio", 1.1},
-          {"lcnn.l2", 1.1},
+          {"lcnn.l2", 2.0},
           {"lcnn.input-to-n", 1.1},
           {"lcnn.sigma-act-steepness", 1.1},
           {"lcnn.mu-act-steepness", 1.1}};
