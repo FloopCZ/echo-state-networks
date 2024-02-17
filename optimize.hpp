@@ -665,11 +665,11 @@ public:
           {"lcnn.act-steepness", inv_pow_transform(1.0)}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.1});
+            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.05});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.1});
+            param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.05});
         }
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
         neuron_ins_ = sample_net->neuron_ins();
