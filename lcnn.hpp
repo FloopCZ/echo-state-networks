@@ -778,7 +778,7 @@ lcnn<DType> random_lcnn(
     std::set<std::string> topo_params;
     boost::split(topo_params, topology, boost::is_any_of("-"));
     // How many neurons are injected with each input.
-    long input_to_n = args.at("lcnn.input-to-n").as<long>();
+    double input_to_n = std::clamp(args.at("lcnn.input-to-n").as<double>(), 0., 1.);
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -962,7 +962,7 @@ lcnn<DType> random_lcnn(
     auto free_position = nice_positions.begin();
     // if we run out of nice positions, have a generator prepared
 
-    if (input_to_n == 0 || input_to_n == state_height * state_width) {
+    if (input_to_n == 1.) {
         // put input and feedback into all the neurons
         cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_ins; ++i) {
@@ -975,33 +975,35 @@ lcnn<DType> random_lcnn(
             cfg.feedback_w(af::span, af::span, i) += mu_fb_weight.at(i);
         }
     } else {
+        long n_input_neurons =
+          std::clamp(long(input_to_n * state_height * state_width), 1L, state_height * state_width);
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
         for (long i = 0; i < n_ins; ++i) {
-            if (input_to_n == 1 && free_position != nice_positions.end()) {
+            if (n_input_neurons == 1 && free_position != nice_positions.end()) {
                 cfg.input_w(free_position->first, free_position->second, i) = mu_in_weight.at(i);
                 ++free_position;
             } else {
                 af::array input_w_single = af::constant(0, state_height, state_width, DType);
                 af::array idxs = af_utils::shuffle(af::seq(state_height * state_width), af_prng)(
-                  af::seq(input_to_n));
+                  af::seq(n_input_neurons));
                 input_w_single(idxs) =
-                  (af::randu(input_to_n, DType, af_prng) * 2 - 1) * sigma_in_weight.at(i)
+                  (af::randu(n_input_neurons, DType, af_prng) * 2 - 1) * sigma_in_weight.at(i)
                   + mu_in_weight.at(i);
                 cfg.input_w(af::span, af::span, i) = input_w_single;
             }
         }
         cfg.feedback_w = af::constant(0, state_height, state_width, n_outs, DType);
         for (long i = 0; i < n_outs; ++i) {
-            if (input_to_n == 1 && free_position != nice_positions.end()) {
+            if (n_input_neurons == 1 && free_position != nice_positions.end()) {
                 cfg.feedback_w(free_position->first, free_position->second, i) = mu_fb_weight.at(i);
                 ++free_position;
             } else {
                 af::array feedback_w_single = af::constant(0, state_height, state_width, DType);
                 af::array idxs = af_utils::shuffle(af::seq(state_height * state_width), af_prng)(
-                  af::seq(input_to_n));
+                  af::seq(n_input_neurons));
                 feedback_w_single(idxs) =
-                  (af::randu(input_to_n, DType, af_prng) * 2 - 1) * sigma_fb_weight.at(i)
+                  (af::randu(n_input_neurons, DType, af_prng) * 2 - 1) * sigma_fb_weight.at(i)
                   + mu_fb_weight.at(i);
                 cfg.feedback_w(af::span, af::span, i) = feedback_w_single;
             }
@@ -1061,7 +1063,7 @@ inline po::options_description lcnn_arg_description()
        "See random_lcnn().")                                                           //
       ("lcnn.topology", po::value<std::string>()->default_value("sparse"),             //
        "See random_lcnn().")                                                           //
-      ("lcnn.input-to-n", po::value<long>()->default_value(0),                         //
+      ("lcnn.input-to-n", po::value<double>()->default_value(1.),                      //
        "See random_lcnn().")                                                           //
       ("lcnn.noise", po::value<double>()->default_value(0),                            //
        "See lcnn_config class.")                                                       //
