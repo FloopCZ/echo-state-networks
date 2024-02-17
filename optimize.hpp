@@ -759,7 +759,7 @@ public:
           {"lcnn.n-state-predictors", -0.1},
           {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
-          {"lcnn.input-to-n", -1.1},
+          {"lcnn.input-to-n", -0.1},
           {"lcnn.act-steepness", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
