@@ -487,9 +487,12 @@ public:
         for (long i = 0; i < n_train_trials_; ++i) {
             // select random state predictor indices
             af::array state_predictor_indices;
-            if (predictor_subset)
-                state_predictor_indices = generate_random_state_indices(
-                  std::lround(n_state_predictors_ * state_.elements()));
+            if (predictor_subset) {
+                long n_neurons = std::clamp(
+                  std::lround(n_state_predictors_ * state_.elements()), 1L,
+                  (long)state_.elements());
+                state_predictor_indices = generate_random_state_indices(n_neurons);
+            }
             // train
             train_result_t train_result = train_impl(train_data, state_predictor_indices);
             af::array train_prediction =
