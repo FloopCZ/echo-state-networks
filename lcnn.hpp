@@ -978,7 +978,8 @@ lcnn<DType> random_lcnn(
             cfg.feedback_w(af::span, af::span, i) += mu_fb_weight.at(i);
         }
     } else {
-        long n_input_neurons = std::lround(input_to_n * state_height * state_width);
+        long n_input_neurons = std::clamp(
+          std::lround(input_to_n * state_height * state_width), 1L, state_height * state_width);
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
         for (long i = 0; i < n_ins; ++i) {
