@@ -42,8 +42,12 @@ struct lcnn_config {
     af::array reservoir_b;
     /// The input weights of size [state_height, state_width, n_ins].
     af::array input_w;
+    /// The input biases of size [n_ins].
+    af::array input_b;
     /// The feedback weights of size [state_height, state_width, n_outs].
     af::array feedback_w;
+    /// The feedback biases of size [n_outs].
+    af::array feedback_b;
     /// The steepness of the activation function.
     af::array act_steepness;
 
@@ -98,7 +102,9 @@ protected:
     af::array reservoir_w_full_;
     af::array reservoir_b_;
     af::array input_w_;
+    af::array input_b_;
     af::array feedback_w_;
+    af::array feedback_b_;
     af::array act_steepness_;
     std::vector<indiced_output_w> indiced_output_w_;
     bool force_matmul_;
@@ -154,7 +160,7 @@ protected:
     {
         af::array input_w =
           af::moddims(input_w_, state_.dims(0) * state_.dims(1), input_names_.size());
-        af::array delta = af::matmul(std::move(input_w), input);
+        af::array delta = af::matmul(std::move(input_w), input + input_b_);
         state_delta_ += af::moddims(std::move(delta), state_.dims());
     }
 
@@ -163,7 +169,7 @@ protected:
     {
         af::array feedback_w =
           af::moddims(feedback_w_, state_.dims(0) * state_.dims(1), output_names_.size());
-        af::array delta = af::matmul(std::move(feedback_w), feedback);
+        af::array delta = af::matmul(std::move(feedback_w), feedback + feedback_b_);
         state_delta_ += af::moddims(std::move(delta), state_.dims());
     }
 
@@ -252,7 +258,9 @@ public:
             reservoir_weights_full(std::move(cfg.reservoir_w_full));
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
+        input_biases(std::move(cfg.input_b));
         feedback_weights(std::move(cfg.feedback_w));
+        feedback_biases(std::move(cfg.feedback_b));
         activation_steepness(std::move(cfg.act_steepness));
     }
 
@@ -594,6 +602,16 @@ public:
         input_w_ = std::move(new_weights);
     }
 
+    /// Set the input biases of the network.
+    ///
+    /// The shape has to be [n_ins].
+    void input_biases(af::array new_biases)
+    {
+        assert(new_biases.type() == DType);
+        assert((new_biases.dims() == af::dim4{input_names_.size()}));
+        input_b_ = std::move(new_biases);
+    }
+
     /// Get the input weights of the network.
     const af::array& input_weights() const
     {
@@ -609,6 +627,16 @@ public:
         assert(
           (new_weights.dims() == af::dim4{state_.dims(0), state_.dims(1), output_names_.size()}));
         feedback_w_ = std::move(new_weights);
+    }
+
+    /// Set the feedback biases of the network.
+    ///
+    /// The shape has to be [n_outs].
+    void feedback_biases(af::array new_biases)
+    {
+        assert(new_biases.type() == DType);
+        assert((new_biases.dims() == af::dim4{feedback_names_.size()}));
+        feedback_b_ = std::move(new_biases);
     }
 
     /// Get the feedback weights of the network.
@@ -757,16 +785,24 @@ lcnn<DType> random_lcnn(
     double sigma_res = args.at("lcnn.sigma-res").as<double>();
     // The mean of the normal distribution generating the reservoir.
     double mu_res = args.at("lcnn.mu-res").as<double>();
-    // The input weight for each input.
+    // The input weight and bias for each input.
     std::vector<double> in_weight = args.at("lcnn.in-weight").as<std::vector<double>>();
     if (in_weight.size() < n_ins)
         throw std::invalid_argument{
           fmt::format("in-weight ({}) < n_ins ({})", in_weight.size(), n_ins)};
-    // The feedback weights for each output.
+    std::vector<double> in_bias = args.at("lcnn.in-bias").as<std::vector<double>>();
+    if (in_bias.size() < n_ins)
+        throw std::invalid_argument{
+          fmt::format("in-bias ({}) < n_ins ({})", in_bias.size(), n_ins)};
+    // The feedback weight and bias for each output.
     std::vector<double> fb_weight = args.at("lcnn.fb-weight").as<std::vector<double>>();
     if (fb_weight.size() < n_outs)
         throw std::invalid_argument{
           fmt::format("fb-weight ({}) < n_outs ({})", fb_weight.size(), n_outs)};
+    std::vector<double> fb_bias = args.at("lcnn.fb-bias").as<std::vector<double>>();
+    if (fb_bias.size() < n_outs)
+        throw std::invalid_argument{
+          fmt::format("fb-bias ({}) < n_outs ({})", fb_bias.size(), n_outs)};
     // Standard deviation of the normal distribution generating the biases.
     double sigma_b = args.at("lcnn.sigma-b").as<double>();
     // The mean of the normal distribution generating the biases.
@@ -1004,6 +1040,9 @@ lcnn<DType> random_lcnn(
             }
         }
     }
+    cfg.input_b = af_utils::to_array(in_bias);
+    cfg.feedback_b = af_utils::to_array(fb_bias);
+
     cfg.act_steepness = af::randu({state_height, state_width}, DType, af_prng) * 2 - 1;
     cfg.act_steepness = cfg.act_steepness * sigma_act_steepness + mu_act_steepness;
 
@@ -1037,7 +1076,17 @@ inline po::options_description lcnn_arg_description()
          ->multitoken()                                                                //
          ->default_value(std::vector<double>{0.1}, "0.1"),                             //
        "See random_lcnn().")                                                           //
+      ("lcnn.in-bias",                                                                 //
+       po::value<std::vector<double>>()                                                //
+         ->multitoken()                                                                //
+         ->default_value(std::vector<double>{0.0}, "0.0"),                             //
+       "See random_lcnn().")                                                           //
       ("lcnn.fb-weight",                                                               //
+       po::value<std::vector<double>>()                                                //
+         ->multitoken()                                                                //
+         ->default_value(std::vector<double>{0}, "0"),                                 //
+       "See random_lcnn().")                                                           //
+      ("lcnn.fb-bias",                                                                 //
        po::value<std::vector<double>>()                                                //
          ->multitoken()                                                                //
          ->default_value(std::vector<double>{0}, "0"),                                 //
