@@ -59,14 +59,18 @@ int main(int argc, char* argv[])
       net_type + ".topology",
       net_type + ".sigma-res",
       net_type + ".mu-res",
-      net_type + ".in-weight",
-      net_type + ".fb-weight",
       net_type + ".sparsity",
       net_type + ".leakage",
       net_type + ".noise",
       net_type + ".sigma-b",
       net_type + ".mu-b"};
-    if (net_type == "lcnn") {
+    if (net_type == "esn") {
+        param_names.push_back("esn.in-weight");
+        param_names.push_back("esn.fb-weight");
+    }
+    if (net_type == "lcnn" || net_type == "lcnn-ensemble") {
+        param_names.push_back("lcnn.mu-fb-weight");
+        param_names.push_back("lcnn.sigma-fb-weight");
         param_names.push_back("lcnn.state-height");
         param_names.push_back("lcnn.state-width");
         param_names.push_back("lcnn.kernel-height");
