@@ -13,7 +13,7 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
-  --opt.exclude-params=lcnn.noise lcnn.act-steepness lcnn.sparsity lcnn.fb-weight lcnn.train-valid-ratio \
+  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.train-valid-ratio lcnn.act-steepness lcnn.fb-weight \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
