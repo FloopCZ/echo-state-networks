@@ -12,7 +12,7 @@ mkdir -p "${outdir}"
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.fb-weight \
+  --opt.exclude-params=lcnn.mu-fb-weight lcnn.sigma-fb-weight \
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height=40 \
   --lcnn.state-width=25 \
