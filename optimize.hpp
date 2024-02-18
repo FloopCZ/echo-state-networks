@@ -451,8 +451,7 @@ public:
                 long idx = std::stol(key.substr(sigma_in_weight_prefix.length()));
                 std::vector<double> sigma_in_weights =
                   vm.at(p + "sigma-in-weight").as<std::vector<double>>();
-                params.emplace(
-                  key, inv_exp_transform(std::clamp(sigma_in_weights.at(idx), 1e-40, 1.)));
+                params.emplace(key, inv_exp_transform(std::max(sigma_in_weights.at(idx), 1e-40)));
             } else if (key.starts_with(mu_fb_weight_prefix)) {
                 long idx = std::stol(key.substr(mu_fb_weight_prefix.length()));
                 std::vector<double> mu_fb_weights =
@@ -462,23 +461,19 @@ public:
                 long idx = std::stol(key.substr(sigma_fb_weight_prefix.length()));
                 std::vector<double> sigma_fb_weights =
                   vm.at(p + "sigma-fb-weight").as<std::vector<double>>();
-                params.emplace(
-                  key, inv_exp_transform(std::clamp(sigma_fb_weights.at(idx), 1e-40, 1.)));
+                params.emplace(key, inv_exp_transform(std::max(sigma_fb_weights.at(idx), 1e-40)));
             } else if (key == p + "sparsity") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "leakage") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "noise") {
-                params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == p + "sigma-b") {
-                params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == p + "mu-b") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.l2") {
-                params.emplace(
-                  key, inv_exp_transform(std::clamp(vm.at(key).as<double>(), 1e-40, 1.)));
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == "lcnn.n-state-predictors") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.train-valid-ratio") {
@@ -752,11 +747,11 @@ public:
           {"lcnn.act-steepness", -1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
-            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -0.01});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -0.1});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), -1.1});
-            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), -0.01});
+            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), -0.1});
         }
         return params;
     }
