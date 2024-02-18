@@ -452,7 +452,9 @@ public:
             double valid_err;
         } best_train{.valid_err = std::numeric_limits<double>::max()};
 
-        bool predictor_subset = n_state_predictors_ < 1.;
+        long n_predictors = std::clamp(
+          std::lround(n_state_predictors_ * state_.elements()), 1L, (long)state_.elements());
+        bool predictor_subset = n_predictors < state_.elements();
         bool cross_validate = predictor_subset && n_train_trials_ > 1;
 
         // split the data to train/valid if not using all state neurons or there is just a single
@@ -487,12 +489,8 @@ public:
         for (long i = 0; i < n_train_trials_; ++i) {
             // select random state predictor indices
             af::array state_predictor_indices;
-            if (predictor_subset) {
-                long n_neurons = std::clamp(
-                  std::lround(n_state_predictors_ * state_.elements()), 1L,
-                  (long)state_.elements());
-                state_predictor_indices = generate_random_state_indices(n_neurons);
-            }
+            if (predictor_subset)
+                state_predictor_indices = generate_random_state_indices(n_predictors);
             // train
             train_result_t train_result = train_impl(train_data, state_predictor_indices);
             af::array train_prediction =
@@ -965,7 +963,9 @@ lcnn<DType> random_lcnn(
     auto free_position = nice_positions.begin();
     // if we run out of nice positions, have a generator prepared
 
-    if (input_to_n == 1.) {
+    long n_input_neurons = std::clamp(
+      std::lround(input_to_n * state_height * state_width), 1L, state_height * state_width);
+    if (n_input_neurons == state_height * state_width) {
         // put input and feedback into all the neurons
         cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_ins; ++i) {
@@ -978,8 +978,6 @@ lcnn<DType> random_lcnn(
             cfg.feedback_w(af::span, af::span, i) += mu_fb_weight.at(i);
         }
     } else {
-        long n_input_neurons = std::clamp(
-          std::lround(input_to_n * state_height * state_width), 1L, state_height * state_width);
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
         for (long i = 0; i < n_ins; ++i) {
@@ -1046,7 +1044,7 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.sigma-in-weight",                                                         //
        po::value<std::vector<double>>()                                                //
          ->multitoken()                                                                //
-         ->default_value(std::vector<double>{0.1}, "0.1"),                             //
+         ->default_value(std::vector<double>{0.0}, "0.0"),                             //
        "See random_lcnn().")                                                           //
       ("lcnn.mu-fb-weight",                                                            //
        po::value<std::vector<double>>()                                                //
@@ -1056,7 +1054,7 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.sigma-fb-weight",                                                         //
        po::value<std::vector<double>>()                                                //
          ->multitoken()                                                                //
-         ->default_value(std::vector<double>{0}, "0.1"),                               //
+         ->default_value(std::vector<double>{0}, "0.0"),                               //
        "See random_lcnn().")                                                           //
       ("lcnn.sigma-b", po::value<double>()->default_value(0),                          //
        "See random_lcnn().")                                                           //
