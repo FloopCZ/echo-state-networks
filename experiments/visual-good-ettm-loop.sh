@@ -8,7 +8,7 @@
 --bench.mackey-glass-tau=30 \
 --bench.memory-history=0 \
 --bench.n-epochs=2 \
---bench.n-steps-ahead=64 \
+--bench.n-steps-ahead=96 \
 --bench.n-trials=1 \
 --bench.narma-tau=1 \
 --bench.period=100 \
