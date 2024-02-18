@@ -26,6 +26,8 @@ namespace rg = ranges;
 namespace rgv = ranges::views;
 
 inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
+  "lcnn.mu-in-weight",
+  "lcnn.mu-fb-weight",
   "lcnn.sigma-b",
   "lcnn.noise",
   "lcnn.sparsity",

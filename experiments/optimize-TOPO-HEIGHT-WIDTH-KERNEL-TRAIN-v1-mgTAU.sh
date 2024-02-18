@@ -15,7 +15,7 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.fb-weight \
+  --opt.exclude-params=lcnn.mu-fb-weight lcnn.sigma-fb-weight \
   --lcnn.topology="${TOPO}" \
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
