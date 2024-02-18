@@ -7,7 +7,7 @@
 --bench.mackey-glass-delta=0.10000000000000001 \
 --bench.mackey-glass-tau=30 \
 --bench.memory-history=0 \
---bench.n-epochs=2 \
+--bench.n-epochs=1 \
 --bench.n-steps-ahead=96 \
 --bench.n-trials=1 \
 --bench.narma-tau=1 \
@@ -33,7 +33,7 @@
 --lcnn.noise=0 \
 --lcnn.sigma-b=0 \
 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0 --lcnn.sigma-fb-weight=0  \
---lcnn.sigma-in-weight=0.00028737189352492481 --lcnn.sigma-in-weight=0.0001171102643476089 --lcnn.sigma-in-weight=0.0016303861105964994 --lcnn.sigma-in-weight=0.01348373922995077 --lcnn.sigma-in-weight=0.41299937856583085 --lcnn.sigma-in-weight=0.0048949640069720982 --lcnn.sigma-in-weight=2.6481946148131271e-06 --lcnn.sigma-in-weight=41.950504835431026 --lcnn.sigma-in-weight=0.00036441726818194526 --lcnn.sigma-in-weight=1.3857043664407937e-05 --lcnn.sigma-in-weight=5.6692603228112007e-08 --lcnn.sigma-in-weight=9.3569938460380919e-08  \
+--lcnn.sigma-in-weight=0.00028737189352492481 --lcnn.sigma-in-weight=0.0001171102643476089 --lcnn.sigma-in-weight=0.0016303861105964994 --lcnn.sigma-in-weight=0.01348373922995077 --lcnn.sigma-in-weight=0.41299937856583085 --lcnn.sigma-in-weight=0.0048949640069720982 --lcnn.sigma-in-weight=2.6481946148131271e-06 --lcnn.sigma-in-weight=21.950504835431026 --lcnn.sigma-in-weight=0.00036441726818194526 --lcnn.sigma-in-weight=1.3857043664407937e-05 --lcnn.sigma-in-weight=5.6692603228112007e-08 --lcnn.sigma-in-weight=9.3569938460380919e-08  \
 --lcnn.sigma-res=0.0019449209823236501 \
 --lcnn.sparsity=0 \
 --lcnn.state-height=40 \
