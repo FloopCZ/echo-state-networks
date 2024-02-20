@@ -35,6 +35,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.train-valid-ratio",
   "lcnn.act-steepness",
   "lcnn.input-to-n",
+  "lcnn.memory-prob",
   "esn.noise",
   "esn.sparsity"};
 inline const std::string DEFAULT_EXCLUDED_PARAMS_STR =
@@ -482,6 +483,8 @@ public:
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "act-steepness") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
+            } else if (key == "lcnn.memory-prob") {
+                params.emplace(key, vm.at(key).as<double>());
             }
         }
         return params;
@@ -562,8 +565,7 @@ public:
         }
         if (params.contains("lcnn.n-state-predictors")) {
             double n_predictors = std::clamp(params.at("lcnn.n-state-predictors"), 0.0, 1.0);
-            cfg.insert_or_assign(
-              "lcnn.n-state-predictors", po::variable_value(n_predictors, false));
+            cfg.insert_or_assign("lcnn.n-state-predictors", val(n_predictors));
             params.erase("lcnn.n-state-predictors");
         }
         if (params.contains("lcnn.train-valid-ratio")) {
@@ -574,12 +576,17 @@ public:
         }
         if (params.contains("lcnn.input-to-n")) {
             double input_to_n = std::clamp(params.at("lcnn.input-to-n"), 0.0, 1.0);
-            cfg.insert_or_assign("lcnn.input-to-n", po::variable_value(input_to_n, false));
+            cfg.insert_or_assign("lcnn.input-to-n", val(input_to_n));
             params.erase("lcnn.input-to-n");
         }
         if (params.contains(p + "act-steepness")) {
             cfg.insert_or_assign(p + "act-steepness", powval(params.at(p + "act-steepness")));
             params.erase(p + "act-steepness");
+        }
+        if (params.contains("lcnn.memory-prob")) {
+            cfg.insert_or_assign(
+              "lcnn.memory-prob", val(std::clamp(params.at("lcnn.memory-prob"), 0.0, 1.0)));
+            params.erase("lcnn.memory-prob");
         }
         assert(
           params.empty() || (params.size() == 1 && params.contains("none")));  // make sure all
@@ -646,7 +653,8 @@ public:
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
           {"lcnn.input-to-n", 0.5},
-          {"lcnn.act-steepness", inv_pow_transform(1.0)}};
+          {"lcnn.act-steepness", inv_pow_transform(1.0)},
+          {"lcnn.memory-prob", 0.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
             param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.2});
@@ -678,7 +686,8 @@ public:
           "lcnn.train-valid-ratio",
           "lcnn.l2",
           "lcnn.input-to-n",
-          "lcnn.act-steepness"};
+          "lcnn.act-steepness",
+          "lcnn.memory-prob"};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert("lcnn.mu-in-weight-" + std::to_string(i));
             params.insert("lcnn.sigma-in-weight-" + std::to_string(i));
@@ -718,7 +727,8 @@ public:
           {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.05},
           {"lcnn.input-to-n", 0.1},
-          {"lcnn.act-steepness", 0.05}};
+          {"lcnn.act-steepness", 0.05},
+          {"lcnn.memory-prob", 0.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.05});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.05});
@@ -744,7 +754,8 @@ public:
           {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
           {"lcnn.input-to-n", -0.1},
-          {"lcnn.act-steepness", -1.1}};
+          {"lcnn.act-steepness", -1.1},
+          {"lcnn.memory-prob", -0.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -0.1});
@@ -770,7 +781,8 @@ public:
           {"lcnn.train-valid-ratio", 1.1},
           {"lcnn.l2", 2.0},
           {"lcnn.input-to-n", 1.1},
-          {"lcnn.act-steepness", 1.1}};
+          {"lcnn.act-steepness", 1.1},
+          {"lcnn.memory-prob", 1.1}};
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 1.1});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 1.1});

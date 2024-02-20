@@ -44,6 +44,8 @@ struct lcnn_config {
     af::array input_w;
     /// The feedback weights of size [state_height, state_width, n_outs].
     af::array feedback_w;
+    // The mapping of each state position to its memory point (0 to memory_length - 1).
+    af::array memory_map;
 
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
@@ -93,6 +95,9 @@ protected:
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
+    af::array state_memory_;
+    af::array memory_map_;
+    long memory_length_;
     data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
     af::array reservoir_w_;
@@ -206,6 +211,22 @@ protected:
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
     }
 
+    virtual void update_state_memory()
+    {
+        if (memory_length_ == 0) return;
+        state_memory_ = af::shift(state_memory_, 0, 0, 1);
+        state_memory_(af::span, af::span, 0) = state_;
+    }
+
+    virtual void update_via_memory()
+    {
+        if (memory_length_ == 0) return;
+        af::array memory = af::moddims(state_memory_, state_.elements(), memory_length_);
+        af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
+        af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
+        state_ = af::moddims(new_state, state_.dims());
+    }
+
     virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
     {
         // consider NaN as not provided
@@ -254,6 +275,7 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
+        memory_map(std::move(cfg.memory_map));
     }
 
     /// TODO fix docs
@@ -315,6 +337,11 @@ public:
 
             assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
+
+        update_state_memory();
+
+        // restore memory neuron states from memory
+        update_via_memory();
 
         update_last_output();
 
@@ -550,6 +577,7 @@ public:
         assert(new_state.type() == DType);
         // assert(new_state.numdims() == 2);  // Not true for vector state.
         state_ = std::move(new_state);
+        if (memory_length_ > 0) state_memory_ = af::tile(state_, 1, 1, memory_length_);
     }
 
     /// The input names.
@@ -607,6 +635,21 @@ public:
     const af::array& feedback_weights() const
     {
         return feedback_w_;
+    }
+
+    /// Set the memory map (and memory length) of the network.
+    ///
+    /// The shape has to be the same as the state.
+    void memory_map(af::array new_map)
+    {
+        if (new_map.isempty()) {
+            memory_length_ = 0;
+            return;
+        }
+        assert(new_map.type() == DType);
+        assert(new_map.dims() == state_.dims());
+        memory_map_ = std::move(new_map);
+        memory_length_ = std::roundl(af::max<double>(memory_map_)) + 1;
     }
 
     /// Set the reservoir weights of the network.
@@ -780,6 +823,10 @@ lcnn<DType> random_lcnn(
     boost::split(topo_params, topology, boost::is_any_of("-"));
     // How many neurons are injected with each input.
     double input_to_n = std::clamp(args.at("lcnn.input-to-n").as<double>(), 0., 1.);
+    // The maximum memory length.
+    long memory_length = std::clamp(args.at("lcnn.memory-length").as<long>(), 1L, 1000L);
+    // The probability that a neuron is a memory neuron.
+    double memory_prob = std::clamp(args.at("lcnn.memory-prob").as<double>(), 0., 1.);
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1016,6 +1063,16 @@ lcnn<DType> random_lcnn(
     // the initial state is random
     // cfg.init_state = af::randu({state_height, state_width}, DType, af_prng) * 2. - 1.;
 
+    if (memory_length == 0) {
+        cfg.memory_map = af::array{};
+    } else {
+        cfg.memory_map = af::constant(0, {state_height, state_width}, DType);
+        af::array memory_full =
+          af::round(af::randu(cfg.memory_map.dims(), DType, af_prng) * (memory_length - 1));
+        af::array memory_mask = af::randu(cfg.memory_map.dims()) < memory_prob;
+        cfg.memory_map(memory_mask) = memory_full(memory_mask);
+    }
+
     return lcnn<DType>{std::move(cfg), prng};
 }
 
@@ -1084,6 +1141,10 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                       //
       ("lcnn.act-steepness", po::value<double>()->default_value(1.0),                  //
        "See lcnn_config class.")                                                       //
+      ("lcnn.memory-length", po::value<long>()->default_value(0.0),                    //
+       "The maximum reach of the memory. Set to 0 to disable memory.")                 //
+      ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                    //
+       "The probability that a neuron is a memory neuron.")                            //
       ;
     return lcnn_arg_desc;
 }
