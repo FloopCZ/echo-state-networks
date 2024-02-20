@@ -95,9 +95,9 @@ protected:
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
-    af::array state_memory_;
     af::array memory_map_;
     long memory_length_;
+    af::array state_memory_;
     data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
     af::array reservoir_w_;
@@ -213,14 +213,14 @@ protected:
 
     virtual void update_state_memory()
     {
-        if (memory_length_ == 0) return;
+        if (memory_length_ <= 0) return;
         state_memory_ = af::shift(state_memory_, 0, 0, 1);
         state_memory_(af::span, af::span, 0) = state_;
     }
 
     virtual void update_via_memory()
     {
-        if (memory_length_ == 0) return;
+        if (memory_length_ <= 0) return;
         af::array memory = af::moddims(state_memory_, state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
@@ -251,6 +251,7 @@ public:
     lcnn(lcnn_config cfg, std::mt19937 prng)
       : input_names_{cfg.input_names}
       , output_names_{cfg.output_names}
+      , memory_length_{0}
       , last_output_{}
       , force_matmul_{false}
       , prng_init_{std::move(prng)}
@@ -268,6 +269,7 @@ public:
       , act_steepness_(cfg.act_steepness)
     {
         state(std::move(cfg.init_state));
+        memory_map(std::move(cfg.memory_map));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
         if (!cfg.reservoir_w.isempty()) reservoir_weights(std::move(cfg.reservoir_w));
         if (!cfg.reservoir_w_full.isempty())
@@ -275,7 +277,6 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
-        memory_map(std::move(cfg.memory_map));
     }
 
     /// TODO fix docs
@@ -650,6 +651,7 @@ public:
         assert(new_map.dims() == state_.dims());
         memory_map_ = std::move(new_map);
         memory_length_ = std::roundl(af::max<double>(memory_map_)) + 1;
+        state_memory_ = af::tile(state_, 1, 1, memory_length_);
     }
 
     /// Set the reservoir weights of the network.
@@ -824,7 +826,7 @@ lcnn<DType> random_lcnn(
     // How many neurons are injected with each input.
     double input_to_n = std::clamp(args.at("lcnn.input-to-n").as<double>(), 0., 1.);
     // The maximum memory length.
-    long memory_length = std::clamp(args.at("lcnn.memory-length").as<long>(), 1L, 1000L);
+    long memory_length = std::clamp(args.at("lcnn.memory-length").as<long>(), 0L, 1000L);
     // The probability that a neuron is a memory neuron.
     double memory_prob = std::clamp(args.at("lcnn.memory-prob").as<double>(), 0., 1.);
 
