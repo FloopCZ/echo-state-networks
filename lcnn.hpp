@@ -464,7 +464,7 @@ public:
         if (!indiced_output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
             std::cout << fmt::format(
-              "Before train {} MSE error: {}", indiced_output_w_.size(), feed_err)
+              "Before train {} MSE error (all): {}", indiced_output_w_.size(), feed_err)
                       << std::endl;
         }
 

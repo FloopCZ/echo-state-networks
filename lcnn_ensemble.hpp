@@ -4,9 +4,6 @@
 
 #include "lcnn.hpp"
 
-#include <algorithm>
-#include <execution>
-
 namespace esn {
 
 template <af::dtype DType = DEFAULT_AF_DTYPE>
@@ -19,18 +16,14 @@ protected:
     void update_last_output()
     {
         data_map last_outputs = nets_.at(0)->last_output();
-        // af::print("first out", nets_.at(0)->last_output().data());
         if (last_outputs.empty()) {
             last_output_.clear();
             return;
         }
         for (long i = 1; i < nets_.size(); ++i) {
             last_outputs = last_outputs.concat(nets_.at(i)->last_output());
-            // af::print("interm out", nets_.at(i)->last_output().data());
         }
-        // af::print("all out", last_outputs.data());
         last_output_ = {last_outputs.keys(), af::median(last_outputs.data(), 1)};
-        // af::print("last out", last_output_.data());
         assert(last_output_.keys() == nets_.at(0)->output_names());
         assert(last_output_.length() == 1);
         for (std::unique_ptr<lcnn<DType>>& net : nets_) net->last_output(last_output_);
@@ -49,12 +42,8 @@ public:
       const data_map& step_desired,
       input_transform_fn_t input_transform) override
     {
-        std::for_each(
-          std::execution::par, nets_.begin(), nets_.end(), [&](std::unique_ptr<lcnn<DType>>& net) {
-              net->step(step_input, step_feedback, step_desired, input_transform);
-          });
-        // for (std::unique_ptr<lcnn<DType>>& net : nets_)
-        //     net->step(step_input, step_feedback, step_desired, input_transform);
+        for (std::unique_ptr<lcnn<DType>>& net : nets_)
+            net->step(step_input, step_feedback, step_desired, input_transform);
         update_last_output();
 
         // Call the registered callback functions.

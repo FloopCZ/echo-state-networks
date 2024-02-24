@@ -21,7 +21,7 @@
 --lcnn.l2=1.0506814775871234e-09 \
 --lcnn.leakage=1 \
 --lcnn.memory-length=60 \
---lcnn.memory-prob=41.382411259335775 \
+--lcnn.memory-prob=1 \
 --lcnn.mu-b=-2.2120826697209937e-06 \
 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0  \
 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0 --lcnn.mu-in-weight=0  \
