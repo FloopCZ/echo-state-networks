@@ -122,6 +122,7 @@ public:
                .feedback = ys_groups.at(0),
                .desired = ys_groups.at(0),
                .input_transform = input_transform_fn()});
+            net.learning(false);
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
             net.event("train-start");
@@ -205,6 +206,7 @@ public:
                .feedback = ys_groups.at(0),
                .desired = ys_groups.at(0),
                .input_transform = input_transform_fn()});
+            net.learning(false);
             // train the network on the training sequence with teacher forcing
             net.event("train-start");
             net.train(
