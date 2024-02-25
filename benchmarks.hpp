@@ -532,13 +532,14 @@ public:
                     std::tm tm = {};
                     std::stringstream ss{value};
                     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
+                    int n_days = n_days(tm);
                     data["date-mon"].push_back(
                       std::sin(
-                        (tm.tm_mon * 31 * 24 + tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI
-                        / (12 * 31 * 24))
+                        (tm.tm_mon * n_days * 24 + tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI
+                        / (12 * n_days * 24))
                       * 10);
                     data["date-mday"].push_back(
-                      std::sin((tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI / (31 * 24)) * 10);
+                      std::sin((tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI / (n_days * 24)) * 10);
                     data["date-wday"].push_back(
                       std::sin((tm.tm_wday * 24 + tm.tm_hour) * 2. * M_PI / (7 * 24)) * 10);
                     data["date-hour"].push_back(std::sin(tm.tm_hour * 2. * M_PI / 24) * 10);
