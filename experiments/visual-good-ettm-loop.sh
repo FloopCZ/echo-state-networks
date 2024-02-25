@@ -37,5 +37,5 @@
 --lcnn.state-height=40 \
 --lcnn.state-width=50 \
 --lcnn.topology=lcnn \
---lcnn.train-aggregation=ensemble \
+--lcnn.train-aggregation=replace \
 --lcnn.train-valid-ratio=0.80000000000000004
