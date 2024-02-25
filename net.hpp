@@ -75,6 +75,8 @@ public:
 
     virtual void random_noise(bool) = 0;
 
+    virtual void learning(bool) = 0;
+
     virtual void reset() = 0;
 
     /// Add a callback to call when the state has changed.

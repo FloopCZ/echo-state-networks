@@ -335,6 +335,9 @@ public:
         noise_enabled_ = enable;
     }
 
+    /// Disable weight adaptation.
+    void learning(bool enable) override {}
+
     void reset() override
     {
         prng_ = prng_init_;

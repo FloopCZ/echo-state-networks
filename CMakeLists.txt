@@ -103,6 +103,45 @@ if (OpenCL_FOUND)
   )
 endif()
 
+add_library(lcnn_adapt_generic lcnn_adapt_generic.cpp)
+
+add_library(lcnn_adapt_cpu lcnn_adapt_cpu.cpp)
+target_include_directories(
+  lcnn_adapt_cpu
+  PUBLIC ${ArrayFire_INCLUDE_DIRS}
+)
+target_link_libraries(
+  lcnn_adapt_cpu
+  PUBLIC lcnn_adapt_generic
+  PUBLIC ${ArrayFire_CPU_LIBRARIES}
+)
+
+if (CUDAToolkit_FOUND)
+  enable_language(CUDA)
+  add_library(lcnn_adapt_cuda lcnn_adapt_cuda.cu)
+  target_include_directories(
+    lcnn_adapt_cuda
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_adapt_cuda
+    PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+  )
+endif()
+
+if (OpenCL_FOUND)
+  add_library(lcnn_adapt_cl lcnn_adapt_cl.cpp)
+  target_include_directories(
+    lcnn_adapt_cl
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_adapt_cl
+    PUBLIC lcnn_adapt_generic
+    PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
+  )
+endif()
+
 # ---------------------------------------
 # Utility functions for multiple backends
 # ---------------------------------------
@@ -150,6 +189,7 @@ function(link_with_cpu EXECUTABLE_NAME)
     "${EXECUTABLE_NAME}_cpu"
     PUBLIC ${ArrayFire_CPU_LIBRARIES}
     PUBLIC lcnn_step_cpu
+    PUBLIC lcnn_adapt_cpu
   )
 endfunction(link_with_cpu)
 
@@ -160,6 +200,7 @@ function(link_with_cuda EXECUTABLE_NAME)
     "${EXECUTABLE_NAME}_cuda"
     PUBLIC ${ArrayFire_CUDA_LIBRARIES}
     PUBLIC lcnn_step_cuda
+    PUBLIC lcnn_adapt_cuda
   )
 endfunction(link_with_cuda)
 
@@ -170,6 +211,7 @@ function(link_with_cl EXECUTABLE_NAME)
     "${EXECUTABLE_NAME}_cl"
     PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
     PUBLIC lcnn_step_cl
+    PUBLIC lcnn_adapt_cl
   )
 endfunction(link_with_cl)
 

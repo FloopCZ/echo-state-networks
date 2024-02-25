@@ -138,10 +138,14 @@ public:
         return nets_.at(0)->neuron_ins();
     }
 
-    /// Disable random noise e.g., for lyapunov testing.
     void random_noise(bool enable) override
     {
         for (std::unique_ptr<lcnn<DType>>& net : nets_) net->random_noise(enable);
+    }
+
+    void learning(bool enable) override
+    {
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->learning(enable);
     }
 
     std::unique_ptr<net_base> clone() const override

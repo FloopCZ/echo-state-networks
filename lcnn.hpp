@@ -5,6 +5,7 @@
 #include "arrayfire_utils.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
+#include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
 #include "net.hpp"
 #include "simple_esn.hpp"
@@ -66,6 +67,8 @@ struct lcnn_config {
     double train_valid_ratio = 0.8;
     // The steepness of the activation function.
     double act_steepness = 1.0;
+    // Configuration for the lcnn weight adaptation.
+    lcnn_adaptation_config adaptation_cfg;
 
     lcnn_config() = default;
     lcnn_config(const po::variables_map& args)
@@ -79,6 +82,8 @@ struct lcnn_config {
         train_aggregation = args.at("lcnn.train-aggregation").as<std::string>();
         train_valid_ratio = args.at("lcnn.train-valid-ratio").as<double>();
         act_steepness = args.at("lcnn.act-steepness").as<double>();
+        adaptation_cfg.learning_rate = args.at("lcnn.adapt.learning-rate").as<double>();
+        adaptation_cfg.weight_leakage = args.at("lcnn.adapt.weight-leakage").as<double>();
     }
 };
 
@@ -94,6 +99,7 @@ protected:
     std::set<std::string> input_names_;
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
+    af::array prev_state_;
     af::array state_;
     af::array memory_map_;
     long memory_length_;
@@ -123,6 +129,8 @@ protected:
     std::string train_aggregation_;
     double train_valid_ratio_;
     double act_steepness_;
+    bool learning_enabled_;
+    lcnn_adaptation_config adaptation_cfg;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
     bool do_matmul_step() const
@@ -179,6 +187,8 @@ protected:
         // Add noise to the states.
         if (noise_enabled_ && noise_ != 0.)
             state_delta_ *= 1. + af::randn({state_.dims()}, DType, af_prng_) * noise_;
+        // Store the state e.g., for weight adaptation.
+        prev_state_ = state_;
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
@@ -226,7 +236,15 @@ protected:
         af::array memory = af::moddims(state_memory_, state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
+        prev_state_ = state_;
         state_ = af::moddims(new_state, state_.dims());
+    }
+
+    void adapt_weights()
+    {
+        assert(!prev_state_.isempty());
+        if (!learning_enabled_ || adaptation_cfg.learning_rate == 0.) return;
+        reservoir_w_ = lcnn_adapt(prev_state_, state_, reservoir_w_, adaptation_cfg);
     }
 
     virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
@@ -269,6 +287,7 @@ public:
       , train_aggregation_{cfg.train_aggregation}
       , train_valid_ratio_{cfg.train_valid_ratio}
       , act_steepness_(cfg.act_steepness)
+      , adaptation_cfg(cfg.adaptation_cfg)
     {
         state(std::move(cfg.init_state));
         memory_map(std::move(cfg.memory_map));
@@ -345,6 +364,8 @@ public:
 
         // restore memory neuron states from memory
         update_via_memory();
+
+        adapt_weights();
 
         update_last_output();
 
@@ -583,6 +604,7 @@ public:
         assert(new_state.type() == DType);
         // assert(new_state.numdims() == 2);  // Not true for vector state.
         state_ = std::move(new_state);
+        prev_state_ = state_;
         if (memory_length_ > 0) state_memory_ = af::tile(state_, 1, 1, memory_length_);
     }
 
@@ -765,6 +787,12 @@ public:
     void random_noise(bool enable) override
     {
         noise_enabled_ = enable;
+    }
+
+    /// Disable weight adaptation.
+    void learning(bool enable) override
+    {
+        learning_enabled_ = enable;
     }
 
     std::unique_ptr<net_base> clone() const override
@@ -1152,6 +1180,10 @@ inline po::options_description lcnn_arg_description()
        "The maximum reach of the memory. Set to 0 to disable memory.")                //
       ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
+      ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
+       "Learning rate for weight adaptation. Set to 0 to disable.")                   //
+      ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //
+       "Decay rate for weight adaptation.")                                           //
       ;
     return lcnn_arg_desc;
 }

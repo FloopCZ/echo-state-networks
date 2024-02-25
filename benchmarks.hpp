@@ -1041,6 +1041,7 @@ public:
 class semaphore_benchmark_set : public benchmark_set_base {
 protected:
     long period_;
+    long stop_;
     std::set<std::string> input_names_{"xs"};
     std::set<std::string> output_names_{"ys"};
 
@@ -1051,7 +1052,8 @@ public:
       std::set<std::string> input_names = {"xs"},
       std::set<std::string> output_names = {"ys"})
       : benchmark_set_base{std::move(config)}
-      , period_{config_.at("bench.period").as<long>()}
+      , period_{config_.at("bench.semaphore-period").as<long>()}
+      , stop_{config_.at("bench.semaphore-stop").as<long>()}
       , input_names_{std::move(input_names)}
       , output_names_{std::move(output_names)}
     {
@@ -1062,6 +1064,10 @@ public:
         assert(net.input_names() == input_names_ && net.output_names() == output_names_);
         for (long time = 0;; ++time) {
             af::array in = af::constant(2. * (time / period_ % 2) - 1, 1, net.state().type());
+            if (time > stop_) {
+                in = af::constant(0, 1, net.state().type());
+                net.learning(false);
+            }
             net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, input_transform_fn());
         }
     }
@@ -1152,8 +1158,10 @@ inline po::options_description benchmark_arg_description()
        "The number of valid time steps.")                                                        //
       ("bench.valid-steps", po::value<long>()->default_value(1000),                              //
        "The number of test time steps.")                                                         //
-      ("bench.period", po::value<long>()->default_value(100),                                    //
+      ("bench.semaphore-period", po::value<long>()->default_value(100),                          //
        "The period of flipping the semaphore sign.")                                             //
+      ("bench.semaphore-stop", po::value<long>()->default_value(100),                            //
+       "Time when semaphore stops blinking.")                                                    //
       ("bench.ett-data-path", po::value<std::string>()->default_value("third_party/ETDataset"),  //
        "Path to the ETT dataset.")                                                               //
       ("bench.etth-variant", po::value<int>()->default_value(1),                                 //
