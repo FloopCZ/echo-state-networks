@@ -36,6 +36,8 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.act-steepness",
   "lcnn.input-to-n",
   "lcnn.memory-prob",
+  "lcnn.adapt.learning-rate",
+  "lcnn.adapt.weight-leakage",
   "esn.noise",
   "esn.sparsity"};
 inline const std::string DEFAULT_EXCLUDED_PARAMS_STR =
@@ -485,6 +487,10 @@ public:
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.memory-prob") {
                 params.emplace(key, vm.at(key).as<double>());
+            } else if (key == "lcnn.adapt.learning-rate") {
+                params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
+            } else if (key == "lcnn.adapt.weight-leakage") {
+                params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             }
         }
         return params;
@@ -588,6 +594,16 @@ public:
               "lcnn.memory-prob", val(std::clamp(params.at("lcnn.memory-prob"), 0.0, 1.0)));
             params.erase("lcnn.memory-prob");
         }
+        if (params.contains("lcnn.adapt.learning-rate")) {
+            cfg.insert_or_assign(
+              "lcnn.adapt.learning-rate", expval(params.at("lcnn.adapt.learning-rate")));
+            params.erase("lcnn.adapt.learning-rate");
+        }
+        if (params.contains("lcnn.adapt.weight-leakage")) {
+            cfg.insert_or_assign(
+              "lcnn.adapt.weight-leakage", expval(params.at("lcnn.adapt.weight-leakage")));
+            params.erase("lcnn.adapt.weight-leakage");
+        }
         assert(
           params.empty() || (params.size() == 1 && params.contains("none")));  // make sure all
                                                                                // the params have
@@ -654,7 +670,10 @@ public:
           {"lcnn.l2", 0.2},
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
-          {"lcnn.memory-prob", 0.1}};
+          {"lcnn.memory-prob", 0.1},
+          {"lcnn.adapt.learning-rate", 0.9},
+          {"lcnn.adapt.weight-leakage", 0.9},
+        };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
             param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.2});
@@ -687,7 +706,10 @@ public:
           "lcnn.l2",
           "lcnn.input-to-n",
           "lcnn.act-steepness",
-          "lcnn.memory-prob"};
+          "lcnn.memory-prob",
+          "lcnn.adapt.learning-rate",
+          "lcnn.adapt.weight-leakage",
+        };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert("lcnn.mu-in-weight-" + std::to_string(i));
             params.insert("lcnn.sigma-in-weight-" + std::to_string(i));
@@ -728,7 +750,10 @@ public:
           {"lcnn.l2", 0.05},
           {"lcnn.input-to-n", 0.1},
           {"lcnn.act-steepness", 0.05},
-          {"lcnn.memory-prob", 0.1}};
+          {"lcnn.memory-prob", 0.1},
+          {"lcnn.adapt.learning-rate", 0.05},
+          {"lcnn.adapt.weight-leakage", 0.05},
+        };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.05});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.05});
@@ -755,7 +780,10 @@ public:
           {"lcnn.l2", -0.1},
           {"lcnn.input-to-n", -0.1},
           {"lcnn.act-steepness", -1.1},
-          {"lcnn.memory-prob", -0.1}};
+          {"lcnn.memory-prob", -0.1},
+          {"lcnn.adapt.learning-rate", -0.1},
+          {"lcnn.adapt.weight-leakage", -0.1},
+        };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -0.1});
@@ -782,7 +810,10 @@ public:
           {"lcnn.l2", 2.0},
           {"lcnn.input-to-n", 1.1},
           {"lcnn.act-steepness", 1.1},
-          {"lcnn.memory-prob", 1.1}};
+          {"lcnn.memory-prob", 1.1},
+          {"lcnn.adapt.learning-rate", 1.1},
+          {"lcnn.adapt.weight-leakage", 1.1},
+        };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 1.1});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 1.1});
