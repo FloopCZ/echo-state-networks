@@ -5,7 +5,7 @@
 #include <device_launch_parameters.h>
 
 __global__ void
-lcnn_step_kernel(double* input, double* reservoir_w, double* output, int N, int M, int K, int L)
+lcnn_step_kernel(double* state, double* reservoir_w, double* output, int N, int M, int K, int L)
 {
     int block_size = blockDim.x * blockDim.y;
     int kernel_radius_height = K / 2;
@@ -39,7 +39,7 @@ lcnn_step_kernel(double* input, double* reservoir_w, double* output, int N, int 
         //   "perimeter_idx = %d, perimeter i,j = %d,%d, input i,j = %d,%d, value = %f\n",
         //   perimeter_idx, perimeter_i, perimeter_j, input_i, input_j, input[input_i + N *
         //   input_j]);
-        perimeter[perimeter_idx] = input[input_i + N * input_j];
+        perimeter[perimeter_idx] = state[input_i + N * input_j];
     }
 
     __syncthreads();
