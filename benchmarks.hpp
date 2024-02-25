@@ -532,7 +532,7 @@ public:
                     std::tm tm = {};
                     std::stringstream ss{value};
                     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-                    int n_days = n_days(tm);
+                    int n_days = days_in_month(tm);
                     data["date-mon"].push_back(
                       std::sin(
                         (tm.tm_mon * n_days * 24 + tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI
