@@ -66,9 +66,10 @@ __global__ void lcnn_adapt_kernel(
             int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
             double presynaptic_act = perimeter[perimeter_idx];
             double saturation_protection = pow(1 - abs(postsynaptic_act), 2);
-            output[reservoir_idx] = reservoir_w[reservoir_idx] * (1. - weight_leakage)
+            double out = reservoir_w[reservoir_idx] * (1. - weight_leakage)
               + saturation_protection * presynaptic_act * postsynaptic_act * learning_rate;
-            output[reservoir_idx] = max(0., min(1., output[reservoir_idx]));
+            out = max(0., min(1., out));
+            output[reservoir_idx] = out;
         }
     }
 
@@ -84,7 +85,7 @@ af::array lcnn_adapt(
   const lcnn_adaptation_config& cfg)
 {
     // TODO add 32 bit variant
-    if (state.type() != af::dtype::f64)
+    if (prev_state.type() != af::dtype::f64 || state.type() != af::dtype::f64)
         throw std::invalid_argument(
           "CUDA kernel for lcnn adapt is only supported for 64bit arrays.");
 
@@ -117,6 +118,7 @@ af::array lcnn_adapt(
           "CUDA Runtime Error in LCNN step kernel launch: " + std::string{cudaGetErrorString(err)}};
 
     // Give matrices back to ArrayFire.
+    prev_state.unlock();
     state.unlock();
     reservoir_w.unlock();
     output.unlock();
