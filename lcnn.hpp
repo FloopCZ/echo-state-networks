@@ -99,7 +99,6 @@ protected:
     std::set<std::string> input_names_;
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
-    af::array prev_state_;
     af::array state_;
     af::array memory_map_;
     long memory_length_;
@@ -225,7 +224,6 @@ protected:
 
     virtual void update_state_memory()
     {
-        if (memory_length_ <= 0) return;
         state_memory_ = af::shift(state_memory_, 0, 0, 1);
         state_memory_(af::span, af::span, 0) = state_;
     }
@@ -236,15 +234,14 @@ protected:
         af::array memory = af::moddims(state_memory_, state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
-        prev_state_ = state_;
         state_ = af::moddims(new_state, state_.dims());
     }
 
     void adapt_weights()
     {
-        assert(!prev_state_.isempty());
+        assert(!state_memory_.isempty() && state_memory_.dims(2) >= 3);
         if (!learning_enabled_ || adaptation_cfg.learning_rate == 0.) return;
-        reservoir_w_ = lcnn_adapt(prev_state_, state_, reservoir_w_, adaptation_cfg);
+        reservoir_w_ = lcnn_adapt(state_memory_, reservoir_w_, adaptation_cfg);
     }
 
     virtual void update_last_output_via_teacher_force(const data_map& step_feedback)
@@ -287,6 +284,7 @@ public:
       , train_aggregation_{cfg.train_aggregation}
       , train_valid_ratio_{cfg.train_valid_ratio}
       , act_steepness_(cfg.act_steepness)
+      , learning_enabled_{true}
       , adaptation_cfg(cfg.adaptation_cfg)
     {
         state(std::move(cfg.init_state));
@@ -604,8 +602,7 @@ public:
         assert(new_state.type() == DType);
         // assert(new_state.numdims() == 2);  // Not true for vector state.
         state_ = std::move(new_state);
-        prev_state_ = state_;
-        if (memory_length_ > 0) state_memory_ = af::tile(state_, 1, 1, memory_length_);
+        state_memory_ = af::tile(state_, 1, 1, std::max(3L, memory_length_));
     }
 
     /// The input names.
@@ -678,7 +675,6 @@ public:
         assert(new_map.dims() == state_.dims());
         memory_map_ = std::move(new_map);
         memory_length_ = std::roundl(af::max<double>(memory_map_)) + 1;
-        state_memory_ = af::tile(state_, 1, 1, memory_length_);
     }
 
     /// Set the reservoir weights of the network.

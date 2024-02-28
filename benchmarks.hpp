@@ -1069,6 +1069,7 @@ public:
             if (time > stop_) {
                 in = af::constant(0, 1, net.state().type());
                 net.learning(false);
+                net.random_noise(false);
             }
             net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, input_transform_fn());
         }
