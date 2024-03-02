@@ -83,31 +83,33 @@ __global__ void lcnn_adapt_kernel(
             double presynaptic_diff = perimeter_presynaptic_diff[perimeter_idx];
             double weight = reservoir_w[reservoir_idx];
             abs_sum_before += abs(weight);
-            double learning_strength = 1;
+            double learning_strength = postsynaptic_state < presynaptic_state;
             double delta =
-              pow(presynaptic_diff * postsynaptic_diff, 3) * learning_strength * learning_rate;
-            if (i == 1 && j == 7) {
-                printf("i,j,k,l = %d,%d,%d,%d\n", i, j, k, l);
-                printf("weight %.10f\n", weight);
-                printf("delta %.10f\n", delta);
-                printf("presynatpic diff i,j = %d,%d, value = %.10f\n", i, j, presynaptic_diff);
-                printf("postsynatpic diff i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_diff);
-                printf("presynatpic state i,j = %d,%d, value = %.10f\n", i, j, presynaptic_state);
-                printf("postsynatpic state i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_state);
-                printf("\n");
-            }
+              pow(presynaptic_diff * postsynaptic_diff, 3.) * learning_strength * learning_rate;
+            // if (i == 1 && j == 7) {
+            //     printf("i,j,k,l = %d,%d,%d,%d\n", i, j, k, l);
+            //     printf("weight %.10f\n", weight);
+            //     printf("delta %.10f\n", delta);
+            //     printf("learning strength i,j = %d,%d, value = %.10f\n", i, j, learning_strength);
+            //     printf("presynatpic diff i,j = %d,%d, value = %.10f\n", i, j, presynaptic_diff);
+            //     printf("postsynatpic diff i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_diff);
+            //     printf("presynatpic state i,j = %d,%d, value = %.10f\n", i, j, presynaptic_state);
+            //     printf("postsynatpic state i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_state);
+            //     printf("\n");
+            // }
             weight += delta;
             abs_sum_after += abs(weight);
             output[reservoir_idx] = weight;
         }
     }
 
-    if (i == 1 && j == 7) {
-        printf("abs before %.2f\n", abs_sum_before);
-        printf("abs after %.2f\n", abs_sum_after);
-    }
+    // if (i == 1 && j == 7) {
+    //     printf("abs before %.10f\n", abs_sum_before);
+    //     printf("abs after %.10f\n", abs_sum_after);
+    // }
 
-    double norm_factor = abs_sum_before / abs_sum_after;
+    double norm_factor = abs_sum_before / max(abs_sum_after, 1e-20);  // avoid division by zero
+    // printf("norm factor %.10f\n", norm_factor);
     for (int l = 0; l < L; ++l) {
         // int perimeter_j = threadIdx.y + l;
         for (int k = 0; k < K; ++k) {
