@@ -20,6 +20,7 @@ __global__ void lcnn_adapt_kernel(
     int block_size = blockDim.x * blockDim.y;
     int kernel_radius_height = K / 2;
     int kernel_radius_width = L / 2;
+    int kernel_size = K * L;
 
     // printf(
     //   "blockDim.x,y = %d,%d, blockIdx.x,y = %d,%d, threadIdx.x,y = %d,%d\n", blockDim.x,
@@ -35,8 +36,8 @@ __global__ void lcnn_adapt_kernel(
     // Load the input matrix block with convolution perimeter to shared memory.
     // This sequentially uses all the available threads without regard to block size.
     extern __shared__ double shm[];
-    double* perimeter_presynaptic_diff = shm;
-    double* perimeter_postsynaptic_diff = shm + perimeter_size;
+    double* perimeter_presynaptic_state = shm;
+    double* perimeter_presynaptic_diff = shm + perimeter_size;
     int flat_thread_idx = threadIdx.x + blockDim.y * threadIdx.y;
     for (int perimeter_idx = flat_thread_idx; perimeter_idx < perimeter_size;
          perimeter_idx += block_size) {
@@ -55,10 +56,9 @@ __global__ void lcnn_adapt_kernel(
         // backward-presynaptic = me before
         // forward-postsynaptic = me now
         // backward-postsynaptic = me before
+        perimeter_presynaptic_state[perimeter_idx] = prev_state[input_i + N * input_j];
         perimeter_presynaptic_diff[perimeter_idx] =
           prev_state[input_i + N * input_j] - prev_prev_state[input_i + N * input_j];
-        perimeter_postsynaptic_diff[perimeter_idx] =
-          curr_state[input_i + N * input_j] - prev_state[input_i + N * input_j];
     }
 
     __syncthreads();
@@ -67,50 +67,58 @@ __global__ void lcnn_adapt_kernel(
     int j = blockIdx.y * blockDim.y + threadIdx.y;
     if (i >= N || j >= M) return;
 
+    double postsynaptic_state = curr_state[i + N * j];
     double postsynaptic_diff = curr_state[i + N * j] - prev_state[i + N * j];
-    double presynaptic_diff = prev_state[i + N * j] - prev_prev_state[i + N * j];
+
+    double abs_sum_before = 0.;
+    double abs_sum_after = 0.;
     for (int l = 0; l < L; ++l) {
         int perimeter_j = threadIdx.y + l;
         for (int k = 0; k < K; ++k) {
-            bool is_self = j == 0 && k == 0;
+            // if (j == 0 && k == 0) continue;
             int perimeter_i = threadIdx.x + k;
-            int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
             int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
-            double presynaptic_diff_fwd = perimeter_presynaptic_diff[perimeter_idx];
-            double postsynaptic_diff_fwd = postsynaptic_diff;
-            double presynaptic_diff_bwd = presynaptic_diff;
-            double postsynaptic_diff_bwd = perimeter_postsynaptic_diff[perimeter_idx];
-            // double learning_strength = !is_self * pow(abs(curr_state[i + N * j]), 2);
-            double learning_strength = !is_self;
-            double delta_fwd = presynaptic_diff_fwd * postsynaptic_diff_fwd * learning_rate * learning_strength;
-            double delta_bwd = presynaptic_diff_bwd * postsynaptic_diff_bwd * learning_rate * learning_strength;
-            double out = reservoir_w[reservoir_idx] * (1. - weight_leakage) + delta_fwd - 2 * delta_bwd;
-            // double delta = presynaptic_diff * postsynaptic_diff * learning_rate;
-            // if (abs(delta) > 1e-2) {
-            // printf("delta=%.10f\n", delta);
-            // printf("output i,j,k,l = %d,%d,%d,%d wl=%.10f lr=%.10f\n", i, j, k, l,
-            // weight_leakage, learning_rate);
-            // }
-            // out *= 1e10;
-            // if (postsynaptic_diff > 0.5)
-            //     printf("output i,j,k,l = %d,%d,%d,%d value = %.10f\n", i, j, k, l, out);
-            // out = max(-1., min(1., out));
-            // if (i == 1 && j == 8 && abs(postsynaptic_diff) > 1e-16) {
-            //     // if (abs(delta) > 1e-6) {
-            //     printf("delta=%.10f\n", delta);
-            //     printf("output i,j,k,l = %d,%d,%d,%d value = %.10f\n", i, j, k, l, out);
-            //     printf("presynatpic diff i,j = %d,%d, value = %.10f\n", i, j, presynaptic_diff);
-            //     printf("postsynatpic diff i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_diff);
-            //     printf("postsynatpic i,j = %d,%d, value = %.10f\n", i, j, curr_state[i + N * j]);
-            //     printf(
-            //       "postsynatpic_prev i,j = %d,%d, value = %.10f\n", i, j, prev_state[i + N * j]);
-            //     printf("\n");
-            // }
-            output[reservoir_idx] = out;
+            int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
+            double presynaptic_state = perimeter_presynaptic_state[perimeter_idx];
+            double presynaptic_diff = perimeter_presynaptic_diff[perimeter_idx];
+            double weight = reservoir_w[reservoir_idx];
+            abs_sum_before += abs(weight);
+            double learning_strength = 1;
+            double delta =
+              pow(presynaptic_diff * postsynaptic_diff, 3) * learning_strength * learning_rate;
+            if (i == 1 && j == 7) {
+                printf("i,j,k,l = %d,%d,%d,%d\n", i, j, k, l);
+                printf("weight %.10f\n", weight);
+                printf("delta %.10f\n", delta);
+                printf("presynatpic diff i,j = %d,%d, value = %.10f\n", i, j, presynaptic_diff);
+                printf("postsynatpic diff i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_diff);
+                printf("presynatpic state i,j = %d,%d, value = %.10f\n", i, j, presynaptic_state);
+                printf("postsynatpic state i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_state);
+                printf("\n");
+            }
+            weight += delta;
+            abs_sum_after += abs(weight);
+            output[reservoir_idx] = weight;
         }
     }
 
-    // printf("output i,j = %d,%d, value = %f\n", i, j, sum);
+    if (i == 1 && j == 7) {
+        printf("abs before %.2f\n", abs_sum_before);
+        printf("abs after %.2f\n", abs_sum_after);
+    }
+
+    double norm_factor = abs_sum_before / abs_sum_after;
+    for (int l = 0; l < L; ++l) {
+        // int perimeter_j = threadIdx.y + l;
+        for (int k = 0; k < K; ++k) {
+            // if (j == 0 && k == 0) continue;
+            // int perimeter_i = threadIdx.x + k;
+            // int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
+            int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
+            double weight = output[reservoir_idx];
+            output[reservoir_idx] = weight * norm_factor * (1. - weight_leakage);
+        }
+    }
 }
 
 namespace esn {
