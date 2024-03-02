@@ -7,6 +7,7 @@ namespace esn {
 struct lcnn_adaptation_config {
     double learning_rate;
     double weight_leakage;
+    double abs_target_activation;
 };
 
 af::array lcnn_adapt(

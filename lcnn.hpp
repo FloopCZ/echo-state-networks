@@ -84,6 +84,8 @@ struct lcnn_config {
         act_steepness = args.at("lcnn.act-steepness").as<double>();
         adaptation_cfg.learning_rate = args.at("lcnn.adapt.learning-rate").as<double>();
         adaptation_cfg.weight_leakage = args.at("lcnn.adapt.weight-leakage").as<double>();
+        adaptation_cfg.abs_target_activation =
+          args.at("lcnn.adapt.abs-target-activation").as<double>();
     }
 };
 
@@ -1180,6 +1182,8 @@ inline po::options_description lcnn_arg_description()
        "Learning rate for weight adaptation. Set to 0 to disable.")                   //
       ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //
        "Decay rate for weight adaptation.")                                           //
+      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(0.0),   //
+       "Target value of neuron activation during adaptation.")                        //
       ;
     return lcnn_arg_desc;
 }

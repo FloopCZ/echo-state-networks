@@ -15,7 +15,8 @@ __global__ void lcnn_adapt_kernel(
   int K,
   int L,
   double learning_rate,
-  double weight_leakage)
+  double weight_leakage,
+  double abs_target_activation)
 {
     int block_size = blockDim.x * blockDim.y;
     int kernel_radius_height = K / 2;
@@ -69,13 +70,16 @@ __global__ void lcnn_adapt_kernel(
 
     double postsynaptic_state = curr_state[i + N * j];
     double postsynaptic_diff = curr_state[i + N * j] - prev_state[i + N * j];
+    double postsynaptic_abs_avg =
+      (abs(curr_state[i + N * j]) + abs(prev_state[i + N * j]) + abs(prev_prev_state[i + N * j])) / 3.;
 
     double abs_sum_before = 0.;
     double abs_sum_after = 0.;
+    double learning_strength = abs_target_activation - postsynaptic_abs_avg;
     for (int l = 0; l < L; ++l) {
         int perimeter_j = threadIdx.y + l;
         for (int k = 0; k < K; ++k) {
-            // if (j == 0 && k == 0) continue;
+            // if (l == L/2 && k == K/2) continue;
             int perimeter_i = threadIdx.x + k;
             int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
             int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
@@ -83,7 +87,6 @@ __global__ void lcnn_adapt_kernel(
             double presynaptic_diff = perimeter_presynaptic_diff[perimeter_idx];
             double weight = reservoir_w[reservoir_idx];
             abs_sum_before += abs(weight);
-            double learning_strength = postsynaptic_state < presynaptic_state;
             double delta =
               pow(presynaptic_diff * postsynaptic_diff, 3.) * learning_strength * learning_rate;
             // if (i == 1 && j == 7) {
@@ -113,7 +116,7 @@ __global__ void lcnn_adapt_kernel(
     for (int l = 0; l < L; ++l) {
         // int perimeter_j = threadIdx.y + l;
         for (int k = 0; k < K; ++k) {
-            // if (j == 0 && k == 0) continue;
+            // if (l == L/2 && k == K/2) continue;
             // int perimeter_i = threadIdx.x + k;
             // int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
             int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
@@ -166,7 +169,7 @@ af::array lcnn_adapt(
     lcnn_adapt_kernel<<<grid, block, 2 * perimeter_bytes, af_cuda_stream>>>(
       pprev_prev_state, pprev_state, pcurr_state, preservoir_w, poutput, curr_state.dims(0),
       curr_state.dims(1), reservoir_w.dims(2), reservoir_w.dims(3), cfg.learning_rate,
-      cfg.weight_leakage);
+      cfg.weight_leakage, cfg.abs_target_activation);
     if (cudaError_t err = cudaPeekAtLastError(); err != cudaSuccess)
         throw std::runtime_error{
           "CUDA Runtime Error in LCNN step kernel launch: " + std::string{cudaGetErrorString(err)}};
