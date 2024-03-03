@@ -188,8 +188,6 @@ protected:
         // Add noise to the states.
         if (noise_enabled_ && noise_ != 0.)
             state_delta_ *= 1. + af::randn({state_.dims()}, DType, af_prng_) * noise_;
-        // Store the state e.g., for weight adaptation.
-        prev_state_ = state_;
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
