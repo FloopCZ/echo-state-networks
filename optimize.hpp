@@ -492,7 +492,7 @@ public:
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.weight-leakage") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
-            } else if (key == "lcnn.abs-target-activation") {
+            } else if (key == "lcnn.adapt.abs-target-activation") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             }
         }
@@ -681,7 +681,7 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.adapt.learning-rate", 0.5},
           {"lcnn.adapt.weight-leakage", 0.5},
-          {"lcnn.abs-target-activation", 0.5},
+          {"lcnn.adapt.abs-target-activation", 0.5},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
