@@ -49,14 +49,6 @@ __global__ void lcnn_adapt_kernel(
         // Wrap around edges with correction to avoid negative modulo result.
         input_i = (input_i % N + N) % N;
         input_j = (input_j % M + M) % M;
-        // printf(
-        //   "perimeter_idx = %d, perimeter i,j = %d,%d, input i,j = %d,%d, value = %f\n",
-        //   perimeter_idx, perimeter_i, perimeter_j, input_i, input_j, input[input_i + N *
-        //   input_j]);
-        // forward-postsynaptic = me now
-        // backward-presynaptic = me before
-        // forward-postsynaptic = me now
-        // backward-postsynaptic = me before
         perimeter_presynaptic_state[perimeter_idx] = prev_state[input_i + N * input_j];
         perimeter_presynaptic_diff[perimeter_idx] =
           prev_state[input_i + N * input_j] - prev_prev_state[input_i + N * input_j];
@@ -70,12 +62,10 @@ __global__ void lcnn_adapt_kernel(
 
     double postsynaptic_state = curr_state[i + N * j];
     double postsynaptic_diff = curr_state[i + N * j] - prev_state[i + N * j];
-    double postsynaptic_abs_avg =
-      (abs(curr_state[i + N * j]) + abs(prev_state[i + N * j]) + abs(prev_prev_state[i + N * j])) / 3.;
 
     double abs_sum_before = 0.;
     double abs_sum_after = 0.;
-    double learning_strength = abs_target_activation - postsynaptic_abs_avg;
+    double learning_strength = abs_target_activation - abs(postsynaptic_state);
     for (int l = 0; l < L; ++l) {
         int perimeter_j = threadIdx.y + l;
         for (int k = 0; k < K; ++k) {
@@ -89,7 +79,9 @@ __global__ void lcnn_adapt_kernel(
             abs_sum_before += abs(weight);
             double delta =
               pow(presynaptic_diff * postsynaptic_diff, 3.) * learning_strength * learning_rate;
-            // if (i == 1 && j == 7) {
+            // NOTE diff^1 and diff^3 both work a bit differently, but both do something interesting,
+            // larger exponent only takes into account strong changes.
+            // if (i == 15 && j == 5 && k == 3 && l == 2) {
             //     printf("i,j,k,l = %d,%d,%d,%d\n", i, j, k, l);
             //     printf("weight %.10f\n", weight);
             //     printf("delta %.10f\n", delta);
@@ -106,7 +98,7 @@ __global__ void lcnn_adapt_kernel(
         }
     }
 
-    // if (i == 1 && j == 7) {
+    // if (i == 15 && j == 5) {
     //     printf("abs before %.10f\n", abs_sum_before);
     //     printf("abs after %.10f\n", abs_sum_after);
     // }
