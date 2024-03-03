@@ -609,7 +609,8 @@ public:
         }
         if (params.contains("lcnn.adapt.abs-target-activation")) {
             cfg.insert_or_assign(
-              "lcnn.adapt.abs-target-activation", expval(params.at("lcnn.adapt.weight-leakage")));
+              "lcnn.adapt.abs-target-activation",
+              expval(params.at("lcnn.adapt.abs-target-activation")));
             params.erase("lcnn.adapt.abs-target-activation");
         }
         assert(
