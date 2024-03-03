@@ -38,6 +38,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.memory-prob",
   "lcnn.adapt.learning-rate",
   "lcnn.adapt.weight-leakage",
+  "lcnn.adapt.abs-target-activation",
   "esn.noise",
   "esn.sparsity"};
 inline const std::string DEFAULT_EXCLUDED_PARAMS_STR =
@@ -491,6 +492,8 @@ public:
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.weight-leakage") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
+            } else if (key == "lcnn.abs-target-activation") {
+                params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             }
         }
         return params;
@@ -604,6 +607,11 @@ public:
               "lcnn.adapt.weight-leakage", expval(params.at("lcnn.adapt.weight-leakage")));
             params.erase("lcnn.adapt.weight-leakage");
         }
+        if (params.contains("lcnn.adapt.abs-target-activation")) {
+            cfg.insert_or_assign(
+              "lcnn.adapt.abs-target-activation", expval(params.at("lcnn.adapt.weight-leakage")));
+            params.erase("lcnn.adapt.abs-target-activation");
+        }
         assert(
           params.empty() || (params.size() == 1 && params.contains("none")));  // make sure all
                                                                                // the params have
@@ -673,6 +681,7 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.adapt.learning-rate", 0.5},
           {"lcnn.adapt.weight-leakage", 0.5},
+          {"lcnn.abs-target-activation", 0.5},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
@@ -709,6 +718,7 @@ public:
           "lcnn.memory-prob",
           "lcnn.adapt.learning-rate",
           "lcnn.adapt.weight-leakage",
+          "lcnn.adapt.abs-target-activation",
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert("lcnn.mu-in-weight-" + std::to_string(i));
@@ -753,6 +763,7 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
+          {"lcnn.adapt.abs-target-activation", 0.05},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.05});
@@ -783,6 +794,7 @@ public:
           {"lcnn.memory-prob", -0.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
+          {"lcnn.adapt.abs-target-activation", -0.1},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
@@ -813,6 +825,7 @@ public:
           {"lcnn.memory-prob", 1.1},
           {"lcnn.adapt.learning-rate", 1.1},
           {"lcnn.adapt.weight-leakage", 1.1},
+          {"lcnn.adapt.abs-target-activation", 1.1},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 1.1});
