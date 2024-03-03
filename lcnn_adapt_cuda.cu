@@ -21,7 +21,6 @@ __global__ void lcnn_adapt_kernel(
     int block_size = blockDim.x * blockDim.y;
     int kernel_radius_height = K / 2;
     int kernel_radius_width = L / 2;
-    int kernel_size = K * L;
 
     // printf(
     //   "blockDim.x,y = %d,%d, blockIdx.x,y = %d,%d, threadIdx.x,y = %d,%d\n", blockDim.x,
@@ -36,9 +35,7 @@ __global__ void lcnn_adapt_kernel(
 
     // Load the input matrix block with convolution perimeter to shared memory.
     // This sequentially uses all the available threads without regard to block size.
-    extern __shared__ double shm[];
-    double* perimeter_presynaptic_state = shm;
-    double* perimeter_presynaptic_diff = shm + perimeter_size;
+    extern __shared__ double perimeter_presynaptic_diff[];
     int flat_thread_idx = threadIdx.x + blockDim.y * threadIdx.y;
     for (int perimeter_idx = flat_thread_idx; perimeter_idx < perimeter_size;
          perimeter_idx += block_size) {
@@ -49,7 +46,6 @@ __global__ void lcnn_adapt_kernel(
         // Wrap around edges with correction to avoid negative modulo result.
         input_i = (input_i % N + N) % N;
         input_j = (input_j % M + M) % M;
-        perimeter_presynaptic_state[perimeter_idx] = prev_state[input_i + N * input_j];
         perimeter_presynaptic_diff[perimeter_idx] =
           prev_state[input_i + N * input_j] - prev_prev_state[input_i + N * input_j];
     }
@@ -73,7 +69,6 @@ __global__ void lcnn_adapt_kernel(
             int perimeter_i = threadIdx.x + k;
             int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
             int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
-            double presynaptic_state = perimeter_presynaptic_state[perimeter_idx];
             double presynaptic_diff = perimeter_presynaptic_diff[perimeter_idx];
             double weight = reservoir_w[reservoir_idx];
             abs_sum_before += abs(weight);
@@ -88,7 +83,6 @@ __global__ void lcnn_adapt_kernel(
             //     printf("learning strength i,j = %d,%d, value = %.10f\n", i, j, learning_strength);
             //     printf("presynatpic diff i,j = %d,%d, value = %.10f\n", i, j, presynaptic_diff);
             //     printf("postsynatpic diff i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_diff);
-            //     printf("presynatpic state i,j = %d,%d, value = %.10f\n", i, j, presynaptic_state);
             //     printf("postsynatpic state i,j = %d,%d, value = %.10f\n", i, j, postsynaptic_state);
             //     printf("\n");
             // }
@@ -158,7 +152,7 @@ af::array lcnn_adapt(
       (curr_state.dims(0) + block.x - 1) / block.x, (curr_state.dims(1) + block.y - 1) / block.y);
     int perimeter_bytes =
       sizeof(double) * (block.x + reservoir_w.dims(2) - 1) * (block.y + reservoir_w.dims(3) - 1);
-    lcnn_adapt_kernel<<<grid, block, 2 * perimeter_bytes, af_cuda_stream>>>(
+    lcnn_adapt_kernel<<<grid, block, perimeter_bytes, af_cuda_stream>>>(
       pprev_prev_state, pprev_state, pcurr_state, preservoir_w, poutput, curr_state.dims(0),
       curr_state.dims(1), reservoir_w.dims(2), reservoir_w.dims(3), cfg.learning_rate,
       cfg.weight_leakage, cfg.abs_target_activation);
