@@ -1,6 +1,7 @@
 #include "lcnn_adapt.hpp"
 
 #include <af/cuda.h>
+#include <cassert>
 #include <cuda_runtime.h>
 #include <device_launch_parameters.h>
 
