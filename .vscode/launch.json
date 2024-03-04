@@ -2,6 +2,53 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "(gdb) Launch optimize_cuda for lcnn on ettm-loop",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/optimize_cuda",
+            "args": [
+                "--gen.net-type=lcnn",
+                "--gen.optimizer-type=lcnn",
+                "--opt.exclude-params=lcnn.sigma-b", "lcnn.noise", "lcnn.sparsity", "lcnn.train-valid-ratio", "lcnn.act-steepness", "lcnn.mu-in-weight", "lcnn.mu-fb-weight", "lcnn.sigma-fb-weight", "lcnn.input-to-n", "lcnn.n-state-predictors",
+                "--lcnn.mu-in-weight=0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
+                "--lcnn.mu-fb-weight=0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
+                "--lcnn.sigma-fb-weight=0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0", "0",
+                "--lcnn.topology=lcnn",
+                "--lcnn.state-height=20",
+                "--lcnn.state-width=25",
+                "--lcnn.memory-length=60",
+                "--gen.benchmark-set=ettm-loop",
+                "--bench.etth-variant=1",
+                "--bench.ett-set-type=train-valid",
+                "--bench.init-steps=500",
+                "--bench.train-steps=34060",
+                "--bench.valid-steps=11519",
+                "--bench.n-steps-ahead=96",
+                "--bench.validation-stride=100",
+                "--opt.max-fevals=10000",
+                "--gen.n-trials=1",
+                "--gen.n-runs=1",
+                "--gen.af-device=0",
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
             "name": "(gdb) Launch optimize_cuda for lcnn",
             "type": "cppdbg",
             "request": "launch",
