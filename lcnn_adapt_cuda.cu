@@ -75,8 +75,8 @@ __global__ void lcnn_adapt_kernel(
             abs_sum_before += abs(weight);
             double delta =
               pow(presynaptic_diff * postsynaptic_diff, 3.) * learning_strength * learning_rate;
-            // NOTE diff^1 and diff^3 both work a bit differently, but both do something interesting,
-            // larger exponent only takes into account strong changes.
+            // NOTE diff^1 and diff^3 both work a bit differently, but both do something
+            // interesting, larger exponent only takes into account strong changes.
             // if (i == 15 && j == 5 && k == 3 && l == 2) {
             //     printf("i,j,k,l = %d,%d,%d,%d\n", i, j, k, l);
             //     printf("weight %.10f\n", weight);

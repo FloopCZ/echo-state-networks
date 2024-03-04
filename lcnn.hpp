@@ -231,7 +231,8 @@ protected:
     virtual void update_via_memory()
     {
         if (memory_length_ <= 0) return;
-        af::array memory = af::moddims(state_memory_, state_.elements(), memory_length_);
+        af::array memory = af::moddims(
+          state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
         state_ = af::moddims(new_state, state_.dims());
@@ -679,8 +680,7 @@ public:
             memory_length_ = std::roundl(af::max<double>(memory_map_)) + 1;
         }
         // We need memory of length at least 3 for weight adaptation.
-        memory_length_ = std::max(3L, memory_length_);
-        state_memory_ = af::tile(state_, 1, 1, memory_length_);
+        state_memory_ = af::tile(state_, 1, 1, std::max(3L, memory_length_));
     }
 
     /// Set the reservoir weights of the network.
