@@ -606,7 +606,6 @@ public:
         assert(new_state.type() == DType);
         // assert(new_state.numdims() == 2);  // Not true for vector state.
         state_ = std::move(new_state);
-        state_memory_ = af::tile(state_, 1, 1, std::max(3L, memory_length_));
     }
 
     /// The input names.
@@ -673,12 +672,15 @@ public:
     {
         if (new_map.isempty()) {
             memory_length_ = 0;
-            return;
+        } else {
+            assert(new_map.type() == DType);
+            assert(new_map.dims() == state_.dims());
+            memory_map_ = std::move(new_map);
+            memory_length_ = std::roundl(af::max<double>(memory_map_)) + 1;
         }
-        assert(new_map.type() == DType);
-        assert(new_map.dims() == state_.dims());
-        memory_map_ = std::move(new_map);
-        memory_length_ = std::roundl(af::max<double>(memory_map_)) + 1;
+        // We need memory of length at least 3 for weight adaptation.
+        memory_length_ = std::max(3L, memory_length_);
+        state_memory_ = af::tile(state_, 1, 1, memory_length_);
     }
 
     /// Set the reservoir weights of the network.

@@ -122,6 +122,8 @@ af::array lcnn_adapt(
         throw std::invalid_argument(
           "CUDA kernel for lcnn adapt is only supported for 64bit arrays.");
 
+    assert(state_memory.dims(2) >= 3);
+
     // Evaluate input matrices.
     af::array prev_prev_state = state_memory(af::span, af::span, 2);
     prev_prev_state.eval();
