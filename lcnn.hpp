@@ -241,6 +241,10 @@ protected:
     {
         assert(!state_memory_.isempty() && state_memory_.dims(2) >= 3);
         if (!learning_enabled_ || adaptation_cfg.learning_rate == 0.) return;
+        if (force_matmul_)
+            throw std::runtime_error{
+              "Weight adaptation implemented only for local (lcnn) reservoirs."};
+        assert(!reservoir_w_.isempty());
         reservoir_w_ = lcnn_adapt(state_memory_, reservoir_w_, adaptation_cfg);
     }
 
