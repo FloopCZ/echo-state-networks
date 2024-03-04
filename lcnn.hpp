@@ -1177,10 +1177,10 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
-       "Learning rate for weight adaptation. Set to 0 to disable.")                   //
+       "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
       ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //
        "Decay rate for weight adaptation.")                                           //
-      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(0.0),   //
+      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(1.0),   //
        "Target value of neuron activation during adaptation.")                        //
       ;
     return lcnn_arg_desc;
