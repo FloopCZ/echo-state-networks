@@ -680,9 +680,9 @@ public:
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
-          {"lcnn.adapt.learning-rate", 0.2},
+          {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
-          {"lcnn.adapt.abs-target-activation", 0.2},
+          {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
