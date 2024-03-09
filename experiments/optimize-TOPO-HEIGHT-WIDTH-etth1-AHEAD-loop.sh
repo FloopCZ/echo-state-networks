@@ -13,7 +13,7 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
-  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.train-valid-ratio lcnn.act-steepness lcnn.mu-in-weight lcnn.mu-fb-weight lcnn.sigma-fb-weight lcnn.input-to-n lcnn.n-state-predictors \
+  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.train-valid-ratio lcnn.act-steepness lcnn.mu-in-weight lcnn.mu-fb-weight lcnn.sigma-fb-weight lcnn.input-to-n lcnn.n-state-predictors lcnn.memory-prob lcnn.adapt.learning-rate lcnn.adapt.weight-leakage lcnn.adapt.abs-target-activation \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
@@ -21,6 +21,7 @@ mkdir -p "${outdir}"
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
   --lcnn.memory-length=60 \
+  --lcnn.memory-prob=1 \
   --gen.benchmark-set=etth-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \

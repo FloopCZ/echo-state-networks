@@ -8,12 +8,12 @@ HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
 
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-single-loop/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-loop-learning/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
-  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.train-valid-ratio lcnn.act-steepness lcnn.mu-in-weight lcnn.mu-fb-weight lcnn.sigma-fb-weight lcnn.input-to-n lcnn.n-state-predictors lcnn.memory-prob lcnn.adapt.learning-rate lcnn.adapt.weight-leakage lcnn.adapt.abs-target-activation \
+  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.train-valid-ratio lcnn.mu-in-weight lcnn.mu-fb-weight lcnn.sigma-fb-weight lcnn.input-to-n lcnn.n-state-predictors lcnn.memory-prob lcnn.adapt.activation-target \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
@@ -22,11 +22,11 @@ mkdir -p "${outdir}"
   --lcnn.state-width="${WIDTH}" \
   --lcnn.memory-length=60 \
   --lcnn.memory-prob=1 \
-  --gen.benchmark-set=ettm-single-loop \
+  --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
-  --bench.init-steps=500 \
-  --bench.train-steps=34060 \
+  --bench.init-steps=5000 \
+  --bench.train-steps=29560 \
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=100 \
