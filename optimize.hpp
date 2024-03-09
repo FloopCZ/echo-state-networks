@@ -816,7 +816,7 @@ public:
           {"lcnn.sparsity", 1.1},
           {"lcnn.leakage", 1.1},
           {"lcnn.noise", 2.0},
-          {"lcnn.sigma-b", 1.1},
+          {"lcnn.sigma-b", 2.0},
           {"lcnn.mu-b", 1.1},
           {"lcnn.n-state-predictors", 1.1},
           {"lcnn.train-valid-ratio", 1.1},
@@ -824,17 +824,17 @@ public:
           {"lcnn.input-to-n", 1.1},
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},
-          {"lcnn.adapt.learning-rate", 1.1},
-          {"lcnn.adapt.weight-leakage", 1.1},
+          {"lcnn.adapt.learning-rate", 2.0},
+          {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
         };
         for (int i = 0; i < bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 1.1});
-            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 1.1});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 2.0});
         }
         for (int i = 0; i < bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 1.1});
-            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 1.1});
+            params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 2.0});
         }
         return params;
     }
