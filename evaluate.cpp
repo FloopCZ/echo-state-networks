@@ -22,7 +22,7 @@ evaluate(NetFactory net_factory, std::unique_ptr<esn::benchmark_set_base> bench,
     int af_device = af::getDevice();
     // Evaluate the individual repeats in parallel.
     std::vector<double> results(n_evals);
-    std::for_each(std::execution::par, results.begin(), results.end(), [&](double& r) {
+    std::for_each(std::execution::seq, results.begin(), results.end(), [&](double& r) {
         // We need to make sure the device is set properly, otherwise
         // it sometimes fails on XID errors.
         af::setDevice(af_device);
