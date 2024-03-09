@@ -26,7 +26,7 @@ mkdir -p "${outdir}"
   --bench.ett-set-type=train-valid \
   --bench.init-steps=500 \
   --bench.train-steps=34060 \
-  --bench.valid-steps=11519 \
+  --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=100 \
   --opt.max-fevals=10000 \
