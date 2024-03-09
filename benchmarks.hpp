@@ -117,7 +117,6 @@ public:
             // initialize the network using the initial sequence
             net.event("init-start");
             net.random_noise(true);
-            net.learning(true);
             net.feed(
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
@@ -202,7 +201,6 @@ public:
             // initialize the network using the initial sequence
             net.event("init-start");
             net.random_noise(true);
-            net.learning(true);
             net.feed(
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
