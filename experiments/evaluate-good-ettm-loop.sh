@@ -1,4 +1,4 @@
-./build/visual_cuda \
+./build/evaluate_cuda \
 --bench.error-measure=mse \
 --bench.ett-data-path=third_party/ETDataset \
 --bench.ett-set-type=train-valid \
@@ -16,6 +16,7 @@
 --bench.validation-stride=100 \
 --gen.benchmark-set=ettm-loop \
 --gen.net-type=lcnn \
+--gen.n-evals=10 \
 --lcnn.act-steepness=1 \
 --lcnn.l2=1.0506814775871234e-09 \
 --lcnn.leakage=1 \
