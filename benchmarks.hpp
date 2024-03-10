@@ -534,18 +534,20 @@ public:
                     std::tm tm = {};
                     std::stringstream ss{value};
                     ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-                    int n_days = days_in_month(tm);
-                    data["date-mon"].push_back(
-                      std::sin(
-                        (tm.tm_mon * n_days * 24 + tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI
-                        / (12 * n_days * 24))
-                      * 10);
-                    data["date-mday"].push_back(
-                      std::sin((tm.tm_mday * 24 + tm.tm_hour) * 2. * M_PI / (n_days * 24)) * 10);
-                    data["date-wday"].push_back(
-                      std::sin((tm.tm_wday * 24 + tm.tm_hour) * 2. * M_PI / (7 * 24)) * 10);
-                    data["date-hour"].push_back(std::sin(tm.tm_hour * 2. * M_PI / 24) * 10);
-                    data["date-min"].push_back(std::sin(tm.tm_min * 2. * M_PI / 60) * 10);
+                    int n_month_days = days_in_month(tm);
+                    int leap_day = is_leap_year(tm.tm_year) ? 1 : 0;
+                    data["date-min"].push_back(std::sin(tm.tm_min / 60. * 2. * M_PI));
+                    data["date-hour"].push_back(
+                      std::sin((tm.tm_min + tm.tm_hour * 60.) / 60. / 24. * 2. * M_PI));
+                    data["date-mday"].push_back(std::sin(
+                      (tm.tm_min + tm.tm_hour * 60. + tm.tm_mday * 24. * 60.) / 60. / 24.
+                      / n_month_days * 2. * M_PI));
+                    data["date-wday"].push_back(std::sin(
+                      (tm.tm_min + tm.tm_hour * 60. + tm.tm_wday * 24. * 60.) / 60. / 24. / 7. * 2.
+                      * M_PI));
+                    data["date-mon"].push_back(std::sin(
+                      (tm.tm_min + tm.tm_hour * 60. + tm.tm_yday * 24. * 60.) / 60. / 24.
+                      / (365. + leap_day) * 2. * M_PI));
                 } else {
                     data[col].push_back(std::stod(value));
                 }

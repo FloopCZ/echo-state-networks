@@ -21,8 +21,16 @@ inline int days_in_month(const std::tm& date)
     next_month.tm_mon++;
     time_t next_time_ts = std::mktime(&next_month);
 
-    int days_in_month = (next_time_ts - this_month_ts) / (24 * 24 * 60);
+    int days_in_month = (next_time_ts - this_month_ts) / (24 * 60 * 60);
     return days_in_month;
+}
+
+inline bool is_leap_year(int year)
+{
+    if (year % 400 == 0) return true;
+    if (year % 100 == 0) return false;
+    if (year % 4 == 0) return true;
+    return false;
 }
 
 template <typename T>
