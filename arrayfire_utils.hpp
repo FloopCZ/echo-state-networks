@@ -145,11 +145,12 @@ af::array solve(af::array A, af::array B, double l2 = 0., af::array training_wei
         A *= af::tile(training_weights, 1, A.dims(1));
         B *= af::tile(training_weights, 1, B.dims(1));
     }
-    if (l2 == 0.) return af::solve(std::move(A), std::move(B));
-    af::array reg = std::sqrt(l2) * af::identity(A.dims(1), A.dims(1), A.type());
-    reg(0, 0) = 0.;  // do not regularize intercept
-    A = af::join(0, A, std::move(reg));
-    B = af::join(0, B, af::constant(0, {A.dims(1), B.dims(1)}, B.type()));
+    if (l2 != 0.) {
+        af::array reg = std::sqrt(l2) * af::identity(A.dims(1), A.dims(1), A.type());
+        reg(0, 0) = 0.;  // do not regularize intercept
+        A = af::join(0, A, std::move(reg));
+        B = af::join(0, B, af::constant(0, {A.dims(1), B.dims(1)}, B.type()));
+    }
     return af::solve(std::move(A), std::move(B));
 }
 
