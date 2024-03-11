@@ -136,6 +136,7 @@ public:
       const data_map& step_input,
       const data_map& step_feedback,
       const data_map& step_desired,
+      const data_map& step_meta,
       input_transform_fn_t input_transform) override
     {
         data_map orig_step_input = step_input;
@@ -181,7 +182,11 @@ public:
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
               .state = state_,
-              .input = {.input = step_input, .feedback = step_feedback, .desired = step_desired},
+              .input =
+                {.input = step_input,
+                 .feedback = step_feedback,
+                 .desired = step_desired,
+                 .meta = step_meta},
               .output = {output_names_, last_output_},
               .event = event_};
             fnc(*this, std::move(data));
@@ -221,7 +226,8 @@ public:
             data_map step_input = input.input.select(i);
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
-            step(step_input, step_feedback, step_desired, input.input_transform);
+            data_map step_meta = input.meta.select(i);
+            step(step_input, step_feedback, step_desired, step_meta, input.input_transform);
             result.states(af::span, i) = state_;
             result.outputs(af::span, i) = last_output_;
         }
@@ -235,12 +241,12 @@ public:
     ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
-        return train(feed(input));
+        return train(feed(input), input);
     }
 
     /// Train the network on already processed feed data.
     /// \param data Training data.
-    train_result_t train(feed_result_t data) override
+    train_result_t train(feed_result_t data, const input_t&) override
     {
         assert(data.states.type() == DType);
         assert((data.states.dims() == af::dim4{state_.dims(0), data.outputs.dims(1)}));

@@ -314,6 +314,7 @@ public:
       const data_map& step_input,
       const data_map& step_feedback,
       const data_map& step_desired,
+      const data_map& step_meta,
       input_transform_fn_t input_transform) override
     {
         // TODO desired and feedback is the same, only one should be provided and there should
@@ -376,7 +377,11 @@ public:
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
               .state = state_,
-              .input = {.input = step_input, .feedback = step_feedback, .desired = step_desired},
+              .input =
+                {.input = step_input,
+                 .feedback = step_feedback,
+                 .desired = step_desired,
+                 .meta = step_meta},
               .output = last_output_,
               .event = event_};
             fnc(*this, std::move(data));
@@ -428,7 +433,8 @@ public:
             data_map step_input = input.input.select(i);
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
-            step(step_input, step_feedback, step_desired, input.input_transform);
+            data_map step_meta = input.meta.select(i);
+            step(step_input, step_feedback, step_desired, step_meta, input.input_transform);
             result.states(af::span, af::span, i) = state_;
             if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
@@ -442,7 +448,7 @@ public:
     ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
-        return train(feed(input));
+        return train(feed(input), input);
     }
 
     /// Clear the network output weights and reset prng to the initial state.
@@ -455,8 +461,10 @@ public:
 
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    train_result_t
-    train_impl(const feed_result_t& data, const af::array& state_predictor_indices) const
+    train_result_t train_impl(
+      const feed_result_t& data,
+      const af::array& state_predictor_indices,
+      const af::array& training_weights) const
     {
         assert(data.states.type() == DType);
         assert(
@@ -475,7 +483,8 @@ public:
         if (!state_predictor_indices.isempty())
             predictors = predictors(state_predictor_indices, af::span);
         predictors = af_utils::add_ones(predictors.T(), 1);
-        af::array output_w = af_utils::solve(predictors, data.desired->T(), l2_).T();
+        af::array output_w =
+          af_utils::solve(predictors, data.desired->T(), l2_, training_weights).T();
         output_w(af::isNaN(output_w) || af::isInf(output_w)) = 0.;
         assert(output_w.dims() == (af::dim4{output_names_.size(), predictors.dims(1)}));
         return {.predictors = std::move(predictors), .output_w = std::move(output_w)};
@@ -483,7 +492,7 @@ public:
 
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    train_result_t train(feed_result_t data) override
+    train_result_t train(feed_result_t data, const input_t& input) override
     {
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
 
@@ -501,6 +510,11 @@ public:
         // In the second and later epochs, we only train the difference.
         if (train_aggregation_ == "delta" && !indiced_output_w_.empty())
             data.desired = *data.desired - data.outputs;
+
+        // Weight the training data according to the given training weights.
+        af::array training_weights;
+        if (input.meta.contains("training-weights"))
+            training_weights = input.meta.at("training-weights");
 
         struct train_trial_result_t {
             train_result_t result;
@@ -548,7 +562,8 @@ public:
             if (predictor_subset)
                 state_predictor_indices = generate_random_state_indices(n_predictors);
             // train
-            train_result_t train_result = train_impl(train_data, state_predictor_indices);
+            train_result_t train_result =
+              train_impl(train_data, state_predictor_indices, training_weights);
             af::array train_prediction =
               af::matmulNT(train_result.predictors, train_result.output_w);
             double train_err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);

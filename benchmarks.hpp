@@ -37,7 +37,7 @@ protected:
         return xs;
     }
 
-    net_base::input_transform_fn_t input_transform_fn() const
+    input_transform_fn_t input_transform_fn() const
     {
         return [this](const data_map& dm) -> data_map { return this->input_transform(dm); };
     }
@@ -91,7 +91,7 @@ public:
 class benchmark_set : public benchmark_set_base {
 protected:
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
-    virtual std::tuple<data_map, data_map>
+    virtual std::tuple<data_map, data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
 
 public:
@@ -100,18 +100,20 @@ public:
     double evaluate(net_base& net, std::mt19937& prng) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
-        data_map xs, ys;
-        std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
+        data_map xs, ys, meta;
+        std::tie(xs, ys, meta) = generate_data(len, net.state().type(), prng);
         assert(xs.keys() == input_names());
         assert(xs.keys() == net.input_names());
         assert(xs.length() >= len);
         assert(ys.keys() == output_names());
         assert(ys.keys() == net.output_names());
         assert(ys.length() >= len);
+        assert(meta.empty() || meta.length() >= len);
         // use the input transform
         // split both input and output to init, train, test
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
+        std::vector<data_map> meta_groups = meta.split(split_sizes_);
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
@@ -121,6 +123,7 @@ public:
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
                .desired = ys_groups.at(0),
+               .meta = meta_groups.at(0),
                .input_transform = input_transform_fn()});
             net.learning(false);
             // train the network on the training sequence
@@ -130,6 +133,7 @@ public:
               {.input = xs_groups.at(1),
                .feedback = ys_groups.at(1),
                .desired = ys_groups.at(1),
+               .meta = meta_groups.at(1),
                .input_transform = input_transform_fn()});
             net.random_noise(false);
             net.clear_feedback();
@@ -140,6 +144,7 @@ public:
               {.input = xs_groups.at(2),
                .feedback = {},
                .desired = ys_groups.at(2),
+               .meta = meta_groups.at(2),
                .input_transform = input_transform_fn()});
             data_map predicted{net.output_names(), feed_result.outputs};
             error = error_fnc(predicted, ys_groups.at(2));
@@ -161,7 +166,7 @@ protected:
     long validation_stride_;
 
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
-    virtual std::tuple<data_map, data_map>
+    virtual std::tuple<data_map, data_map, data_map>
     generate_data(af::dtype dtype, std::mt19937& prng) const = 0;
 
 public:
@@ -183,11 +188,12 @@ public:
     {
         assert((long)split_sizes_.size() == 3);
         // retrieve the data
-        data_map xs, ys;
-        std::tie(xs, ys) = generate_data(net.state().type(), prng);
+        data_map xs, ys, meta;
+        std::tie(xs, ys, meta) = generate_data(net.state().type(), prng);
         assert(xs.keys() == net.input_names());
         assert(ys.keys() == net.output_names());
         assert(xs.length() == ys.length());
+        assert(meta.empty() || meta.length() == ys.length());
         if (xs.length() < rg::accumulate(split_sizes_, 0L))
             throw std::runtime_error{
               "Not enough data in the dataset for the given split sizes. Data have "
@@ -196,6 +202,7 @@ public:
         // split the sequences into groups
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
+        std::vector<data_map> meta_groups = meta.split(split_sizes_);
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
@@ -205,6 +212,7 @@ public:
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
                .desired = ys_groups.at(0),
+               .meta = meta_groups.at(0),
                .input_transform = input_transform_fn()});
             net.learning(false);
             // train the network on the training sequence with teacher forcing
@@ -213,6 +221,7 @@ public:
               {.input = xs_groups.at(1),
                .feedback = ys_groups.at(1),
                .desired = ys_groups.at(1),
+               .meta = meta_groups.at(1),
                .input_transform = input_transform_fn()});
             net.random_noise(false);
             net.clear_feedback();
@@ -233,27 +242,32 @@ public:
                     data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                     data_map desired =
                       ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                    data_map meta =
+                      meta_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                     net.event("feed-extra");
                     net.feed(
                       {.input = input,
                        .feedback = desired,
                        .desired = desired,
+                       .meta = meta,
                        .input_transform = input_transform_fn()});
                 }
                 // create a copy of the network before the validation so that we can simply
                 // continue feeding of the original net in the next iteration
                 std::unique_ptr<net_base> net_copy = net.clone();
                 // evaluate the performance of the network on the validation subsequence
-                data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
                 data_map loop_input = xs_groups.at(2)
                                         .select(af::seq(i, i + n_steps_ahead_ - 1))
                                         .filter(persistent_input_names());
+                data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
+                data_map meta = meta_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
                 net_copy->event("validation-start");
                 af::array raw_predicted = net_copy
                                             ->feed(
                                               {.input = loop_input,
                                                .feedback = {},
                                                .desired = desired,
+                                               .meta = meta,
                                                .input_transform = input_transform_fn()})
                                             .outputs;
                 data_map predicted{output_names(), std::move(raw_predicted)};
@@ -307,11 +321,11 @@ public:
     {
     }
 
-    std::tuple<data_map, data_map>
+    std::tuple<data_map, data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         auto [xs, ys] = generate_narma(len + 1, dtype, prng);
-        return {{"xs", xs}, {"ys", ys}};
+        return {{"xs", xs}, {"ys", ys}, {}};
     }
 
     const std::set<std::string>& input_names() const override
@@ -331,7 +345,7 @@ protected:
     std::set<std::string> input_names_{"xs"};
     std::set<std::string> output_names_{"ys"};
 
-    std::tuple<data_map, data_map>
+    std::tuple<data_map, data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         // NARMA10 can diverge, not sure about NARMA30, let's rather check.
@@ -341,7 +355,7 @@ protected:
             xs = af::randu({len}, dtype, af_prng) * 0.5;
             ys = narma(xs, 30, tau_, {0.2, 0.004, 1.5, 0.001});
         } while (af::anyTrue<bool>(af::abs(ys) > 1.0));
-        return {{"xs", xs}, {"ys", ys}};
+        return {{"xs", xs}, {"ys", ys}, {}};
     }
 
 public:
@@ -367,13 +381,13 @@ protected:
     std::set<std::string> input_names_;
     std::set<std::string> output_names_;
 
-    std::tuple<data_map, data_map>
+    std::tuple<data_map, data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
         af::array ys = memory_matrix(xs, history_);
-        return {{"xs", xs}, {output_names_, ys}};
+        return {{"xs", xs}, {output_names_, ys}, {}};
     }
 
     /// The `memory capacity` measure.
@@ -425,13 +439,13 @@ protected:
     std::set<std::string> input_names_{"xs"};
     std::set<std::string> output_names_{"ys"};
 
-    std::tuple<data_map, data_map>
+    std::tuple<data_map, data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
         af::array ys = af::shift(xs, history_);
-        return {{"xs", xs}, {"ys", ys}};
+        return {{"xs", xs}, {"ys", ys}, {}};
     }
 
 public:
@@ -467,13 +481,13 @@ protected:
         return {xs.keys(), af::tanh(xs.data() - 1.)};
     }
 
-    std::tuple<data_map, data_map>
+    std::tuple<data_map, data_map, data_map>
     generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
     {
         af::array mg = esn::mackey_glass(len + 1, tau_, delta_, dtype, prng);
         af::array xs = mg(af::seq(0, af::end - 1));
         af::array ys = mg(af::seq(1, af::end));
-        return {{"xs", xs}, {"ys", ys}};
+        return {{"xs", xs}, {"ys", ys}, {}};
     }
 
 public:
@@ -501,6 +515,7 @@ protected:
     std::vector<std::string> header_ = {"date", "HUFL", "HULL", "MUFL",
                                         "MULL", "LUFL", "LULL", "OT"};
     data_map data_;
+    data_map meta_;
 
     data_map ett_input_transform(const data_map& xs) const
     {
@@ -526,6 +541,7 @@ public:
         if (line != boost::join(header_, ",")) throw std::runtime_error{"Invalid header."};
 
         std::map<std::string, std::vector<double>> data;
+        std::map<std::string, std::vector<double>> meta;
         while (std::getline(in, line)) {
             std::vector<std::string> words;
             boost::split(words, line, boost::is_any_of(","));
@@ -552,14 +568,17 @@ public:
                     data[col].push_back(std::stod(value));
                 }
             }
+            meta["training-weights"].push_back(data["OT"].back() != 0.);
         };
 
         long long n_features = header_.size() - 1;
         long long n_points = data.at("OT").size();
 
-        std::map<std::string, af::array> array_data;
+        std::map<std::string, af::array> array_data, array_meta;
         for (const auto& [key, values] : data) array_data[key] = af_utils::to_array(values);
+        for (const auto& [key, values] : meta) array_meta[key] = af_utils::to_array(values);
         data_ = data_map{array_data};
+        meta_ = data_map{array_meta};
 
         std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
                   << " points.\n";
@@ -571,19 +590,27 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
+    std::tuple<const data_map&, const data_map&>
+    get_dataset(af::dtype dtype, std::mt19937& prng) const
     {
-        if (set_type_ == "train") return train_data_;
-        if (set_type_ == "valid") return valid_data_;
-        if (set_type_ == "train-valid") return train_valid_data_;
-        if (set_type_ == "test") return test_data_;
+        if (set_type_ == "train") return {train_data_, train_meta_};
+        if (set_type_ == "valid") return {valid_data_, valid_meta_};
+        if (set_type_ == "train-valid") return {train_valid_data_, train_valid_meta_};
+        if (set_type_ == "test") return {test_data_, test_meta_};
         throw std::runtime_error{"Unknown dataset."};
     }
 
     data_map train_data_;
+    data_map train_meta_;
+
     data_map valid_data_;
+    data_map valid_meta_;
+
     data_map train_valid_data_;
+    data_map train_valid_meta_;
+
     data_map test_data_;
+    data_map test_meta_;
 
 public:
     etth_loader(po::variables_map config)
@@ -593,20 +620,26 @@ public:
     {
         load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
 
-        train_data_ = data_.select(af::seq(0, 12 * 30 * 24 - 1));
+        af::seq train_selector(0, 12 * 30 * 24 - 1);
+        train_data_ = data_.select(train_selector);
+        train_meta_ = meta_.select(train_selector);
         data_map norm_reference = train_data_;
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
         train_data_ = train_data_.normalize_by(norm_reference);
 
-        valid_data_ = data_.select(af::seq(12 * 30 * 24, (12 + 4) * 30 * 24 - 1));
+        af::seq valid_selector(12 * 30 * 24, (12 + 4) * 30 * 24 - 1);
+        valid_data_ = data_.select(valid_selector);
+        valid_meta_ = meta_.select(valid_selector);
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
         valid_data_ = valid_data_.normalize_by(norm_reference);
 
-        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 - 1));
+        train_valid_data_ = train_data_.concat(valid_data_);
+        train_valid_meta_ = train_meta_.concat(valid_meta_);
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
-        train_valid_data_ = train_valid_data_.normalize_by(norm_reference);
 
-        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1));
+        af::seq test_selector((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1);
+        test_data_ = data_.select(test_selector);
+        test_meta_ = meta_.select(test_selector);
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
 
@@ -622,19 +655,27 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    const data_map& get_dataset(af::dtype dtype, std::mt19937& prng) const
+    std::tuple<const data_map&, const data_map&>
+    get_dataset(af::dtype dtype, std::mt19937& prng) const
     {
-        if (set_type_ == "train") return train_data_;
-        if (set_type_ == "valid") return valid_data_;
-        if (set_type_ == "train-valid") return train_valid_data_;
-        if (set_type_ == "test") return test_data_;
+        if (set_type_ == "train") return {train_data_, train_meta_};
+        if (set_type_ == "valid") return {valid_data_, valid_meta_};
+        if (set_type_ == "train-valid") return {train_valid_data_, train_valid_meta_};
+        if (set_type_ == "test") return {test_data_, test_meta_};
         throw std::runtime_error{"Unknown dataset."};
     }
 
     data_map train_data_;
+    data_map train_meta_;
+
     data_map valid_data_;
+    data_map valid_meta_;
+
     data_map train_valid_data_;
+    data_map train_valid_meta_;
+
     data_map test_data_;
+    data_map test_meta_;
 
 public:
     ettm_loader(po::variables_map config)
@@ -644,20 +685,26 @@ public:
     {
         load_data("ETT-small/ETTm" + std::to_string(variant_) + ".csv");
 
-        train_data_ = data_.select(af::seq(0, 12 * 30 * 24 * 4 - 1));
+        af::seq train_selector(0, 12 * 30 * 24 * 4 - 1);
+        train_data_ = data_.select(train_selector);
+        train_meta_ = meta_.select(train_selector);
         data_map norm_reference = train_data_;
         std::cout << "ETT train has " << train_data_.length() << " points.\n";
         train_data_ = train_data_.normalize_by(norm_reference);
 
-        valid_data_ = data_.select(af::seq(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1));
+        af::seq valid_selector(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1);
+        valid_data_ = data_.select(valid_selector);
+        valid_meta_ = meta_.select(valid_selector);
         std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
         valid_data_ = valid_data_.normalize_by(norm_reference);
 
-        train_valid_data_ = data_.select(af::seq(0, (12 + 4) * 30 * 24 * 4 - 1));
+        train_valid_data_ = train_data_.concat(valid_data_);
+        train_valid_meta_ = train_meta_.concat(valid_meta_);
         std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
-        train_valid_data_ = train_valid_data_.normalize_by(norm_reference);
 
-        test_data_ = data_.select(af::seq((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1));
+        af::seq test_selector((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1);
+        test_data_ = data_.select(test_selector);
+        test_meta_ = meta_.select(test_selector);
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
 
@@ -681,13 +728,14 @@ protected:
     std::set<std::string> output_names_{"ys"};
     std::set<std::string> target_names_{"ys"};
 
-    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map, data_map>
+    generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
         auto [xs, ys] = generate_narma(len, dtype, prng);
         data_map xs_dm{std::map<std::string, af::array>{{"xs", xs}, {"ys", af::shift(ys, 1)}}};
         data_map ys_dm{"ys", ys};
-        return {std::move(xs_dm), std::move(ys_dm)};
+        return {std::move(xs_dm), std::move(ys_dm), {}};
     }
 
 public:
@@ -732,12 +780,14 @@ protected:
         return ett_input_transform(xs);
     }
 
-    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map, data_map>
+    generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
-        data_map dataset = get_dataset(dtype, prng);
+        data_map dataset, meta;
+        std::tie(dataset, meta) = get_dataset(dtype, prng);
         data_map xs = dataset.filter(input_names());
         data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys)};
+        return {std::move(xs), std::move(ys), std::move(meta)};
     }
 
 public:
@@ -822,12 +872,14 @@ protected:
         return ett_input_transform(xs);
     }
 
-    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map, data_map>
+    generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
-        data_map dataset = get_dataset(dtype, prng);
+        data_map dataset, meta;
+        std::tie(dataset, meta) = get_dataset(dtype, prng);
         data_map xs = dataset.filter(input_names());
         data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys)};
+        return {std::move(xs), std::move(ys), std::move(meta)};
     }
 
 public:
@@ -868,13 +920,15 @@ protected:
     std::set<std::string> input_names_{"zero", "HUFL", "HULL", "MUFL",
                                        "MULL", "LUFL", "LULL", "OT"};
 
-    std::tuple<data_map, data_map> generate_data(af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map, data_map>
+    generate_data(af::dtype dtype, std::mt19937& prng) const override
     {
-        data_map dataset = get_dataset(dtype, prng);
+        data_map dataset, meta;
+        std::tie(dataset, meta) = get_dataset(dtype, prng);
         dataset = dataset.extend({"zero", af::constant(0, dataset.length(), af::dtype::f64)});
         data_map xs = dataset.filter(input_names());
         data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys)};
+        return {std::move(xs), std::move(ys), std::move(meta)};
     }
 
 public:
@@ -965,12 +1019,12 @@ protected:
         // for each time step
         for (int t = 0; t < seq_len_; ++t) {
             // perform a single step on the cloned net
-            net->step({"xs", xs(af::span, t)}, {}, {}, input_transform_fn());
+            net->step({"xs", xs(af::span, t)}, {}, {}, {}, input_transform_fn());
             // perform a single step on the perturbed net (and perturb input in time 0)
             if (t == 0)
-                net_pert->step({"xs", xs(af::span, t) + d0}, {}, {}, input_transform_fn());
+                net_pert->step({"xs", xs(af::span, t) + d0}, {}, {}, {}, input_transform_fn());
             else
-                net_pert->step({"xs", xs(af::span, t)}, {}, {}, input_transform_fn());
+                net_pert->step({"xs", xs(af::span, t)}, {}, {}, {}, input_transform_fn());
             // calculate the distance between net and net_pert states
             double norm = af::norm(net->state() - net_pert->state(), AF_NORM_VECTOR_2);
             dists_time(t) = norm;
@@ -1073,7 +1127,7 @@ public:
                 net.learning(false);
                 net.random_noise(false);
             }
-            net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, input_transform_fn());
+            net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, {}, input_transform_fn());
         }
     }
 

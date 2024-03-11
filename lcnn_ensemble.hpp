@@ -40,17 +40,22 @@ public:
       const data_map& step_input,
       const data_map& step_feedback,
       const data_map& step_desired,
+      const data_map& step_meta,
       input_transform_fn_t input_transform) override
     {
         for (std::unique_ptr<lcnn<DType>>& net : nets_)
-            net->step(step_input, step_feedback, step_desired, input_transform);
+            net->step(step_input, step_feedback, step_desired, step_meta, input_transform);
         update_last_output();
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
               .state = nets_.at(0)->state(),
-              .input = {.input = step_input, .feedback = step_feedback, .desired = step_desired},
+              .input =
+                {.input = step_input,
+                 .feedback = step_feedback,
+                 .desired = step_desired,
+                 .meta = step_meta},
               .output = last_output_,
               .event = event_};
             fnc(*this, std::move(data));
@@ -84,7 +89,8 @@ public:
             data_map step_input = input.input.select(i);
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
-            step(step_input, step_feedback, step_desired, input.input_transform);
+            data_map step_meta = input.meta.select(i);
+            step(step_input, step_feedback, step_desired, step_meta, input.input_transform);
             if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
         return result;
@@ -92,7 +98,7 @@ public:
 
     train_result_t train(const input_t& input) override
     {
-        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->train(net->feed(input));
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->train(net->feed(input), input);
         return {};
     }
 
@@ -101,9 +107,9 @@ public:
         for (std::unique_ptr<lcnn<DType>>& net : nets_) net->reset();
     }
 
-    train_result_t train(const feed_result_t data) override
+    train_result_t train(const feed_result_t data, const input_t& input) override
     {
-        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->train(data);
+        for (std::unique_ptr<lcnn<DType>>& net : nets_) net->train(data, input);
         return {};
     }
 

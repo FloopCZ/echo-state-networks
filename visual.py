@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
     # Plot lines (group the same names together for input/output/...)
     lines = []
-    cut_prefixes = ("input-", "feedback-", "output-", "desired-")
+    cut_prefixes = ("input-", "feedback-", "output-", "desired-", "meta-")
     col_suffixes = set()
     for c in df.columns:
         for pref in cut_prefixes:

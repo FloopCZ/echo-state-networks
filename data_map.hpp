@@ -218,6 +218,15 @@ public:
         return {keys_, std::move(data)};
     }
 
+    /// Zero out the whole column if `n_zeros` items is already zero.
+    data_map zero_if_some_zeros(int n_zeros) const
+    {
+        af::array data = data_;
+        af::array selector = af::count(af::iszero(data), 0) >= n_zeros;
+        data(af::span, selector) = 0.;
+        return {keys_, std::move(data)};
+    }
+
     data_map concat(const data_map& rhs) const
     {
         assert(keys_ == rhs.keys_);
