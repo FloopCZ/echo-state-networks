@@ -464,7 +464,7 @@ public:
     train_result_t train_impl(
       const feed_result_t& data,
       const af::array& state_predictor_indices,
-      const af::array& training_weights) const
+      af::array training_weights) const
     {
         assert(data.states.type() == DType);
         assert(
@@ -483,8 +483,21 @@ public:
         if (!state_predictor_indices.isempty())
             predictors = predictors(state_predictor_indices, af::span);
         predictors = af_utils::add_ones(predictors.T(), 1);
-        af::array output_w =
-          af_utils::solve(predictors, data.desired->T(), l2_, training_weights).T();
+        af::array desired = data.desired->T();
+        af::array output_w{predictors.dims(1), desired.dims(1), predictors.type()};
+        std::vector<af::array> tws(desired.dims(1), training_weights);
+        for (int iters = 0; iters < 5; ++iters) {
+            for (int i = 0; i < desired.dims(1); ++i) {
+                output_w(af::span, i) =
+                  af_utils::solve(predictors, desired(af::span, i), l2_, tws.at(i));
+                tws.at(i) =
+                  1.
+                  / af::max(
+                    1e-8,
+                    af::abs(desired(af::span, i) - af::matmul(predictors, output_w(af::span, i))));
+            }
+        }
+        output_w = output_w.T();
         output_w(af::isNaN(output_w) || af::isInf(output_w)) = 0.;
         assert(output_w.dims() == (af::dim4{output_names_.size(), predictors.dims(1)}));
         return {.predictors = std::move(predictors), .output_w = std::move(output_w)};
