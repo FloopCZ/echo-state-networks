@@ -136,6 +136,7 @@ public:
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::STAGNATION, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::NOEFFECTAXIS, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::NOEFFECTCOOR, false);
+        cmaparams_.set_seed((*prng_)());
         // The following constructor is broken, it sets sigma to the minimum of the sigmas,
         // while it optimizes on interval [0, 10].
         // cmaparams_ = cma::CMAParameters<GenoPheno>
