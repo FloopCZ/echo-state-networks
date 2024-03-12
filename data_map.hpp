@@ -138,7 +138,7 @@ public:
 
     std::vector<data_map> split(const std::vector<long>& sizes) const
     {
-        assert(!keys_.empty());
+        if (keys_.empty()) return std::vector<data_map>(sizes.size(), *this);
         std::vector<af::array> data_groups = af_utils::split_data(data_, sizes, 1);
         std::vector<data_map> result;
         for (af::array& group : data_groups) result.emplace_back(keys_, std::move(group));
