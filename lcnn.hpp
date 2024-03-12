@@ -116,8 +116,8 @@ protected:
     bool force_matmul_;
 
     // Random engines.
-    std::mt19937 prng_init_;
-    std::mt19937 prng_;
+    prng_t prng_init_;
+    prng_t prng_;
     af::randomEngine af_prng_;
 
     bool noise_enabled_;
@@ -270,7 +270,7 @@ public:
     lcnn() = default;
 
     /// Locally connected echo state network constructor.
-    lcnn(lcnn_config cfg, std::mt19937 prng)
+    lcnn(lcnn_config cfg, prng_t prng)
       : input_names_{cfg.input_names}
       , output_names_{cfg.output_names}
       , memory_length_{0}
@@ -828,7 +828,7 @@ lcnn<DType> random_lcnn(
   const std::set<std::string>& input_names,
   const std::set<std::string>& output_names,
   const po::variables_map& args,
-  std::mt19937& prng)
+  prng_t& prng)
 {
     long n_ins = input_names.size();
     long n_outs = output_names.size();

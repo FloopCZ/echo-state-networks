@@ -64,7 +64,7 @@ af::array narma(const af::array& xs, long history, long tau, std::vector<double>
 /// \param len The length of the sequence to be generated.
 /// \param tau The tau constant.
 /// \param delta The time delta constant.
-af::array mackey_glass(long len, double tau, double delta, af::dtype dtype, std::mt19937& prng)
+af::array mackey_glass(long len, double tau, double delta, af::dtype dtype, prng_t& prng)
 {
     // the beginning is random, and it will be skipped, so generate a bit extra
     assert(1. / delta == std::ceil(1. / delta));  // assert integral 1/delta

@@ -167,7 +167,7 @@ lcnn_ensemble<DType> random_lcnn_ensemble(
   const std::set<std::string>& input_names,
   const std::set<std::string>& output_names,
   const po::variables_map& args,
-  std::mt19937& prng)
+  prng_t& prng)
 {
     std::vector<std::unique_ptr<net_base>> nets;
     for (long i = 0; i < args.at("lcnn-ensemble.n").as<long>(); ++i) {
@@ -194,7 +194,7 @@ inline std::unique_ptr<net_base> make_net(
   const std::set<std::string>& input_names,
   const std::set<std::string>& output_names,
   const po::variables_map& args,
-  std::mt19937& prng)
+  prng_t& prng)
 {
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         return std::make_unique<lcnn<>>(random_lcnn(input_names, output_names, args, prng));

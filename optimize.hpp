@@ -2,13 +2,12 @@
 
 // Echo state network optimization header. //
 
-#include "analysis.hpp"
+#include "argument_utils.hpp"
 #include "benchmark_results.hpp"
 #include "benchmarks.hpp"
 #include "lcnn.hpp"
 #include "lcnn_ensemble.hpp"
 #include "net.hpp"
-#include "simple_esn.hpp"
 
 #include <boost/program_options.hpp>
 #include <execution>
@@ -57,7 +56,7 @@ protected:
     bool multithreading_;
     EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
     std::mutex best_evaluation_mutex_;
-    std::mt19937* prng_;
+    prng_t* prng_;
 
     // Reseed the random generator to a new state.
     void reseed()
@@ -91,7 +90,7 @@ protected:
     {
         return [this](const double* p, int n) -> double {
             std::vector<double> params(p, p + n);
-            std::mt19937 prng = *prng_;  // copy the generator for each f_value() call.
+            prng_t prng = *prng_;  // copy the generator for each f_value() call.
             return f_value(params, prng);
         };
     }
@@ -100,7 +99,7 @@ public:
     /// Dummy constructor.
     optimizer() = default;
     /// Construct from configuration.
-    optimizer(po::variables_map config, std::mt19937& prng)
+    optimizer(po::variables_map config, prng_t& prng)
       : config_{std::move(config)}
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
@@ -171,8 +170,7 @@ public:
     }
 
     /// The evaluation function.
-    virtual EvaluationResult
-    evaluate(const std::vector<double>& params, std::mt19937& prng) const = 0;
+    virtual EvaluationResult evaluate(const std::vector<double>& params, prng_t& prng) const = 0;
 
     /// The lower bounds for the optimized parameters.
     virtual std::vector<double> param_lbounds() const = 0;
@@ -203,7 +201,7 @@ public:
     }
 
     /// Get the f_value for the given parameter vector.
-    double f_value(const std::vector<double>& params, std::mt19937& prng)
+    double f_value(const std::vector<double>& params, prng_t& prng)
     {
         auto evaluate_and_update_best = [&](double& fv) {
             EvaluationResult er = this->evaluate(params, prng);
@@ -229,7 +227,7 @@ public:
         }
     }
 
-    double f_value(const dVec& candidate, std::mt19937& prng)
+    double f_value(const dVec& candidate, prng_t& prng)
     {
         return f_value(pheno_candidate(candidate), prng);
     }
@@ -258,7 +256,7 @@ public:
         return out;
     }
 
-    std::ostream& print_candidate(std::ostream& out, const dVec& vec, std::mt19937& prng)
+    std::ostream& print_candidate(std::ostream& out, const dVec& vec, prng_t& prng)
     {
         return print_candidate(out, cma::Candidate{f_value(vec, prng), vec});
     }
@@ -276,7 +274,7 @@ struct net_evaluation_result_t {
 template <typename EvaluationResult>
 class named_optimizer : public optimizer<EvaluationResult> {
 private:
-    EvaluationResult evaluate(const std::vector<double>& params, std::mt19937& prng) const override
+    EvaluationResult evaluate(const std::vector<double>& params, prng_t& prng) const override
     {
         return named_evaluate(name_and_filter_params(params), prng);
     }
@@ -307,7 +305,7 @@ protected:
 public:
     named_optimizer() = default;
 
-    named_optimizer(po::variables_map config, std::mt19937& prng)
+    named_optimizer(po::variables_map config, prng_t& prng)
       : optimizer<EvaluationResult>(std::move(config), prng)
     {
         if (this->config_.contains("opt.exclude-params")) {
@@ -382,7 +380,7 @@ public:
 
     virtual std::set<std::string> available_params() const = 0;
     virtual EvaluationResult
-    named_evaluate(const std::map<std::string, double>& params, std::mt19937& prng) const = 0;
+    named_evaluate(const std::map<std::string, double>& params, prng_t& prng) const = 0;
     virtual std::map<std::string, double> named_param_x0() const = 0;
     virtual std::map<std::string, double> named_param_sigmas() const = 0;
     virtual std::map<std::string, double> named_param_lbounds() const = 0;
@@ -393,7 +391,7 @@ public:
 class net_optimizer : public named_optimizer<net_evaluation_result_t> {
 private:
     net_evaluation_result_t
-    named_evaluate(const std::map<std::string, double>& params, std::mt19937& prng) const override
+    named_evaluate(const std::map<std::string, double>& params, prng_t& prng) const override
     {
         auto net = this->make_net(params, prng);
         double f_value = evaluate_net(*net, prng);
@@ -628,8 +626,7 @@ public:
 
     net_optimizer() = default;
 
-    net_optimizer(
-      po::variables_map config, std::unique_ptr<benchmark_set_base> bench, std::mt19937& prng)
+    net_optimizer(po::variables_map config, std::unique_ptr<benchmark_set_base> bench, prng_t& prng)
       : named_optimizer{std::move(config), prng}
       , bench_{std::move(bench)}
       , af_device_{config_.at("gen.af-device").as<int>()}
@@ -637,9 +634,9 @@ public:
     }
 
     virtual std::unique_ptr<net_base>
-    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const = 0;
+    make_net(const std::map<std::string, double>& params, prng_t& prng) const = 0;
 
-    virtual double evaluate_net(net_base& net, std::mt19937& prng) const
+    virtual double evaluate_net(net_base& net, prng_t& prng) const
     {
         return bench_->evaluate(net, prng);
     }
@@ -658,7 +655,7 @@ protected:
 
 public:
     lcnn_optimizer(
-      po::variables_map config, std::unique_ptr<benchmark_set_base> bench, std::mt19937& prng)
+      po::variables_map config, std::unique_ptr<benchmark_set_base> bench, prng_t& prng)
       : net_optimizer{std::move(config), std::move(bench), prng}
     {
         if (config_.at("opt.x0-from-params").as<bool>()) {
@@ -734,7 +731,7 @@ public:
     }
 
     std::unique_ptr<net_base>
-    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const override
+    make_net(const std::map<std::string, double>& params, prng_t& prng) const override
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
@@ -858,7 +855,7 @@ public:
     using lcnn_optimizer::lcnn_optimizer;
 
     std::unique_ptr<net_base>
-    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const override
+    make_net(const std::map<std::string, double>& params, prng_t& prng) const override
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
@@ -878,7 +875,7 @@ public:
     using net_optimizer::net_optimizer;
 
     std::unique_ptr<net_base>
-    make_net(const std::map<std::string, double>& params, std::mt19937& prng) const override
+    make_net(const std::map<std::string, double>& params, prng_t& prng) const override
     {
         af::setDevice(af_device_);
         po::variables_map cfg = to_variables_map(params);
@@ -1001,7 +998,7 @@ inline po::options_description optimizer_arg_description()
 }
 
 std::unique_ptr<net_optimizer> make_optimizer(
-  std::unique_ptr<benchmark_set_base> bench, const po::variables_map& args, std::mt19937& prng)
+  std::unique_ptr<benchmark_set_base> bench, const po::variables_map& args, prng_t& prng)
 {
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn") {

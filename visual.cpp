@@ -2,18 +2,14 @@
 
 #include "visual.hpp"
 
-#include "analysis.hpp"
 #include "argument_utils.hpp"
 #include "benchmarks.hpp"
 #include "lcnn.hpp"
 #include "lcnn_ensemble.hpp"
 #include "simple_esn.hpp"
 
-#include <chrono>
 #include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <thread>
 
 namespace po = boost::program_options;
 namespace fs = std::filesystem;
@@ -41,7 +37,9 @@ int main(int argc, char* argv[])
       ("gen.real-time-visual", po::bool_switch(),                                 //
        "Do real-time visualization.")                                             //
       ("gen.af-device", po::value<int>()->default_value(0),                       //
-       "ArrayFire device to be used.");                                           //
+       "ArrayFire device to be used.")                                            //
+      ("gen.seed", po::value<long>()->default_value(esn::DEFAULT_SEED),           //
+       "Seed value for random generator. Use 0 for random_device().");            //
     arg_desc.add(esn::benchmark_arg_description());
     po::variables_map args = esn::parse_conditional(
       argc, argv, arg_desc,
@@ -49,6 +47,9 @@ int main(int argc, char* argv[])
         {{"lcnn", esn::lcnn_arg_description()},                    //
          {"lcnn-ensemble", esn::lcnn_ensemble_arg_description()},  //
          {"simple-esn", esn::esn_arg_description()}}}});           //
+
+    long seed = args.at("gen.seed").as<long>();
+    if (seed != 0) esn::global_prng.seed(seed);
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();

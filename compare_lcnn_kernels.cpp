@@ -1,13 +1,13 @@
 // Comparison of different LCNN kernel sizes. //
 
-#include "argument_utils.hpp"
 #include "benchmarks.hpp"
+#include "common.hpp"
+#include "lcnn.hpp"
 #include "optimize.hpp"
 
 #include <boost/program_options.hpp>
 #include <filesystem>
 #include <iostream>
-#include <regex>
 
 using namespace esn;
 
@@ -46,7 +46,9 @@ int main(int argc, char* argv[])
       ("gen.overwrite", po::bool_switch(),                                                 //
        "Overwrite existing files.")                                                        //
       ("gen.af-device", po::value<int>()->default_value(0),                                //
-       "ArrayFire device to be used.");                                                    //
+       "ArrayFire device to be used.")                                                     //
+      ("gen.seed", po::value<long>()->default_value(DEFAULT_SEED),                         //
+       "Seed value for random generator. Use 0 for random_device().");                     //
     arg_desc.add(esn::benchmark_arg_description());
     arg_desc.add(esn::lcnn_arg_description());
     arg_desc.add(esn::optimizer_arg_description());
@@ -59,6 +61,9 @@ int main(int argc, char* argv[])
         std::cout << arg_desc << "\n";
         std::exit(1);
     }
+
+    long seed = args.at("gen.seed").as<long>();
+    if (seed != 0) global_prng.seed(seed);
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();

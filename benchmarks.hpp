@@ -3,7 +3,6 @@
 // The benchmarks used in combination with \ref optimizer. //
 
 #include "analysis.hpp"
-#include "argument_utils.hpp"
 #include "arrayfire_utils.hpp"
 #include "data_map.hpp"
 #include "misc.hpp"
@@ -11,11 +10,10 @@
 
 #include <af/data.h>
 #include <boost/algorithm/string.hpp>
+#include <boost/program_options.hpp>
 #include <filesystem>
 #include <fstream>
-#include <iomanip>
 #include <range/v3/view.hpp>
-#include <vector>
 
 namespace esn {
 
@@ -77,7 +75,7 @@ public:
     {
     }
 
-    virtual double evaluate(net_base& net, std::mt19937& prng) const = 0;
+    virtual double evaluate(net_base& net, prng_t& prng) const = 0;
     virtual const std::set<std::string>& input_names() const = 0;
     virtual const std::set<std::string>& output_names() const = 0;
     virtual ~benchmark_set_base() = default;
@@ -92,12 +90,12 @@ class benchmark_set : public benchmark_set_base {
 protected:
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
     virtual std::tuple<data_map, data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
+    generate_data(long len, af::dtype dtype, prng_t& prng) const = 0;
 
 public:
     using benchmark_set_base::benchmark_set_base;
 
-    double evaluate(net_base& net, std::mt19937& prng) const override
+    double evaluate(net_base& net, prng_t& prng) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
         data_map xs, ys, meta;
@@ -167,7 +165,7 @@ protected:
 
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
     virtual std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, std::mt19937& prng) const = 0;
+    generate_data(af::dtype dtype, prng_t& prng) const = 0;
 
 public:
     /// \param config The configuration parameters.
@@ -184,7 +182,7 @@ public:
         assert(n_steps_ahead_ <= split_sizes_.at(2));
     }
 
-    double evaluate(net_base& net, std::mt19937& prng) const override
+    double evaluate(net_base& net, prng_t& prng) const override
     {
         assert((long)split_sizes_.size() == 3);
         // retrieve the data
@@ -293,8 +291,7 @@ class narma10_generator {
 protected:
     long tau_;
 
-    std::tuple<af::array, af::array>
-    generate_narma(long len, af::dtype dtype, std::mt19937& prng) const
+    std::tuple<af::array, af::array> generate_narma(long len, af::dtype dtype, prng_t& prng) const
     {
         // NARMA10 can diverge, let's regenerate until it all fits in [-1, 1].
         af::array xs, ys;
@@ -322,7 +319,7 @@ public:
     }
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         auto [xs, ys] = generate_narma(len + 1, dtype, prng);
         return {{"xs", xs}, {"ys", ys}, {}};
@@ -346,7 +343,7 @@ protected:
     std::set<std::string> output_names_{"ys"};
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         // NARMA10 can diverge, not sure about NARMA30, let's rather check.
         af::array xs, ys;
@@ -382,7 +379,7 @@ protected:
     std::set<std::string> output_names_;
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
@@ -440,7 +437,7 @@ protected:
     std::set<std::string> output_names_{"ys"};
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
@@ -482,7 +479,7 @@ protected:
     }
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         af::array mg = esn::mackey_glass(len + 1, tau_, delta_, dtype, prng);
         af::array xs = mg(af::seq(0, af::end - 1));
@@ -590,8 +587,7 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    std::tuple<const data_map&, const data_map&>
-    get_dataset(af::dtype dtype, std::mt19937& prng) const
+    std::tuple<const data_map&, const data_map&> get_dataset(af::dtype dtype, prng_t& prng) const
     {
         if (set_type_ == "train") return {train_data_, train_meta_};
         if (set_type_ == "valid") return {valid_data_, valid_meta_};
@@ -664,8 +660,7 @@ protected:
     int variant_;
     std::string set_type_;  // train/valid/test
 
-    std::tuple<const data_map&, const data_map&>
-    get_dataset(af::dtype dtype, std::mt19937& prng) const
+    std::tuple<const data_map&, const data_map&> get_dataset(af::dtype dtype, prng_t& prng) const
     {
         if (set_type_ == "train") return {train_data_, train_meta_};
         if (set_type_ == "valid") return {valid_data_, valid_meta_};
@@ -747,7 +742,7 @@ protected:
     std::set<std::string> target_names_{"ys"};
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, std::mt19937& prng) const override
+    generate_data(af::dtype dtype, prng_t& prng) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
         auto [xs, ys] = generate_narma(len, dtype, prng);
@@ -799,7 +794,7 @@ protected:
     }
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, std::mt19937& prng) const override
+    generate_data(af::dtype dtype, prng_t& prng) const override
     {
         data_map dataset, meta;
         std::tie(dataset, meta) = get_dataset(dtype, prng);
@@ -891,7 +886,7 @@ protected:
     }
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, std::mt19937& prng) const override
+    generate_data(af::dtype dtype, prng_t& prng) const override
     {
         data_map dataset, meta;
         std::tie(dataset, meta) = get_dataset(dtype, prng);
@@ -939,7 +934,7 @@ protected:
                                        "MULL", "LUFL", "LULL", "OT"};
 
     std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, std::mt19937& prng) const override
+    generate_data(af::dtype dtype, prng_t& prng) const override
     {
         data_map dataset, meta;
         std::tie(dataset, meta) = get_dataset(dtype, prng);
@@ -1089,7 +1084,7 @@ public:
     {
     }
 
-    double evaluate(net_base& net, std::mt19937& prng) const override
+    double evaluate(net_base& net, prng_t& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         double d0 = d0_;
@@ -1135,7 +1130,7 @@ public:
     {
     }
 
-    double evaluate(net_base& net, std::mt19937&) const override
+    double evaluate(net_base& net, prng_t&) const override
     {
         assert(net.input_names() == input_names_ && net.output_names() == output_names_);
         for (long time = 0;; ++time) {

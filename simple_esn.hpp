@@ -50,8 +50,8 @@ class simple_esn : public net_base {
     af::array last_output_;
 
     // random engines
-    std::mt19937 prng_init_;
-    std::mt19937 prng_;
+    prng_t prng_init_;
+    prng_t prng_;
     af::randomEngine af_prng_;
 
 public:
@@ -68,7 +68,7 @@ public:
       af::array biases,
       double noise,
       double leakage,
-      std::mt19937 prng)
+      prng_t prng)
       : n_{n}
       , input_names_{std::move(input_names)}
       , output_names_{std::move(output_names)}
@@ -111,7 +111,7 @@ public:
       af::array feedback_w,
       double noise,
       double leakage,
-      std::mt19937 prng)
+      prng_t prng)
       : simple_esn{
         n,
         std::move(input_names),
@@ -368,7 +368,7 @@ simple_esn<DType> random_esn(
   const std::set<std::string>& input_names,
   const std::set<std::string>& output_names,
   const po::variables_map& args,
-  std::mt19937& prng)
+  prng_t& prng)
 {
     long n_ins = input_names.size();
     long n_outs = output_names.size();
