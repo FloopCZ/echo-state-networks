@@ -597,6 +597,8 @@ protected:
         if (set_type_ == "valid") return {valid_data_, valid_meta_};
         if (set_type_ == "train-valid") return {train_valid_data_, train_valid_meta_};
         if (set_type_ == "test") return {test_data_, test_meta_};
+        if (set_type_ == "train-valid-test")
+            return {train_valid_test_data_, train_valid_test_meta_};
         throw std::runtime_error{"Unknown dataset."};
     }
 
@@ -611,6 +613,9 @@ protected:
 
     data_map test_data_;
     data_map test_meta_;
+
+    data_map train_valid_test_data_;
+    data_map train_valid_test_meta_;
 
 public:
     etth_loader(po::variables_map config)
@@ -643,6 +648,10 @@ public:
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
 
+        train_valid_test_data_ = train_valid_data_.concat(test_data_);
+        train_valid_test_meta_ = train_valid_meta_.concat(test_meta_);
+        std::cout << "ETT train-valid-test has " << train_valid_test_data_.length() << " points.\n";
+
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
                   << af_utils::mse<double>(
                        valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
@@ -662,6 +671,8 @@ protected:
         if (set_type_ == "valid") return {valid_data_, valid_meta_};
         if (set_type_ == "train-valid") return {train_valid_data_, train_valid_meta_};
         if (set_type_ == "test") return {test_data_, test_meta_};
+        if (set_type_ == "train-valid-test")
+            return {train_valid_test_data_, train_valid_test_meta_};
         throw std::runtime_error{"Unknown dataset."};
     }
 
@@ -676,6 +687,9 @@ protected:
 
     data_map test_data_;
     data_map test_meta_;
+
+    data_map train_valid_test_data_;
+    data_map train_valid_test_meta_;
 
 public:
     ettm_loader(po::variables_map config)
@@ -707,6 +721,10 @@ public:
         test_meta_ = meta_.select(test_selector);
         std::cout << "ETT test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
+
+        train_valid_test_data_ = train_valid_data_.concat(test_data_);
+        train_valid_test_meta_ = train_valid_meta_.concat(test_meta_);
+        std::cout << "ETT train-valid-test has " << train_valid_test_data_.length() << " points.\n";
 
         std::cout << "Naive 1-step ahead prediction valid MSE error is "
                   << af_utils::mse<double>(
