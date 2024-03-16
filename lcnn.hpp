@@ -93,11 +93,6 @@ struct lcnn_config {
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 class lcnn : public net_base {
 protected:
-    struct indiced_output_w {
-        af::array state_predictor_indices;
-        af::array output_w;
-    };
-
     std::set<std::string> input_names_;
     std::set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
@@ -112,7 +107,7 @@ protected:
     af::array reservoir_b_;
     af::array input_w_;
     af::array feedback_w_;
-    std::vector<indiced_output_w> indiced_output_w_;
+    std::vector<af::array> output_w_;
     bool force_matmul_;
 
     // Random engines.
@@ -197,24 +192,22 @@ protected:
     /// Update the last output of the network after having a new state.
     virtual void update_last_output()
     {
-        if (indiced_output_w_.empty()) {
+        if (output_w_.empty()) {
             last_output_.clear();
             return;
         }
         af::array output =
-          af::constant(af::NaN, output_names_.size(), indiced_output_w_.size(), state_.type());
+          af::constant(af::NaN, output_names_.size(), output_w_.size(), state_.type());
         // Evaluate every output_w and aggregate them to the final output.
-        for (int i = 0; i < indiced_output_w_.size(); ++i) {
-            const indiced_output_w& iow = indiced_output_w_.at(i);
-            af::array predictors = af::flat(state_);
-            if (!iow.state_predictor_indices.isempty())
-                predictors = predictors(iow.state_predictor_indices);
-            predictors = af_utils::add_ones(predictors, 0);
-            output(af::span, i) = af::matmul(iow.output_w, predictors);
+        for (int i = 0; i < output_w_.size(); ++i) {
+            const af::array& ow = output_w_.at(i);
+            af::array predictors = af_utils::add_ones(af::flat(state_), 0);
+            output(af::span, i) = af::matmul(ow, predictors);
         }
         assert(
           train_aggregation_ == "replace" || train_aggregation_ == "ensemble"
           || train_aggregation_ == "delta");
+        if (train_aggregation_ == "replace") assert(output_w_.size() == 1);
         if (train_aggregation_ == "ensemble") output = af::median(output, 1);
         if (train_aggregation_ == "delta") output = af::sum(output, 1);
         last_output_ = {output_names_, output};
@@ -456,11 +449,10 @@ public:
     {
         prng_ = prng_init_;
         af_prng_ = af::randomEngine{AF_RANDOM_ENGINE_DEFAULT, prng_()};
-        indiced_output_w_.clear();
+        output_w_.clear();
     }
 
     /// Train the network on already processed feed result.
-    /// \param data Training data.
     train_result_t train_impl(
       const feed_result_t& data,
       const af::array& state_predictor_indices,
@@ -479,15 +471,26 @@ public:
         assert(data.desired->dims(0) == output_names_.size());
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
-        af::array predictors = af::moddims(data.states, state_.elements(), data.desired->dims(1));
+        af::array flat_predictors =
+          af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
+        af::array predictors = flat_predictors;
         if (!state_predictor_indices.isempty())
-            predictors = predictors(state_predictor_indices, af::span);
-        predictors = af_utils::add_ones(predictors.T(), 1);
-        af::array output_w =
-          af_utils::solve(predictors, data.desired->T(), l2_, training_weights).T();
-        output_w(af::isNaN(output_w) || af::isInf(output_w)) = 0.;
-        assert(output_w.dims() == (af::dim4{output_names_.size(), predictors.dims(1)}));
-        return {.predictors = std::move(predictors), .output_w = std::move(output_w)};
+            predictors = flat_predictors(af::span, state_predictor_indices);
+        // Find the regression coefficients.
+        af::array beta =
+          af_utils::lstsq_train(predictors, data.desired->T(), l2_, training_weights).T();
+        // Distribute the coefficients along the state_predictor_indices, leave the other empty.
+        af::array output_w = [&]() {
+            if (state_predictor_indices.isempty()) return beta;
+            af::array w =
+              af::constant(0., output_names_.size(), state_.elements() + 1, flat_predictors.type());
+            af::array output_w_indices = af_utils::add_zeros(state_predictor_indices + 1, 0);
+            w(af::span, output_w_indices) = beta;
+            w(af::isNaN(w) || af::isInf(w)) = 0.;
+            return w;
+        }();
+        assert(output_w.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
+        return {.predictors = std::move(flat_predictors), .output_w = std::move(output_w)};
     }
 
     /// Train the network on already processed feed result.
@@ -496,10 +499,10 @@ public:
     {
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
 
-        if (!indiced_output_w_.empty()) {
+        if (!output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
             std::cout << fmt::format(
-              "Before train {} MSE error (all): {}", indiced_output_w_.size(), feed_err)
+              "Before train {} MSE error (all): {}", output_w_.size(), feed_err)
                       << std::endl;
         }
 
@@ -508,7 +511,7 @@ public:
           || train_aggregation_ == "delta");
         // Prepare for delta training (epoch 1 and later).
         // In the second and later epochs, we only train the difference.
-        if (train_aggregation_ == "delta" && !indiced_output_w_.empty())
+        if (train_aggregation_ == "delta" && !output_w_.empty())
             data.desired = *data.desired - data.outputs;
 
         // Weight the training data according to the given training weights.
@@ -518,7 +521,6 @@ public:
 
         struct train_trial_result_t {
             train_result_t result;
-            af::array state_predictor_indices;
             double valid_err;
         } best_train{.valid_err = std::numeric_limits<double>::max()};
 
@@ -548,6 +550,7 @@ public:
               .states = data.states(af::span, af::span, train_set_idx),
               .outputs = data.outputs(af::span, train_set_idx),
               .desired = (*data.desired)(af::span, train_set_idx)};
+            training_weights = training_weights(train_set_idx);
             valid_data = {
               .states = data.states(af::span, af::span, valid_set_idx),
               .outputs = data.outputs(af::span, valid_set_idx),
@@ -565,41 +568,34 @@ public:
             train_result_t train_result =
               train_impl(train_data, state_predictor_indices, training_weights);
             af::array train_prediction =
-              af::matmulNT(train_result.predictors, train_result.output_w);
+              af_utils::lstsq_predict(train_result.predictors, train_result.output_w.T());
             double train_err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);
             double valid_err = std::numeric_limits<double>::quiet_NaN();
             // predict out of sample
             if (cross_validate) {
                 af::array valid_predictors =
                   af::moddims(valid_data.states, state_.elements(), valid_data.states.dims(2));
-                if (!state_predictor_indices.isempty())
-                    valid_predictors = valid_predictors(state_predictor_indices, af::span);
-                valid_predictors = af_utils::add_ones(valid_predictors.T(), 1);
-                af::array valid_prediction = af::matmulNT(valid_predictors, train_result.output_w);
+                af::array valid_prediction =
+                  af_utils::lstsq_predict(valid_predictors.T(), train_result.output_w.T());
                 valid_err = af_utils::mse<double>(valid_prediction.T(), *valid_data.desired);
             }
             // print statistics
             std::cout << fmt::format(
-              "Train {} trial {} MSE error (train): {}", indiced_output_w_.size(), i, train_err)
+              "Train {} trial {} MSE error (train): {}", output_w_.size(), i, train_err)
                       << std::endl;
             if (cross_validate)
                 std::cout << fmt::format(
-                  "Train {} trial {} MSE error (valid): {}", indiced_output_w_.size(), i, valid_err)
+                  "Train {} trial {} MSE error (valid): {}", output_w_.size(), i, valid_err)
                           << std::endl;
             // select the best train trial
             if (std::isnan(valid_err) || valid_err < best_train.valid_err)
-                best_train = {
-                  .result = std::move(train_result),
-                  .state_predictor_indices = state_predictor_indices,
-                  .valid_err = valid_err};
+                best_train = {.result = std::move(train_result), .valid_err = valid_err};
             // no need to keep on trying if use all state predictors (the result will be the same)
             if (!cross_validate) break;
         }
 
-        if (train_aggregation_ == "replace") indiced_output_w_.clear();
-        indiced_output_w_.push_back(
-          {.state_predictor_indices = best_train.state_predictor_indices,
-           .output_w = best_train.result.output_w});
+        if (train_aggregation_ == "replace") output_w_.clear();
+        output_w_.push_back(best_train.result.output_w);
         update_last_output();
         return best_train.result;
     }

@@ -119,14 +119,26 @@ T nrmse(const af::array& ys_predict, const af::array& ys_truth)
       .scalar<double>();
 }
 
-/// Prepend a row/column of ones to a matrix.
-af::array add_ones(const af::array& A, long dim = 1)
+/// Prepend a row/column of the given constant to a matrix.
+af::array add_constant_column(const af::array& A, double value, long dim = 1)
 {
     assert(dim == 0 || dim == 1);
     long dim0 = dim == 0 ? 1 : A.dims(0);
     long dim1 = dim == 0 ? A.dims(1) : 1;
-    af::array A1 = af::join(dim, af::constant(1, dim0, dim1, A.type()), A);
+    af::array A1 = af::join(dim, af::constant(value, dim0, dim1, A.type()), A);
     return A1;
+}
+
+/// Prepend a row/column of zeros to a matrix.
+af::array add_zeros(const af::array& A, long dim = 1)
+{
+    return add_constant_column(A, 0., dim);
+}
+
+/// Prepend a row/column of ones to a matrix.
+af::array add_ones(const af::array& A, long dim = 1)
+{
+    return add_constant_column(A, 1., dim);
 }
 
 /// Linear regression solver
@@ -158,13 +170,13 @@ af::array solve(af::array A, af::array B, double l2 = 0., af::array training_wei
 ///
 /// Train X, such as [1 | A] * X == B, where [1 | A] is the
 /// matrix A with an extra column of ones.
-af::array lstsq_train(const af::array& A, const af::array& B, double l2 = 0.0)
+af::array lstsq_train(
+  const af::array& A, const af::array& B, double l2 = 0.0, const af::array& training_weights = {})
 {
     assert(B.numdims() <= 2);
     assert(A.dims(0) == B.dims(0));
     // add biases (i.e., 1's) as the first column of the coefficient matrix
-    af::array A1 = af::join(1, af::constant(1, A.dims(0), A.type()), A);
-    af::array X = solve(A1, B, l2);
+    af::array X = solve(add_ones(A, 1), B, l2, training_weights);
     assert((X.dims() == af::dim4{A.dims(1) + 1, B.dims(1)}));  // + 1 for biases
     return X;
 }
@@ -178,9 +190,8 @@ af::array lstsq_predict(const af::array& A, const af::array& X)
     assert(A.numdims() == 2);
     assert(X.numdims() <= 2);
     assert(A.dims(1) + 1 == X.dims(0));  // + 1 for the bias
-    // add biases (i.e., 1's) as the first row of the coefficient matrix
-    af::array A1 = af::join(1, af::constant(1, A.dims(0), A.type()), A);
-    return af::matmul(A1, X);
+    // add biases (i.e., 1's) as the first column of the coefficient matrix
+    return af::matmul(add_ones(A, 1), X);
 }
 
 /// Pad the given 2D array with itself (as if it was periodic).
