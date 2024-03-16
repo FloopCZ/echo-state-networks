@@ -928,9 +928,12 @@ lcnn<DType> random_lcnn(
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
     } else if (topo_params.contains("lcnn")) {
         // generate reservoir weights
-        cfg.reservoir_w = sigma_res
-            * af::randn({state_height, state_width, kernel_height, kernel_width}, DType, af_prng)
-          + mu_res;
+        af::dim4 res_dims{state_height, state_width, kernel_height, kernel_width};
+        cfg.reservoir_w = sigma_res * (af::randu(res_dims, DType, af_prng) * 2 - 1);
+        // normalize the weights such that the mean for each kernel is equal to mu_res
+        af::array mu_kernel = af::mean(
+          af::moddims(cfg.reservoir_w, state_height, state_width, kernel_height * kernel_width), 2);
+        cfg.reservoir_w += af::tile(mu_res - mu_kernel, 1, 1, kernel_height, kernel_width);
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
         if (topo_params.contains("noself")) {
