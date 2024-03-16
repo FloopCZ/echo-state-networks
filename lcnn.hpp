@@ -196,6 +196,9 @@ protected:
             last_output_.clear();
             return;
         }
+        assert(
+          train_aggregation_ == "replace" || train_aggregation_ == "ensemble"
+          || train_aggregation_ == "delta" || train_aggregation_ == "funagg");
         af::array output =
           af::constant(af::NaN, output_names_.size(), output_w_.size(), state_.type());
         // Evaluate every output_w and aggregate them to the final output.
@@ -203,13 +206,22 @@ protected:
             const af::array& ow = output_w_.at(i);
             af::array predictors = af_utils::add_ones(af::flat(state_), 0);
             output(af::span, i) = af::matmul(ow, predictors);
+            if (train_aggregation_ == "funagg") {
+                if (i == 1)
+                    output(af::span, i) =
+                      af::atanh(af::clamp(output(af::span, i), -1, 1) * 0.99) * 30.;
+                else if (i == 2)
+                    output(af::span, i) =
+                      af::atanh(af::clamp(output(af::span, i), -1, 1) * 0.99) * 30. - 3.;
+                else if (i == 3)
+                    output(af::span, i) =
+                      af::atanh(af::clamp(output(af::span, i), -1, 1) * 0.99) * 30. + 3.;
+            }
         }
-        assert(
-          train_aggregation_ == "replace" || train_aggregation_ == "ensemble"
-          || train_aggregation_ == "delta");
         if (train_aggregation_ == "replace") assert(output_w_.size() == 1);
         if (train_aggregation_ == "ensemble") output = af::median(output, 1);
         if (train_aggregation_ == "delta") output = af::sum(output, 1);
+        if (train_aggregation_ == "funagg") output = af::mean(output, 1);
         last_output_ = {output_names_, output};
         assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
@@ -508,11 +520,19 @@ public:
 
         assert(
           train_aggregation_ == "replace" || train_aggregation_ == "ensemble"
-          || train_aggregation_ == "delta");
+          || train_aggregation_ == "delta" || train_aggregation_ == "funagg");
         // Prepare for delta training (epoch 1 and later).
         // In the second and later epochs, we only train the difference.
         if (train_aggregation_ == "delta" && !output_w_.empty())
             data.desired = *data.desired - data.outputs;
+        if (train_aggregation_ == "funagg") {
+            if (output_w_.size() == 1)
+                data.desired = af::tanh(*data.desired / 30.) / 0.99;
+            else if (output_w_.size() == 2)
+                data.desired = af::tanh((*data.desired + 3.) / 30.) / 0.99;
+            else if (output_w_.size() == 3)
+                data.desired = af::tanh((*data.desired - 3.) / 30.) / 0.99;
+        }
 
         // Weight the training data according to the given training weights.
         af::array training_weights;
