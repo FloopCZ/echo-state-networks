@@ -1069,7 +1069,10 @@ lcnn<DType> random_lcnn(
 
     // generate reservoir biases
     cfg.reservoir_b = sigma_b * (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1);
-    cfg.reservoir_b += mu_b - af::mean(af::flat(cfg.reservoir_b));
+    {
+        af::array curr_mu = af::mean(af::flat(cfg.reservoir_b));
+        cfg.reservoir_b += af::tile(mu_b - curr_mu, state_height, state_width);
+    }
 
     // for improved visualizations, this is a list of nice positions
     // in the state matrix.
@@ -1089,14 +1092,16 @@ lcnn<DType> random_lcnn(
         cfg.input_w = af::randu({state_height, state_width, n_ins}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_ins; ++i) {
             cfg.input_w(af::span, af::span, i) *= sigma_in_weight.at(i);
+            af::array curr_mu = af::mean(af::flat(cfg.input_w(af::span, af::span, i)));
             cfg.input_w(af::span, af::span, i) +=
-              mu_in_weight.at(i) - af::mean(af::flat(cfg.input_w(af::span, af::span, i)));
+              af::tile(mu_in_weight.at(i) - curr_mu, state_height, state_width);
         }
         cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_outs; ++i) {
             cfg.feedback_w(af::span, af::span, i) *= sigma_fb_weight.at(i);
+            af::array curr_mu = af::mean(af::flat(cfg.feedback_w(af::span, af::span, i)));
             cfg.feedback_w(af::span, af::span, i) +=
-              mu_fb_weight.at(i) - af::mean(af::flat(cfg.feedback_w(af::span, af::span, i)));
+              af::tile(mu_fb_weight.at(i) - curr_mu, state_height, state_width);
         }
     } else {
         // choose the locations for inputs and feedbacks
