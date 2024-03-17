@@ -7,6 +7,7 @@
 
 #include <boost/algorithm/string.hpp>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 
 using namespace esn;
@@ -117,6 +118,9 @@ int main(int argc, char* argv[])
 
         // CSV rows
         po::variables_map params = opt->to_variables_map(best_evaluation.params);
+        fs::path param_file = snapshot_dir / "params.txt";
+        std::ofstream param_out{param_file};
+        param_out << params;
         for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {
             for (const std::string& param : param_names) {
                 if (param == "run") {
