@@ -111,8 +111,11 @@ int main(int argc, char* argv[])
         std::cout << "Distribution mean:\n";
         opt->print_candidate(std::cout, cmasols.xmean(), global_prng) << std::endl;
 
-        // CSV rows
         esn::net_evaluation_result_t best_evaluation = std::move(opt->best_evaluation());
+        fs::path snapshot_dir = output_dir / ("best-run" + std::to_string(run));
+        best_evaluation.net->save(snapshot_dir);
+
+        // CSV rows
         po::variables_map params = opt->to_variables_map(best_evaluation.params);
         for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {
             for (const std::string& param : param_names) {
