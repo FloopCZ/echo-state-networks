@@ -160,6 +160,13 @@ public:
         for (const std::unique_ptr<lcnn<DType>>& net : nets_) net_clones.push_back(net->clone());
         return std::make_unique<lcnn_ensemble<DType>>(std::move(net_clones));
     }
+
+    void save(const fs::path& dir) override
+    {
+        int i = 0;
+        for (std::unique_ptr<lcnn<DType>>& net : nets_)
+            net->save(dir / fmt::format("ensemble-{}", i++));
+    }
 };
 
 template <af::dtype DType = DEFAULT_AF_DTYPE>
@@ -197,6 +204,10 @@ inline std::unique_ptr<net_base> make_net(
   prng_t& prng)
 {
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
+        if (args.contains("lcnn.load")) {
+            fs::path net_dir = args.at("lcnn.load").as<std::string>();
+            return std::make_unique<lcnn<>>(lcnn<>::load(net_dir));
+        }
         return std::make_unique<lcnn<>>(random_lcnn(input_names, output_names, args, prng));
     }
     if (args.at("gen.net-type").as<std::string>() == "lcnn-ensemble") {

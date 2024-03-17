@@ -15,8 +15,11 @@
 #include <boost/program_options.hpp>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <fmt/format.h>
+#include <fstream>
 #include <limits>
+#include <nlohmann/json.hpp>
 #include <random>
 #include <range/v3/all.hpp>
 #include <stdexcept>
@@ -306,6 +309,166 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
+    }
+
+    void save(const fs::path& dir) override
+    {
+        fs::create_directories(dir);
+
+        nlohmann::json data;
+        data["snapshot_version"] = 1;
+
+        data["input_names"] = input_names_;
+        data["output_names"] = output_names_;
+        data["memory_length"] = memory_length_;
+        data["output_w_size"] = output_w_.size();
+        data["force_matmul"] = force_matmul_;
+        data["noise_enabled"] = noise_enabled_;
+        data["noise"] = noise_;
+        data["leakage"] = leakage_;
+        data["l2"] = l2_;
+        data["intermediate_steps"] = intermediate_steps_;
+        data["n_train_trials"] = n_train_trials_;
+        data["n_state_predictors"] = n_state_predictors_;
+        data["train_aggregation"] = train_aggregation_;
+        data["train_valid_ratio"] = train_valid_ratio_;
+        data["act_steepness"] = act_steepness_;
+        data["learning_enabled"] = learning_enabled_;
+        data["adaptation_cfg"] = {
+          {"learning_rate", adaptation_cfg.learning_rate},
+          {"abs_target_activation", adaptation_cfg.abs_target_activation},
+          {"weight_leakage", adaptation_cfg.weight_leakage},
+        };
+        std::ofstream{dir / "params.json"} << data.dump(2);
+
+        {
+            std::string p = dir / "state_delta.bin";
+            af::saveArray("data", state_delta_, p.c_str());
+        }
+        {
+            std::string p = dir / "state.bin";
+            af::saveArray("data", state_, p.c_str());
+        }
+        if (!memory_map_.isempty()) {
+            std::string p = dir / "memory_map.bin";
+            af::saveArray("data", memory_map_, p.c_str());
+        }
+        if (!state_memory_.isempty()) {
+            std::string p = dir / "state_memory.bin";
+            af::saveArray("data", state_memory_, p.c_str());
+        }
+        last_output_.save(dir / "last_output/");
+        prev_step_feedback_.save(dir / "prev_step_feedback/");
+        {
+            std::string p = dir / "reservoir_w.bin";
+            af::saveArray("data", reservoir_w_, p.c_str());
+        }
+        if (!reservoir_w_full_.isempty()) {
+            std::string p = dir / "reservoir_w_full.bin";
+            af::saveArray("data", reservoir_w_full_, p.c_str());
+        }
+        {
+            std::string p = dir / "reservoir_b.bin";
+            af::saveArray("data", reservoir_b_, p.c_str());
+        }
+        {
+            std::string p = dir / "input_w.bin";
+            af::saveArray("data", input_w_, p.c_str());
+        }
+        {
+            std::string p = dir / "feedback_w.bin";
+            af::saveArray("data", feedback_w_, p.c_str());
+        }
+        fs::create_directories(dir / "output_w/");
+        for (std::size_t i = 0; i < output_w_.size(); ++i) {
+            std::string p = dir / "output_w" / (std::to_string(i) + ".bin");
+            af::saveArray("data", output_w_.at(i), p.c_str());
+        }
+
+        std::ofstream{dir / "prng_init.bin"} << prng_init_;
+        std::ofstream{dir / "prng.bin"} << prng_;
+        // TODO Not sure how to save af_prng_.
+    }
+
+    static lcnn<DType> load(const fs::path& dir)
+    {
+        if (!fs::exists(dir))
+            throw std::runtime_error{"Lcnn snapshot dir " + dir.string() + " does not exist."};
+
+        lcnn<DType> net;
+        nlohmann::json data = nlohmann::json::parse(std::ifstream{dir / "params.json"});
+        if (data.at("snapshot_version") != 1)
+            throw std::runtime_error{"Snapshot not compatible with the current binary."};
+
+        net.input_names_ = data["input_names"];
+        net.output_names_ = data["output_names"];
+        net.memory_length_ = data["memory_length"];
+        net.force_matmul_ = data["force_matmul"];
+        net.noise_enabled_ = data["noise_enabled"];
+        net.noise_ = data["noise"];
+        net.leakage_ = data["leakage"];
+        net.l2_ = data["l2"];
+        net.intermediate_steps_ = data["intermediate_steps"];
+        net.n_train_trials_ = data["n_train_trials"];
+        net.n_state_predictors_ = data["n_state_predictors"];
+        net.train_aggregation_ = data["train_aggregation"];
+        net.train_valid_ratio_ = data["train_valid_ratio"];
+        net.act_steepness_ = data["act_steepness"];
+        net.learning_enabled_ = data["learning_enabled"];
+        net.adaptation_cfg.learning_rate = data["adaptation_cfg"]["learning_rate"];
+        net.adaptation_cfg.abs_target_activation = data["adaptation_cfg"]["abs_target_activation"];
+        net.adaptation_cfg.weight_leakage = data["adaptation_cfg"]["weight_leakage"];
+
+        {
+            std::string p = dir / "state_delta.bin";
+            net.state_delta_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "state.bin";
+            net.state_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "memory_map.bin";
+            if (fs::exists(p)) net.memory_map_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "state_memory.bin";
+            if (fs::exists(p)) net.state_memory_ = af::readArray(p.c_str(), "data");
+        }
+        net.last_output_.load(dir / "last_output/");
+        net.prev_step_feedback_.load(dir / "prev_step_feedback/");
+        {
+            std::string p = dir / "reservoir_w.bin";
+            net.reservoir_w_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "reservoir_w_full.bin";
+            if (fs::exists(p)) net.reservoir_w_full_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "reservoir_b.bin";
+            net.reservoir_b_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "input_w.bin";
+            net.input_w_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "feedback_w.bin";
+            net.feedback_w_ = af::readArray(p.c_str(), "data");
+        }
+
+        std::size_t output_w_size = data["output_w_size"];
+        net.output_w_.clear();
+        for (std::size_t i = 0; i < output_w_size; ++i) {
+            std::string p = dir / "output_w" / (std::to_string(i) + ".bin");
+            net.output_w_.push_back(af::readArray(p.c_str(), "data"));
+        }
+
+        std::ifstream{dir / "prng_init.bin"} >> net.prng_init_;
+        std::ifstream{dir / "prng.bin"} >> net.prng_;
+        net.af_prng_.setSeed(net.prng_());
+        return net;
     }
 
     /// TODO fix docs
@@ -1219,6 +1382,8 @@ inline po::options_description lcnn_arg_description()
        "Decay rate for weight adaptation.")                                           //
       ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(1.0),   //
        "Target value of neuron activation during adaptation.")                        //
+      ("lcnn.load", po::value<std::string>(),                                         //
+       "Directory from which to load the network.")                                   //
       ;
     return lcnn_arg_desc;
 }

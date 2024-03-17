@@ -7,6 +7,7 @@
 
 #include <arrayfire.h>
 #include <cassert>
+#include <filesystem>
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -20,6 +21,7 @@ namespace esn {
 constexpr af::dtype DEFAULT_AF_DTYPE = af::dtype::f64;
 
 using input_transform_fn_t = std::function<data_map(const data_map&)>;
+namespace fs = std::filesystem;
 
 /// The input data.
 struct input_t {
@@ -144,6 +146,8 @@ public:
     }
 
     virtual std::unique_ptr<net_base> clone() const = 0;
+
+    virtual void save(const fs::path& dir) = 0;
 
     virtual ~net_base() = default;
 };

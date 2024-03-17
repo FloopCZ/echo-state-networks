@@ -10,6 +10,7 @@
 #include <arrayfire.h>
 #include <boost/program_options.hpp>
 #include <cassert>
+#include <stdexcept>
 
 namespace esn {
 
@@ -354,6 +355,11 @@ public:
     std::unique_ptr<net_base> clone() const override
     {
         return std::make_unique<simple_esn>(*this);
+    }
+
+    void save(const fs::path& dir) override
+    {
+        throw std::runtime_error{"Not implemented."};
     }
 };
 

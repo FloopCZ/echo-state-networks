@@ -1,7 +1,5 @@
 #pragma once
 
-#include "arrayfire_utils.hpp"
-
 #include <arrayfire.h>
 #include <range/v3/all.hpp>
 #include <vector>

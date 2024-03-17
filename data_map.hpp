@@ -4,15 +4,20 @@
 #include "arrayfire_utils.hpp"
 
 #include <arrayfire.h>
+#include <filesystem>
+#include <fstream>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <range/v3/all.hpp>
 #include <range/v3/view/enumerate.hpp>
 #include <set>
+#include <stdexcept>
 
 namespace esn {
 
 namespace rg = ranges;
 namespace rgv = ranges::views;
+namespace fs = std::filesystem;
 
 class data_map {
 private:
@@ -258,6 +263,26 @@ public:
     {
         keys_.clear();
         data_ = af::array{};
+    }
+
+    void save(const fs::path& dir)
+    {
+        fs::create_directories(dir);
+        nlohmann::json keys = keys_;
+        std::ofstream{dir / "keys.json"} << keys.dump();
+        std::string data_file = dir / "data.bin";
+        if (!data_.isempty()) af::saveArray("data", data_, data_file.c_str());
+    }
+
+    void load(const fs::path& dir)
+    {
+        if (!fs::exists(dir))
+            throw std::runtime_error{"Data map dir " + dir.string() + " does not exist."};
+        std::ifstream fin{dir / "keys.json"};
+        keys_ = nlohmann::json::parse(fin);
+        std::string data_file = dir / "data.bin";
+        data_ = af::array{};
+        if (fs::exists(data_file)) data_ = af::readArray(data_file.c_str(), "data");
     }
 };
 
