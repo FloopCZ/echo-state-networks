@@ -255,7 +255,9 @@ std::vector<af::array> split_data(const af::array& data, const std::vector<long>
     groups.reserve(sizes.size());
     long begin = 0;
     for (long size : sizes) {
-        if (dim == 0)
+        if (size == 0)
+            groups.push_back({});
+        else if (dim == 0)
             groups.push_back(data(af::seq(begin, begin + size - 1)));
         else if (dim == 1)
             groups.push_back(data(af::span, af::seq(begin, begin + size - 1)));

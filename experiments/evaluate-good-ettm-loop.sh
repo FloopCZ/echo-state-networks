@@ -3,7 +3,7 @@
 --bench.ett-data-path=third_party/ETDataset \
 --bench.ett-set-type=train-valid \
 --bench.etth-variant=1 \
---bench.init-steps=1000 \
+--bench.init-steps=500 \
 --bench.mackey-glass-delta=0.10000000000000001 \
 --bench.mackey-glass-tau=30 \
 --bench.memory-history=0 \
@@ -11,7 +11,7 @@
 --bench.n-steps-ahead=96 \
 --bench.n-trials=1 \
 --bench.narma-tau=1 \
---bench.train-steps=33560 \
+--bench.train-steps=34060 \
 --bench.valid-steps=11520 \
 --bench.validation-stride=100 \
 --gen.benchmark-set=ettm-loop \

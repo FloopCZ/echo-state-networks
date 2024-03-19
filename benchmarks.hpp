@@ -115,28 +115,33 @@ public:
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
-            net.event("init-start");
             net.random_noise(true);
-            net.feed(
-              {.input = xs_groups.at(0),
-               .feedback = ys_groups.at(0),
-               .desired = ys_groups.at(0),
-               .meta = meta_groups.at(0),
-               .input_transform = input_transform_fn()});
+            if (!xs_groups.at(0).empty()) {
+                net.event("init-start");
+                net.feed(
+                  {.input = xs_groups.at(0),
+                   .feedback = ys_groups.at(0),
+                   .desired = ys_groups.at(0),
+                   .meta = meta_groups.at(0),
+                   .input_transform = input_transform_fn()});
+            }
             net.learning(false);
             // train the network on the training sequence
             // teacher-force the first epoch, but not the others
-            net.event("train-start");
-            net.train(
-              {.input = xs_groups.at(1),
-               .feedback = ys_groups.at(1),
-               .desired = ys_groups.at(1),
-               .meta = meta_groups.at(1),
-               .input_transform = input_transform_fn()});
+            if (!xs_groups.at(1).empty()) {
+                net.event("train-start");
+                net.train(
+                  {.input = xs_groups.at(1),
+                   .feedback = ys_groups.at(1),
+                   .desired = ys_groups.at(1),
+                   .meta = meta_groups.at(1),
+                   .input_transform = input_transform_fn()});
+            }
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on the validation sequence
             // note no teacher forcing
+            assert(!xs_groups.at(2).empty());
             net.event("validation-start");
             feed_result_t feed_result = net.feed(
               {.input = xs_groups.at(2),
@@ -204,23 +209,27 @@ public:
         double error = std::numeric_limits<double>::quiet_NaN();
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
-            net.event("init-start");
             net.random_noise(true);
-            net.feed(
-              {.input = xs_groups.at(0),
-               .feedback = ys_groups.at(0),
-               .desired = ys_groups.at(0),
-               .meta = meta_groups.at(0),
-               .input_transform = input_transform_fn()});
+            if (!xs_groups.at(0).empty()) {
+                net.event("init-start");
+                net.feed(
+                  {.input = xs_groups.at(0),
+                   .feedback = ys_groups.at(0),
+                   .desired = ys_groups.at(0),
+                   .meta = meta_groups.at(0),
+                   .input_transform = input_transform_fn()});
+            }
             net.learning(false);
             // train the network on the training sequence with teacher forcing
-            net.event("train-start");
-            net.train(
-              {.input = xs_groups.at(1),
-               .feedback = ys_groups.at(1),
-               .desired = ys_groups.at(1),
-               .meta = meta_groups.at(1),
-               .input_transform = input_transform_fn()});
+            if (!xs_groups.at(1).empty()) {
+                net.event("train-start");
+                net.train(
+                  {.input = xs_groups.at(1),
+                   .feedback = ys_groups.at(1),
+                   .desired = ys_groups.at(1),
+                   .meta = meta_groups.at(1),
+                   .input_transform = input_transform_fn()});
+            }
             net.random_noise(false);
             net.clear_feedback();
             // evaluate the performance of the network on all continuous intervals of the validation

@@ -50,6 +50,7 @@ public:
 
     data_map(std::set<std::string> keys, af::array data)
     {
+        if (keys.empty() || data.isempty()) return;
         assert(data.dims(0) == keys.size());
         assert(data.numdims() <= 2);
         keys_ = std::move(keys);
