@@ -52,6 +52,7 @@ protected:
     GenoPheno genopheno_;
     cma::CMAParameters<GenoPheno> cmaparams_;
     int n_evals_;
+    optimization_status_t opt_status_;
     std::string f_value_agg_;
     bool multithreading_;
     EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
@@ -71,6 +72,7 @@ protected:
     {
         return
           [this](const cma::CMAParameters<GenoPheno>& cmaparams, const cma::CMASolutions& cmasols) {
+              opt_status_ = {.progress = (double)cmasols.nevals() / cmaparams.get_max_fevals()};
               std::cout << "Iteration: " << cmasols.niter() << '\n';
               std::cout << "Evaluations: " << cmasols.nevals() << '\n';
               std::cout << "Sigma: " << cmasols.sigma() << '\n';
@@ -125,6 +127,7 @@ public:
     {
         std::vector<double> x0 = param_x0();
         assert(x0.size() == param_lbounds().size());
+        opt_status_ = {.progress = 0.};
         genopheno_ = make_genopheno();
         cmaparams_ = cma::CMAParameters<GenoPheno>{
           x0, config_.at("opt.sigma").as<double>(), config_.at("opt.lambda").as<int>()};
@@ -170,7 +173,8 @@ public:
     }
 
     /// The evaluation function.
-    virtual EvaluationResult evaluate(const std::vector<double>& params, prng_t& prng) const = 0;
+    virtual EvaluationResult evaluate(
+      const std::vector<double>& params, prng_t& prng, optimization_status_t status) const = 0;
 
     /// The lower bounds for the optimized parameters.
     virtual std::vector<double> param_lbounds() const = 0;
@@ -204,7 +208,7 @@ public:
     double f_value(const std::vector<double>& params, prng_t& prng)
     {
         auto evaluate_and_update_best = [&](double& fv) {
-            EvaluationResult er = this->evaluate(params, prng);
+            EvaluationResult er = this->evaluate(params, prng, opt_status_);
             fv = er.f_value;
             std::scoped_lock sl{best_evaluation_mutex_};
             if (er.f_value < best_evaluation_.f_value) best_evaluation_ = std::move(er);
@@ -274,9 +278,10 @@ struct net_evaluation_result_t {
 template <typename EvaluationResult>
 class named_optimizer : public optimizer<EvaluationResult> {
 private:
-    EvaluationResult evaluate(const std::vector<double>& params, prng_t& prng) const override
+    EvaluationResult evaluate(
+      const std::vector<double>& params, prng_t& prng, optimization_status_t status) const override
     {
-        return named_evaluate(name_and_filter_params(params), prng);
+        return named_evaluate(name_and_filter_params(params), prng, status);
     }
 
     std::vector<double> param_x0() const override
@@ -379,8 +384,10 @@ public:
     }
 
     virtual std::set<std::string> available_params() const = 0;
-    virtual EvaluationResult
-    named_evaluate(const std::map<std::string, double>& params, prng_t& prng) const = 0;
+    virtual EvaluationResult named_evaluate(
+      const std::map<std::string, double>& params,
+      prng_t& prng,
+      optimization_status_t status) const = 0;
     virtual std::map<std::string, double> named_param_x0() const = 0;
     virtual std::map<std::string, double> named_param_sigmas() const = 0;
     virtual std::map<std::string, double> named_param_lbounds() const = 0;
@@ -390,11 +397,13 @@ public:
 
 class net_optimizer : public named_optimizer<net_evaluation_result_t> {
 private:
-    net_evaluation_result_t
-    named_evaluate(const std::map<std::string, double>& params, prng_t& prng) const override
+    net_evaluation_result_t named_evaluate(
+      const std::map<std::string, double>& params,
+      prng_t& prng,
+      optimization_status_t status) const override
     {
         auto net = this->make_net(params, prng);
-        double f_value = evaluate_net(*net, prng);
+        double f_value = evaluate_net(*net, prng, status);
         return {.f_value = f_value, .params = params, .net = std::move(net)};
     }
 
@@ -636,9 +645,14 @@ public:
     virtual std::unique_ptr<net_base>
     make_net(const std::map<std::string, double>& params, prng_t& prng) const = 0;
 
-    virtual double evaluate_net(net_base& net, prng_t& prng) const
+    benchmark_set_base& benchmark()
     {
-        return bench_->evaluate(net, prng);
+        return *bench_;
+    }
+
+    virtual double evaluate_net(net_base& net, prng_t& prng, optimization_status_t status) const
+    {
+        return bench_->evaluate(net, prng, status);
     }
 };
 

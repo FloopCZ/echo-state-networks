@@ -13,4 +13,8 @@ static thread_local prng_t global_prng{global_rd()};
 
 constexpr long DEFAULT_SEED = 1000003L;
 
+struct optimization_status_t {
+    double progress;
+};
+
 }  // namespace esn
