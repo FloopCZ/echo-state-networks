@@ -116,7 +116,6 @@ protected:
     // Random engines.
     prng_t prng_init_;
     prng_t prng_;
-    af::randomEngine af_prng_;
 
     bool noise_enabled_;
     double noise_;
@@ -184,8 +183,10 @@ protected:
     virtual void update_via_activation()
     {
         // Add noise to the states.
-        if (noise_enabled_ && noise_ != 0.)
-            state_delta_ *= 1. + af::randn({state_.dims()}, DType, af_prng_) * noise_;
+        if (noise_enabled_ && noise_ != 0.) {
+            af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng_()};
+            state_delta_ *= 1. + af::randn({state_.dims()}, DType, af_prng) * noise_;
+        }
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
@@ -270,7 +271,8 @@ protected:
     /// Generate random indices to a flattened state matrix.
     af::array generate_random_state_indices(long n)
     {
-        af::array idxs = af_utils::shuffle(af::seq(state_.elements()), af_prng_)(af::seq(n));
+        af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng_()};
+        af::array idxs = af_utils::shuffle(af::seq(state_.elements()), af_prng)(af::seq(n));
         return af::sort(std::move(idxs));
     }
 
@@ -286,7 +288,6 @@ public:
       , force_matmul_{false}
       , prng_init_{std::move(prng)}
       , prng_{prng_init_}
-      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_()}
       , noise_enabled_{true}
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
@@ -387,7 +388,6 @@ public:
 
         std::ofstream{dir / "prng_init.bin"} << prng_init_;
         std::ofstream{dir / "prng.bin"} << prng_;
-        // TODO Not sure how to save af_prng_.
     }
 
     static lcnn<DType> load(const fs::path& dir)
@@ -467,7 +467,6 @@ public:
 
         std::ifstream{dir / "prng_init.bin"} >> net.prng_init_;
         std::ifstream{dir / "prng.bin"} >> net.prng_;
-        net.af_prng_.setSeed(net.prng_());
         return net;
     }
 
@@ -623,7 +622,6 @@ public:
     void reset() override
     {
         prng_ = prng_init_;
-        af_prng_ = af::randomEngine{AF_RANDOM_ENGINE_DEFAULT, prng_()};
         output_w_.clear();
     }
 
@@ -723,9 +721,10 @@ public:
             af::array train_set_idx;
             af::array valid_set_idx;
             long train_count = 0;
+            af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng_()};
             while (train_count < 2 || train_count > train_set_idx.elements() - 2) {
                 train_set_idx =
-                  af::randu(data.states.dims(2), af::dtype::f32, af_prng_) < train_valid_ratio_;
+                  af::randu(data.states.dims(2), af::dtype::f32, af_prng) < train_valid_ratio_;
                 valid_set_idx = !train_set_idx;
                 train_count = af::count<long>(train_set_idx);
             }
@@ -928,7 +927,8 @@ public:
 
 // Check that the matmul style and kernel style step are the same.
 #ifndef NDEBUG
-            af::array rand_state = af::randu({state_.dims()}, DType, af_prng_) / state_.elements();
+            af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng_()};
+            af::array rand_state = af::randu({state_.dims()}, DType, af_prng) / state_.elements();
             af::array state_matmul = update_via_weights_matmul_impl(rand_state);
             af::array state_wrap = update_via_weights_impl(rand_state);
             assert(af_utils::almost_equal(state_matmul, state_wrap, 1e-8));
