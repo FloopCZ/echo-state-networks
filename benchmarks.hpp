@@ -303,7 +303,7 @@ public:
             assert(i / validation_stride == n_validations);
             error = multi_error_fnc(all_predicted, all_desired);
             std::cout << fmt::format(
-              "Epoch {} ({} penalized), stride {}\n", error, error * stride_penalty,
+              "Epoch {} error {} ({} penalized), stride {}\n", epoch, error, error * stride_penalty,
               validation_stride);
             error *= stride_penalty;
         }
