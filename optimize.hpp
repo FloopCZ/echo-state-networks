@@ -11,6 +11,7 @@
 
 #include <boost/program_options.hpp>
 #include <execution>
+#include <filesystem>
 #include <iostream>
 #include <libcmaes/cmaes.h>
 #include <limits>
@@ -58,6 +59,7 @@ protected:
     EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
     std::mutex best_evaluation_mutex_;
     prng_t* prng_;
+    fs::path output_dir_;
 
     // Reseed the random generator to a new state.
     void reseed()
@@ -82,6 +84,8 @@ protected:
               std::cout << "Best candidate ";
               print_candidate(std::cout, cmasols.best_candidate()) << '\n';
               std::cout << std::endl;
+              std::unique_lock ul{best_evaluation_mutex_};
+              if (best_evaluation_.net) best_evaluation_.net->save(output_dir_ / "best-model");
               reseed();
               return 0;
           };
@@ -101,13 +105,15 @@ public:
     /// Dummy constructor.
     optimizer() = default;
     /// Construct from configuration.
-    optimizer(po::variables_map config, prng_t& prng)
+    optimizer(po::variables_map config, prng_t& prng, fs::path output_dir)
       : config_{std::move(config)}
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
       , multithreading_{config_.at("opt.multithreading").as<bool>()}
       , prng_{&prng}
+      , output_dir_{std::move(output_dir)}
     {
+        fs::create_directories(output_dir_);
     }
 
     GenoPheno make_genopheno() const
@@ -146,9 +152,7 @@ public:
         //    prng_->operator()()};
         cmaparams_.set_str_algo(config_.at("opt.algorithm").as<std::string>());
         cmaparams_.set_restarts(config_.at("opt.restarts").as<int>());
-        if (config_.count("opt.cmaes-fplot")) {
-            cmaparams_.set_fplot(config_.at("opt.cmaes-fplot").as<std::string>());
-        }
+        cmaparams_.set_fplot(output_dir_ / "fplot.dat");
         cmaparams_.set_mt_feval(multithreading_);
         cmaparams_.set_elitism(config_.at("opt.elitism").as<int>());
         cmaparams_.set_max_fevals(config_.at("opt.max-fevals").as<int>());
@@ -310,8 +314,8 @@ protected:
 public:
     named_optimizer() = default;
 
-    named_optimizer(po::variables_map config, prng_t& prng)
-      : optimizer<EvaluationResult>(std::move(config), prng)
+    named_optimizer(po::variables_map config, prng_t& prng, fs::path output_dir)
+      : optimizer<EvaluationResult>(std::move(config), prng, std::move(output_dir))
     {
         if (this->config_.contains("opt.exclude-params")) {
             std::vector<std::string>& excluded_params_arg =
@@ -635,8 +639,12 @@ public:
 
     net_optimizer() = default;
 
-    net_optimizer(po::variables_map config, std::unique_ptr<benchmark_set_base> bench, prng_t& prng)
-      : named_optimizer{std::move(config), prng}
+    net_optimizer(
+      po::variables_map config,
+      std::unique_ptr<benchmark_set_base> bench,
+      prng_t& prng,
+      fs::path output_dir)
+      : named_optimizer{std::move(config), prng, std::move(output_dir)}
       , bench_{std::move(bench)}
       , af_device_{config_.at("gen.af-device").as<int>()}
     {
@@ -669,8 +677,11 @@ protected:
 
 public:
     lcnn_optimizer(
-      po::variables_map config, std::unique_ptr<benchmark_set_base> bench, prng_t& prng)
-      : net_optimizer{std::move(config), std::move(bench), prng}
+      po::variables_map config,
+      std::unique_ptr<benchmark_set_base> bench,
+      prng_t& prng,
+      fs::path output_dir)
+      : net_optimizer{std::move(config), std::move(bench), prng, std::move(output_dir)}
     {
         if (config_.at("opt.x0-from-params").as<bool>()) {
             param_x0_ = from_variables_map(available_params(), config_);
@@ -975,8 +986,6 @@ inline po::options_description optimizer_arg_description()
 {
     po::options_description optimizer_arg_desc{"Optimizer options"};
     optimizer_arg_desc.add_options()                                                        //
-      ("opt.cmaes-fplot", po::value<std::string>()->default_value("fplot.dat"),             //
-       "Output file of the CMA-ES optimization plot.")                                      //
       ("opt.max-fevals", po::value<int>()->default_value(2500),                             //
        "Set the maximum number of evaluations of the objective function "                   //
        "aggregated evals are considered as one).")                                          //
@@ -1012,22 +1021,27 @@ inline po::options_description optimizer_arg_description()
 }
 
 std::unique_ptr<net_optimizer> make_optimizer(
-  std::unique_ptr<benchmark_set_base> bench, const po::variables_map& args, prng_t& prng)
+  std::unique_ptr<benchmark_set_base> bench,
+  const po::variables_map& args,
+  prng_t& prng,
+  fs::path output_dir)
 {
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn") {
-            return std::make_unique<lcnn_optimizer>(args, std::move(bench), prng);
+            return std::make_unique<lcnn_optimizer>(
+              args, std::move(bench), prng, std::move(output_dir));
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
     if (args.at("gen.net-type").as<std::string>() == "lcnn-ensemble") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn-ensemble") {
-            return std::make_unique<lcnn_ensemble_optimizer>(args, std::move(bench), prng);
+            return std::make_unique<lcnn_ensemble_optimizer>(
+              args, std::move(bench), prng, std::move(output_dir));
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
     if (args.at("gen.net-type").as<std::string>() == "simple-esn") {
-        return std::make_unique<esn_optimizer>(args, std::move(bench), prng);
+        return std::make_unique<esn_optimizer>(args, std::move(bench), prng, std::move(output_dir));
     }
     throw std::runtime_error{
       "Unknown net type \"" + args.at("gen.net-type").as<std::string>() + "\".\n"};

@@ -97,14 +97,10 @@ int main(int argc, char* argv[])
 
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
         std::cout << "Run " << run << std::endl;
-
-        // Store cmaes fplot data to a separate file for each run.
-        std::string cmaes_fplot_run = output_dir / ("fplot-run" + std::to_string(run) + ".dat");
-        args.insert_or_assign("opt.cmaes-fplot", po::variable_value{cmaes_fplot_run, false});
-
+        fs::path run_output_dir = output_dir / ("run" + std::to_string(run));
         std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
         std::unique_ptr<esn::net_optimizer> opt =
-          esn::make_optimizer(std::move(bench), args, global_prng);
+          esn::make_optimizer(std::move(bench), args, global_prng, run_output_dir);
         cma::CMASolutions cmasols = opt->optimize();
         cma::Candidate best_candidate = cmasols.get_best_seen_candidate();
         std::cout << "Best seen candidate:\n";
@@ -112,13 +108,10 @@ int main(int argc, char* argv[])
         std::cout << "Distribution mean:\n";
         opt->print_candidate(std::cout, cmasols.xmean(), global_prng) << std::endl;
 
-        esn::net_evaluation_result_t best_evaluation = std::move(opt->best_evaluation());
-        fs::path snapshot_dir = output_dir / ("best-run" + std::to_string(run));
-        best_evaluation.net->save(snapshot_dir);
-
         // CSV rows
+        esn::net_evaluation_result_t best_evaluation = std::move(opt->best_evaluation());
         po::variables_map params = opt->to_variables_map(best_evaluation.params);
-        fs::path param_file = snapshot_dir / "params.txt";
+        fs::path param_file = output_dir / "best-model" / "params.txt";
         std::ofstream param_out{param_file};
         param_out << params;
         for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {

@@ -148,14 +148,11 @@ int main(int argc, char* argv[])
                 args.insert_or_assign("lcnn.kernel-height", po::variable_value{kernel_size, false});
                 args.insert_or_assign("lcnn.kernel-width", po::variable_value{kernel_size, false});
                 // Store cmaes fplot data to a separate file for each run.
-                std::string cmaes_fplot_run = output_dir
-                  / ("fplot-" + state_size_str + "-k" + std::to_string(kernel_size) + "-run"
-                     + std::to_string(run) + ".dat");
-                args.insert_or_assign(
-                  "opt.cmaes-fplot", po::variable_value{cmaes_fplot_run, false});
-
+                std::string run_output_dir = output_dir
+                  / (state_size_str + "-k" + std::to_string(kernel_size) + "-run"
+                     + std::to_string(run));
                 auto opt = std::make_unique<lcnn_optimizer>(
-                  args, esn::make_benchmark(args), esn::global_prng);
+                  args, esn::make_benchmark(args), esn::global_prng, run_output_dir);
                 cma::CMASolutions cmasols = opt->optimize();
                 dVec mean = cmasols.xmean();
                 po::variables_map params = opt->to_variables_map(opt->pheno_candidate(mean));
