@@ -249,7 +249,7 @@ public:
                 validation_stride = validation_stride_start_
                   - (validation_stride_start_ - validation_stride_stop_) * opt_status->progress;
                 validation_stride = std::max(1L, validation_stride);
-                stride_penalty = std::max(1., 1. + opt_status->progress);
+                stride_penalty = std::max(1., 2. - opt_status->progress);
             }
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
