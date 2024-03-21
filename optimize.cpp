@@ -9,6 +9,7 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <stdexcept>
 
 using namespace esn;
 
@@ -110,6 +111,7 @@ int main(int argc, char* argv[])
 
         // CSV rows
         esn::net_evaluation_result_t best_evaluation = std::move(opt->best_evaluation());
+        if (best_evaluation.net == nullptr) throw std::runtime_error{"No best network."};
         po::variables_map params = opt->to_variables_map(best_evaluation.params);
         fs::path param_file = output_dir / "best-model" / "params.txt";
         std::ofstream param_out{param_file};

@@ -56,6 +56,7 @@ protected:
     optimization_status_t opt_status_;
     std::string f_value_agg_;
     bool multithreading_;
+    bool save_best_;
     EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
     std::mutex best_evaluation_mutex_;
     prng_t prng_;
@@ -108,6 +109,7 @@ public:
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
       , multithreading_{config_.at("opt.multithreading").as<bool>()}
+      , save_best_{config_.at("opt.save-best").as<bool>()}
       , prng_{std::move(prng)}
       , output_dir_{std::move(output_dir)}
     {
@@ -212,6 +214,7 @@ public:
         auto evaluate_and_update_best = [&](double& fv) {
             EvaluationResult er = this->evaluate(params, prng, opt_status_);
             fv = er.f_value;
+            if (!save_best_) return;
             std::scoped_lock sl{best_evaluation_mutex_};
             if (er.f_value < best_evaluation_.f_value) best_evaluation_ = std::move(er);
         };
@@ -412,6 +415,7 @@ private:
 protected:
     std::unique_ptr<benchmark_set_base> bench_;
     int af_device_;
+    nlohmann::json param_stages_;
 
     virtual std::string arg_prefix_() const = 0;
 
@@ -507,6 +511,29 @@ public:
             }
         }
         return params;
+    }
+
+    po::variables_map patch_via_stages(po::variables_map vm) const
+    {
+        if (param_stages_.empty()) return vm;
+        for (const auto& [progress, params] : param_stages_.items()) {
+            if (opt_status_.progress >= std::stod(progress)) {
+                for (const auto& [key, value] : params.items()) {
+                    if (value.is_number_integer())
+                        vm.insert_or_assign(key, po::variable_value{value.get<long>(), false});
+                    else if (value.is_number_float())
+                        vm.insert_or_assign(key, po::variable_value{value.get<double>(), false});
+                    else if (value.is_string())
+                        vm.insert_or_assign(
+                          key, po::variable_value{value.get<std::string>(), false});
+                    else if (value.is_boolean())
+                        vm.insert_or_assign(key, po::variable_value{value.get<bool>(), false});
+                    else
+                        throw std::runtime_error{"Unsupported type in param stages file."};
+                }
+            }
+        }
+        return vm;
     }
 
     po::variables_map to_variables_map(std::map<std::string, double> params) const
@@ -627,7 +654,7 @@ public:
           params.empty() || (params.size() == 1 && params.contains("none")));  // make sure all
                                                                                // the params have
                                                                                // been consumed
-        return cfg;
+        return patch_via_stages(cfg);
     }
 
     std::ostream& print_params(std::ostream& out, const std::vector<double>& params) const override
@@ -646,6 +673,10 @@ public:
       , bench_{std::move(bench)}
       , af_device_{config_.at("gen.af-device").as<int>()}
     {
+        if (config_.contains("opt.param-stages-json")) {
+            std::ifstream param_stages_fin{config_.at("opt.param-stages-json").as<std::string>()};
+            param_stages_ = nlohmann::json::parse(param_stages_fin, nullptr, true);
+        }
     }
 
     virtual std::unique_ptr<net_base>
@@ -1007,6 +1038,10 @@ inline po::options_description optimizer_arg_description()
        "Elitism mode. 0 -> disabled, 1 -> reinject the best, 2 -> reinject x0 "             //
        "till improvement, 3 -> restart if the best encountered solution "                   //
        "is not the final solution.")                                                        //
+      ("opt.save-best", po::value<bool>()->default_value(true),                             //
+       "Save the best model during evolution.")                                             //
+      ("opt.param-stages-json", po::value<std::string>(),                                   //
+       "A json file with parameter overrides based on evolution progress.")                 //
       ("opt.multithreading", po::bool_switch(),                                             //
        "Evaluate the individuals in the population in parallel.")                           //
       ("opt.exclude-params",                                                                //
