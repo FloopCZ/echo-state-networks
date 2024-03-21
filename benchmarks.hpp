@@ -184,6 +184,7 @@ public:
     loop_benchmark_set(po::variables_map config)
       : benchmark_set_base{std::move(config)}
       , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
+      , validation_stride_{config_.at("bench.validation-stride").as<long>()}
     {
         split_sizes_ = {
           config_.at("bench.init-steps").as<long>(),   //
