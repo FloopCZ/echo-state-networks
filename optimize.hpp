@@ -678,7 +678,7 @@ public:
                 for (const auto& [key, value] : params.items()) {
                     if (key == "_CLEAR_BEST_MODEL") {
                         if (value.get<bool>()) clear_best_evaluation();
-                        param_stages_[key]["_CLEAR_BEST_MODEL"] = false;
+                        param_stages_.at(progress).at(key) = false;
                     } else if (key.starts_with("_"))
                         throw std::runtime_error{
                           fmt::format("Unknown key `{}` in param stages file.", key)};
