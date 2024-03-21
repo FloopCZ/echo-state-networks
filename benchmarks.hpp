@@ -173,8 +173,6 @@ class loop_benchmark_set : public benchmark_set_base {
 protected:
     long n_steps_ahead_;
     long validation_stride_;
-    long validation_stride_start_;
-    long validation_stride_stop_;
 
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
     virtual std::tuple<data_map, data_map, data_map>
@@ -186,8 +184,6 @@ public:
     loop_benchmark_set(po::variables_map config)
       : benchmark_set_base{std::move(config)}
       , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
-      , validation_stride_start_{config_.at("bench.validation-stride-start").as<long>()}
-      , validation_stride_stop_{config_.at("bench.validation-stride-stop").as<long>()}
     {
         split_sizes_ = {
           config_.at("bench.init-steps").as<long>(),   //
@@ -242,33 +238,25 @@ public:
             }
             net.random_noise(false);
             net.clear_feedback();
-            // linearly lower validation stride if requested
-            long validation_stride = validation_stride_start_;
-            double stride_penalty = 1.;
-            if (validation_stride_stop_ != 0 && opt_status.has_value()) {
-                validation_stride = validation_stride_start_
-                  - (validation_stride_start_ - validation_stride_stop_) * opt_status->progress;
-                validation_stride = std::max(1L, validation_stride);
-                stride_penalty = std::max(1., 2. - opt_status->progress);
-            }
             // evaluate the performance of the network on all continuous intervals of the validation
             // sequence of length n_steps_ahead_ (except the last such interval)
             [[maybe_unused]] const long n_validations =
-              (xs_groups.at(2).length() - n_steps_ahead_ + validation_stride - 1)
-              / validation_stride;
+              (xs_groups.at(2).length() - n_steps_ahead_ + validation_stride_ - 1)
+              / validation_stride_;
             std::vector<data_map> all_predicted;
             std::vector<data_map> all_desired;
             long i;
             // the last step in the sequence has an unknown desired value, so we skip the
             // last sequence of n_steps_ahead_ (i.e., < instead of <=)
-            for (i = 0; i < xs_groups.at(2).length() - n_steps_ahead_; i += validation_stride) {
-                assert(i / validation_stride < n_validations);
+            for (i = 0; i < xs_groups.at(2).length() - n_steps_ahead_; i += validation_stride_) {
+                assert(i / validation_stride_ < n_validations);
                 // feed the network with the validation data before the validation subsequence
                 if (i > 0) {
-                    data_map input = xs_groups.at(2).select(af::seq(i - validation_stride, i - 1));
+                    data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                     data_map desired =
-                      ys_groups.at(2).select(af::seq(i - validation_stride, i - 1));
-                    data_map meta = meta_groups.at(2).select(af::seq(i - validation_stride, i - 1));
+                      ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                    data_map meta =
+                      meta_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                     net.event("feed-extra");
                     net.feed(
                       {.input = input,
@@ -300,12 +288,9 @@ public:
                 all_predicted.push_back(predicted.filter(target_names()));
                 all_desired.push_back(desired.filter(target_names()));
             }
-            assert(i / validation_stride == n_validations);
+            assert(i / validation_stride_ == n_validations);
             error = multi_error_fnc(all_predicted, all_desired);
-            std::cout << fmt::format(
-              "Epoch {} error {} ({} penalized), stride {}\n", epoch, error, error * stride_penalty,
-              validation_stride);
-            error *= stride_penalty;
+            std::cout << fmt::format("Epoch {} error {}\n", epoch, error);
         }
         return error;
     }
@@ -1241,11 +1226,8 @@ inline po::options_description benchmark_arg_description()
        "The length of the memory to be evaluated.")                                              //
       ("bench.n-steps-ahead", po::value<long>()->default_value(84),                              //
        "The length of the valid sequence in sequence prediction benchmark.")                     //
-      ("bench.validation-stride-start", po::value<long>()->default_value(1),                     //
+      ("bench.validation-stride", po::value<long>()->default_value(1),                           //
        "Stride of validation subsequences (of length n-steps-ahead).")                           //
-      ("bench.validation-stride-stop", po::value<long>()->default_value(0),                      //
-       "If nonzero, the validation stride will linearly "                                        //
-       "decrease to this value during optimization.")                                            //
       ("bench.mackey-glass-tau", po::value<long>()->default_value(30),                           //
        "The length of the memory to be evaluated.")                                              //
       ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),                      //

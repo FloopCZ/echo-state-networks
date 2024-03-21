@@ -13,7 +13,7 @@
 --bench.narma-tau=1 \
 --bench.train-steps=33560 \
 --bench.valid-steps=11520 \
---bench.validation-stride-start=100 \
+--bench.validation-stride=100 \
 --gen.benchmark-set=ettm-loop \
 --gen.net-type=lcnn \
 --lcnn.act-steepness=1 \

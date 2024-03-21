@@ -29,7 +29,7 @@ mkdir -p "${outdir}"
   --bench.train-steps=33560 \
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
-  --bench.validation-stride-start=100 \
+  --bench.validation-stride=100 \
   --opt.max-fevals=10000 \
   --gen.n-trials=1 \
   --gen.n-runs=1 \
