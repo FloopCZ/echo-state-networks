@@ -56,8 +56,7 @@ protected:
     optimization_status_t opt_status_;
     std::string f_value_agg_;
     bool multithreading_;
-    bool save_best_;
-    EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
+    EvaluationResult best_evaluation_;
     std::mutex best_evaluation_mutex_;
     prng_t prng_;
     fs::path output_dir_;
@@ -66,6 +65,12 @@ protected:
     void reseed()
     {
         prng_.seed(prng_() + 137);
+    }
+
+    virtual void
+    progress(const cma::CMAParameters<GenoPheno>& cmaparams, const cma::CMASolutions& cmasols)
+    {
+        return;
     }
 
     /// Build the ProgressFunc for libcmaes.
@@ -86,6 +91,7 @@ protected:
               std::cout << std::endl;
               std::unique_lock ul{best_evaluation_mutex_};
               if (best_evaluation_.net) best_evaluation_.net->save(output_dir_ / "best-model");
+              progress(cmaparams, cmasols);
               return 0;
           };
     }
@@ -109,7 +115,6 @@ public:
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
       , multithreading_{config_.at("opt.multithreading").as<bool>()}
-      , save_best_{config_.at("opt.save-best").as<bool>()}
       , prng_{std::move(prng)}
       , output_dir_{std::move(output_dir)}
     {
@@ -132,6 +137,7 @@ public:
     void initialize()
     {
         reseed();
+        clear_best_evaluation();
         std::vector<double> x0 = param_x0();
         assert(x0.size() == param_lbounds().size());
         opt_status_ = {.progress = 0.};
@@ -168,6 +174,13 @@ public:
         progress_func(cmaparams_, cmasols);
         std::cout << "optimization took " << cmasols.elapsed_time() / 1000.0 << " seconds\n";
         return cmasols;
+    }
+
+    /// Remove the currently best network from memory and from file storage.
+    void clear_best_evaluation()
+    {
+        fs::remove_all(output_dir_ / "best-model");
+        best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
     }
 
     /// The best evaluation of a single network.
@@ -214,7 +227,6 @@ public:
         auto evaluate_and_update_best = [&](double& fv) {
             EvaluationResult er = this->evaluate(params, prng, opt_status_);
             fv = er.f_value;
-            if (!save_best_) return;
             std::scoped_lock sl{best_evaluation_mutex_};
             if (er.f_value < best_evaluation_.f_value) best_evaluation_ = std::move(er);
         };
@@ -519,6 +531,7 @@ public:
         for (const auto& [progress, params] : param_stages_.items()) {
             if (opt_status_.progress >= std::stod(progress)) {
                 for (const auto& [key, value] : params.items()) {
+                    if (key.starts_with("_")) continue;
                     if (value.is_number_integer())
                         vm.insert_or_assign(key, po::variable_value{value.get<long>(), false});
                     else if (value.is_number_float())
@@ -657,6 +670,23 @@ public:
         return patch_via_stages(cfg);
     }
 
+    void progress(
+      const cma::CMAParameters<GenoPheno>& cmaparams, const cma::CMASolutions& cmasols) override
+    {
+        for (const auto& [progress, params] : param_stages_.items()) {
+            if (opt_status_.progress >= std::stod(progress)) {
+                for (const auto& [key, value] : params.items()) {
+                    if (key == "_CLEAR_BEST_MODEL") {
+                        if (value.get<bool>()) clear_best_evaluation();
+                        param_stages_[key]["_CLEAR_BEST_MODEL"] = false;
+                    } else if (key.starts_with("_"))
+                        throw std::runtime_error{
+                          fmt::format("Unknown key `{}` in param stages file.", key)};
+                }
+            }
+        }
+    }
+
     std::ostream& print_params(std::ostream& out, const std::vector<double>& params) const override
     {
         return out << to_variables_map(params);
@@ -748,8 +778,8 @@ public:
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
         param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2 * neuron_ins_));
-        // Sparse nets should be biased towards positive mu_res, e.g. 0.3, negative mu-res provide
-        // slightly worse results than positive mu-res.
+        // Sparse nets should be biased towards positive mu_res, e.g. 0.3, negative mu-res
+        // provide slightly worse results than positive mu-res.
         if (neuron_ins_ < 5.) param_x0_.at("lcnn.mu-res") = inv_pow_transform(0.3);
     }
 
@@ -1038,8 +1068,6 @@ inline po::options_description optimizer_arg_description()
        "Elitism mode. 0 -> disabled, 1 -> reinject the best, 2 -> reinject x0 "             //
        "till improvement, 3 -> restart if the best encountered solution "                   //
        "is not the final solution.")                                                        //
-      ("opt.save-best", po::value<bool>()->default_value(true),                             //
-       "Save the best model during evolution.")                                             //
       ("opt.param-stages-json", po::value<std::string>(),                                   //
        "A json file with parameter overrides based on evolution progress.")                 //
       ("opt.multithreading", po::bool_switch(),                                             //

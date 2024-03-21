@@ -29,7 +29,7 @@ mkdir -p "${outdir}"
   --bench.train-steps=34060 \
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
-  --bench.validation-stride=100 \
+  --opt.param-stages-json="./experiments/ettm-validation-stride-stages.json" \
   --opt.max-fevals=10000 \
   --gen.n-trials=1 \
   --gen.n-runs=1 \

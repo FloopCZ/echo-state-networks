@@ -1,0 +1,46 @@
+{
+  "0.0": {
+    "bench.validation-stride": 500,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.04": {
+    "bench.validation-stride": 200,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.08": {
+    "bench.validation-stride": 100,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.2": {
+    "bench.validation-stride": 50,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.4": {
+    "bench.validation-stride": 25,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.6": {
+    "bench.validation-stride": 15,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.8": {
+    "bench.validation-stride": 10,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.85": {
+    "bench.validation-stride": 8,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.90": {
+    "bench.validation-stride": 5,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.95": {
+    "bench.validation-stride": 3,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.98": {
+    "bench.validation-stride": 1,
+    "_CLEAR_BEST_MODEL": true
+  }
+}
