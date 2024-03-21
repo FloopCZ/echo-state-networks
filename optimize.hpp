@@ -89,10 +89,10 @@ protected:
               std::cout << "Elapsed time: " << cmasols.elapsed_last_iter() << '\n';
               std::cout << "Best candidate ";
               print_candidate(std::cout, cmasols.best_candidate()) << '\n';
-              std::cout << std::endl;
               std::unique_lock ul{best_evaluation_mutex_};
               if (best_evaluation_.net) best_evaluation_.net->save(output_dir_ / "best-model");
               progress(cmaparams, cmasols);
+              std::cout << std::endl;
               return 0;
           };
     }
