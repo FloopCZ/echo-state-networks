@@ -27,7 +27,7 @@ RUN if [ "${tag}" = "cuda" ]; then \
   fi
 
 # Install dependencis.
-RUN pacman -Syu --noconfirm --needed arrayfire fmt ninja cmake boost eigen openmp tbb clang
+RUN pacman -Syu --noconfirm --needed arrayfire fmt ninja cmake boost eigen tbb clang
 
 # Install Floop's linux environment.
 RUN pacman -Syu --noconfirm --needed git
