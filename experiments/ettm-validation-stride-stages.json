@@ -1,16 +1,6 @@
 {
   "0.0": {
-    "bench.validation-stride": 500
-  },
-  "0.04": {
-    "bench.validation-stride": 200,
-    "_REINITIALIZE_BENCHMARK": true,
-    "_CLEAR_BEST_MODEL": true
-  },
-  "0.08": {
-    "bench.validation-stride": 100,
-    "_REINITIALIZE_BENCHMARK": true,
-    "_CLEAR_BEST_MODEL": true
+    "bench.validation-stride": 100
   },
   "0.2": {
     "bench.validation-stride": 50,
