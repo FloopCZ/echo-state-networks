@@ -6,10 +6,11 @@ High performance Echo State Network simulation, benchmarks and visualization in 
 - arrayfire + forge (core)
 - boost (core)
 - eigen (core)
-- openmp (core)
 - python + python-matplotlib (core)
 - tbb (core)
 - gtest (core)
+- nlohmann-json (core)
+- fmt (core)
 - [libcmaes](https://github.com/beniz/libcmaes/) (AUR).
 
 ## Build
