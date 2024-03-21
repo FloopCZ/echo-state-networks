@@ -58,6 +58,7 @@ protected:
     optimization_status_t opt_status_;
     std::string f_value_agg_;
     bool multithreading_;
+    bool reseed_every_epoch_;
     EvaluationResult best_evaluation_;
     std::mutex best_evaluation_mutex_;
     prng_t prng_;
@@ -94,6 +95,7 @@ protected:
               if (best_evaluation_.net) best_evaluation_.net->save(output_dir_ / "best-model");
               progress(cmaparams, cmasols);
               std::cout << std::endl;
+              if (reseed_every_epoch_) reseed();
               return 0;
           };
     }
@@ -117,6 +119,7 @@ public:
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
       , multithreading_{config_.at("opt.multithreading").as<bool>()}
+      , reseed_every_epoch_{config_.at("opt.reseed-every-epoch").as<bool>()}
       , prng_{std::move(prng)}
       , output_dir_{std::move(output_dir)}
     {
@@ -1107,6 +1110,8 @@ inline po::options_description optimizer_arg_description()
        "A json file with parameter overrides based on evolution progress.")                 //
       ("opt.weight-cutoff", po::value<double>()->default_value(0.),                         //
        "Input and feedback weight sigmas will be cut off under this (abs) value.")          //
+      ("opt.reseed-every-epoch", po::value<bool>()->default_value(false),                   //
+       "Reseed the random generator in every epoch (i.e., new network in every epoch)")     //
       ("opt.multithreading", po::bool_switch(),                                             //
        "Evaluate the individuals in the population in parallel.")                           //
       ("opt.exclude-params",                                                                //
