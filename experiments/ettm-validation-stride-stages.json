@@ -2,18 +2,23 @@
   "0.0": {
     "bench.validation-stride": 100
   },
-  "0.2": {
+  "0.1": {
     "bench.validation-stride": 50,
     "_REINITIALIZE_BENCHMARK": true,
     "_CLEAR_BEST_MODEL": true
   },
-  "0.4": {
+  "0.5": {
     "bench.validation-stride": 25,
     "_REINITIALIZE_BENCHMARK": true,
     "_CLEAR_BEST_MODEL": true
   },
   "0.6": {
     "bench.validation-stride": 15,
+    "_REINITIALIZE_BENCHMARK": true,
+    "_CLEAR_BEST_MODEL": true
+  },
+  "0.7": {
+    "bench.validation-stride": 12,
     "_REINITIALIZE_BENCHMARK": true,
     "_CLEAR_BEST_MODEL": true
   },
@@ -28,11 +33,11 @@
     "_CLEAR_BEST_MODEL": true
   },
   "0.90": {
-    "bench.validation-stride": 5,
+    "bench.validation-stride": 6,
     "_REINITIALIZE_BENCHMARK": true,
     "_CLEAR_BEST_MODEL": true
   },
-  "0.95": {
+  "0.94": {
     "bench.validation-stride": 3,
     "_REINITIALIZE_BENCHMARK": true,
     "_CLEAR_BEST_MODEL": true
