@@ -8,7 +8,6 @@
 #include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
 #include "net.hpp"
-#include "simple_esn.hpp"
 
 #include <arrayfire.h>
 #include <boost/algorithm/string.hpp>
@@ -27,8 +26,6 @@
 namespace esn {
 
 namespace po = boost::program_options;
-namespace rgv = ranges::views;
-namespace rga = ranges::actions;
 
 /// Locally connected network configuration.
 struct lcnn_config {
@@ -206,7 +203,7 @@ protected:
         af::array output =
           af::constant(af::NaN, output_names_.size(), output_w_.size(), state_.type());
         // Evaluate every output_w and aggregate them to the final output.
-        for (int i = 0; i < output_w_.size(); ++i) {
+        for (int i = 0; i < (long)output_w_.size(); ++i) {
             const af::array& ow = output_w_.at(i);
             af::array predictors = af_utils::add_ones(af::flat(state_), 0);
             output(af::span, i) = af::matmul(ow, predictors);
@@ -227,7 +224,7 @@ protected:
         if (train_aggregation_ == "delta") output = af::sum(output, 1);
         if (train_aggregation_ == "funagg") output = af::mean(output, 1);
         last_output_ = {output_names_, output};
-        assert(last_output_.data().dims() == (af::dim4{output_names_.size()}));
+        assert(last_output_.data().dims() == (af::dim4{(long)output_names_.size()}));
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
     }
 
@@ -548,7 +545,8 @@ public:
                 {.input = step_input,
                  .feedback = step_feedback,
                  .desired = step_desired,
-                 .meta = step_meta},
+                 .meta = step_meta,
+                 .input_transform = input_transform},
               .output = last_output_,
               .event = event_};
             fnc(*this, std::move(data));
@@ -636,12 +634,12 @@ public:
           (data.states.dims() == af::dim4{state_.dims(0), state_.dims(1), data.outputs.dims(1)}));
         assert(data.outputs.type() == DType);
         assert(data.outputs.numdims() <= 2);
-        assert(data.outputs.dims(0) == output_names_.size());
+        assert(data.outputs.dims(0) == (long)output_names_.size());
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
         assert(data.outputs.dims(1) == data.desired->dims(1));
         assert(data.desired->type() == DType);
         assert(data.desired->numdims() <= 2);
-        assert(data.desired->dims(0) == output_names_.size());
+        assert(data.desired->dims(0) == (long)output_names_.size());
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
         af::array flat_predictors =
@@ -662,7 +660,8 @@ public:
             w(af::isNaN(w) || af::isInf(w)) = 0.;
             return w;
         }();
-        assert(output_w.dims() == (af::dim4{output_names_.size(), state_.elements() + 1}));
+        assert(
+          output_w.dims() == (af::dim4{(long)output_names_.size(), (long)state_.elements() + 1}));
         return {.predictors = std::move(flat_predictors), .output_w = std::move(output_w)};
     }
 
@@ -703,7 +702,7 @@ public:
         struct train_trial_result_t {
             train_result_t result;
             double valid_err;
-        } best_train{.valid_err = std::numeric_limits<double>::max()};
+        } best_train{.result = {}, .valid_err = std::numeric_limits<double>::max()};
 
         long n_predictors = std::clamp(
           std::lround(n_state_predictors_ * state_.elements()), 1L, (long)state_.elements());
@@ -832,7 +831,8 @@ public:
     {
         assert(new_weights.type() == DType);
         assert(
-          (new_weights.dims() == af::dim4{state_.dims(0), state_.dims(1), input_names_.size()}));
+          (new_weights.dims()
+           == af::dim4{state_.dims(0), state_.dims(1), (long)input_names_.size()}));
         input_w_ = std::move(new_weights);
     }
 
@@ -849,7 +849,8 @@ public:
     {
         assert(new_weights.type() == DType);
         assert(
-          (new_weights.dims() == af::dim4{state_.dims(0), state_.dims(1), output_names_.size()}));
+          (new_weights.dims()
+           == af::dim4{state_.dims(0), state_.dims(1), (long)output_names_.size()}));
         feedback_w_ = std::move(new_weights);
     }
 
@@ -1025,20 +1026,20 @@ lcnn<DType> random_lcnn(
     double mu_res = args.at("lcnn.mu-res").as<double>();
     // The input weight and bias for each input.
     std::vector<double> mu_in_weight = args.at("lcnn.mu-in-weight").as<std::vector<double>>();
-    if (mu_in_weight.size() < n_ins)
+    if ((long)mu_in_weight.size() < n_ins)
         throw std::invalid_argument{
           fmt::format("mu-in-weight ({}) < n_ins ({})", mu_in_weight.size(), n_ins)};
     std::vector<double> sigma_in_weight = args.at("lcnn.sigma-in-weight").as<std::vector<double>>();
-    if (sigma_in_weight.size() < n_ins)
+    if ((long)sigma_in_weight.size() < n_ins)
         throw std::invalid_argument{
           fmt::format("sigma-in-weight ({}) < n_ins ({})", sigma_in_weight.size(), n_ins)};
     // The feedback weight and bias for each output.
     std::vector<double> mu_fb_weight = args.at("lcnn.mu-fb-weight").as<std::vector<double>>();
-    if (mu_fb_weight.size() < n_outs)
+    if ((long)mu_fb_weight.size() < n_outs)
         throw std::invalid_argument{
           fmt::format("mu-fb-weight ({}) < n_outs ({})", mu_fb_weight.size(), n_outs)};
     std::vector<double> sigma_fb_weight = args.at("lcnn.sigma-fb-weight").as<std::vector<double>>();
-    if (sigma_fb_weight.size() < n_outs)
+    if ((long)sigma_fb_weight.size() < n_outs)
         throw std::invalid_argument{
           fmt::format("sigma-fb-weight ({}) < n_outs ({})", sigma_fb_weight.size(), n_outs)};
     // Standard deviation of the normal distribution generating the biases.
@@ -1067,6 +1068,8 @@ lcnn<DType> random_lcnn(
     cfg.output_names = output_names;
     af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
     int neurons = state_height * state_width;
+    int half_kernel_height = kernel_height / 2;
+    int half_kernel_width = kernel_width / 2;
     // generate the reservoir weights based on topology
     if (topo_params.contains("sparse")) {
         cfg.reservoir_w_full = sigma_res * af::randn({neurons, neurons}, DType, af_prng) + mu_res;
@@ -1078,7 +1081,7 @@ lcnn<DType> random_lcnn(
         af::array kernel =
           sigma_res * af::randn({kernel_height, kernel_width}, DType, af_prng) + mu_res;
         if (topo_params.contains("od")) {
-            kernel(af::span, af::seq(kernel_width / 2, af::end)) = 0.;
+            kernel(af::span, af::seq(half_kernel_width, af::end)) = 0.;
         }
         // generate reservoir weights
         cfg.reservoir_w = af::tile(af::flat(kernel), state_height * state_width);
@@ -1096,66 +1099,11 @@ lcnn<DType> random_lcnn(
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
         if (topo_params.contains("noself")) {
-            cfg.reservoir_w(
-              af::span, af::span, cfg.reservoir_w.dims(2) / 2, cfg.reservoir_w.dims(3) / 2) = 0.;
+            cfg.reservoir_w(af::span, af::span, half_kernel_height, half_kernel_width) = 0.;
         }
         if (topo_params.contains("od")) {
             // only allow connections going to the right
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-        }
-        if (topo_params.contains("a1")) {
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-            cfg.reservoir_w(
-              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2 - 1), af::span) = 0.;
-            cfg.reservoir_w(
-              af::span, af::span, af::seq(cfg.reservoir_w.dims(2) / 2 + 1, af::end), af::span) = 0.;
-            [[maybe_unused]] int kernel_expect_nonzero = cfg.reservoir_w.dims(3) / 2;
-            assert(
-              af::count<int>(cfg.reservoir_w)
-              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
-        }
-        if (topo_params.contains("a3")) {
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2 + 1, af::end)) = 0.;
-            cfg.reservoir_w(
-              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2),
-              af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-            [[maybe_unused]] int kernel_expect_nonzero =
-              cfg.reservoir_w.dims(2) / 2 + cfg.reservoir_w.dims(2) * (cfg.reservoir_w.dims(3) / 2);
-            assert(
-              af::count<int>(cfg.reservoir_w)
-              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
-        }
-        if (topo_params.contains("a4")) {
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2 + 1, af::end)) = 0.;
-            cfg.reservoir_w(
-              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2 - 1), af::span) = 0.;
-            // center
-            cfg.reservoir_w(
-              af::span, af::span, cfg.reservoir_w.dims(2) / 2, cfg.reservoir_w.dims(3) / 2) = 0.;
-            // bottom left
-            cfg.reservoir_w(
-              af::span, af::span, af::seq(cfg.reservoir_w.dims(2) / 2 + 1, af::end),
-              af::seq(0, cfg.reservoir_w.dims(3) / 2 - 1)) = 0.;
-            [[maybe_unused]] int kernel_expect_nonzero =
-              cfg.reservoir_w.dims(2) / 2 + cfg.reservoir_w.dims(3) / 2;
-            assert(
-              af::count<int>(cfg.reservoir_w)
-              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
-        }
-        if (topo_params.contains("a5")) {
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-            cfg.reservoir_w(
-              af::span, af::span, af::seq(0, cfg.reservoir_w.dims(2) / 2 - 1), af::span) = 0.;
-            [[maybe_unused]] int kernel_expect_nonzero =
-              (cfg.reservoir_w.dims(2) / 2 + 1) * (cfg.reservoir_w.dims(3) / 2);
-            assert(
-              af::count<int>(cfg.reservoir_w)
-              <= kernel_expect_nonzero * cfg.reservoir_w.dims(0) * cfg.reservoir_w.dims(1));
+            cfg.reservoir_w(af::span, af::span, af::span, af::seq(half_kernel_width, af::end)) = 0.;
         }
     } else if (topo_params.contains("const")) {
         // TODO what if we disable only self-connections?
@@ -1167,19 +1115,7 @@ lcnn<DType> random_lcnn(
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
         // only allow connections going to the right
         if (topo_params.contains("od")) {
-            cfg.reservoir_w(
-              af::span, af::span, af::span, af::seq(cfg.reservoir_w.dims(3) / 2, af::end)) = 0.;
-        }
-        if (topo_params.contains("lindiscount")) {
-            af::array mask;
-            if (kernel_width == 3)
-                mask = af::constant(1, 1);
-            else
-                mask = af::transpose(1. / af::seq(kernel_width / 2, 1, -1));
-            mask = af::join(1, mask, af::constant(0, 1), af::flip(mask, 1));
-            mask = af::tile(mask, state_height * state_width * kernel_height);
-            mask = af::moddims(mask, state_height, state_width, kernel_height, kernel_width);
-            cfg.reservoir_w *= mask;
+            cfg.reservoir_w(af::span, af::span, af::span, af::seq(half_kernel_width, af::end)) = 0.;
         }
     } else if (topo_params.contains("permutation")) {
         // only allow one connection to each neuron
@@ -1213,15 +1149,15 @@ lcnn<DType> random_lcnn(
 
     if (topo_params.contains("nowrap") && !cfg.reservoir_w.isempty()) {
         for (int i = 0; i < kernel_width / 2; ++i) {
-            cfg.reservoir_w(af::span, i, af::span, af::seq(0, kernel_width / 2 - i - 1)) = 0;
+            cfg.reservoir_w(af::span, i, af::span, af::seq(0, half_kernel_width - i - 1)) = 0;
             cfg.reservoir_w(
-              af::span, state_width - i - 1, af::span, af::seq(kernel_width / 2 + i + 1, af::end)) =
-              0;
+              af::span, state_width - i - 1, af::span,
+              af::seq(half_kernel_width + i + 1, af::end)) = 0;
         }
         for (int i = 0; i < kernel_height / 2; ++i) {
-            cfg.reservoir_w(i, af::span, af::seq(0, kernel_height / 2 - i - 1), af::span) = 0;
+            cfg.reservoir_w(i, af::span, af::seq(0, half_kernel_height - i - 1), af::span) = 0;
             cfg.reservoir_w(
-              state_height - i - 1, af::span, af::seq(kernel_height / 2 + i + 1, af::end),
+              state_height - i - 1, af::span, af::seq(half_kernel_height + i + 1, af::end),
               af::span) = 0;
         }
     }

@@ -51,7 +51,7 @@ public:
     data_map(std::set<std::string> keys, af::array data)
     {
         if (keys.empty() || data.isempty()) return;
-        assert(data.dims(0) == keys.size());
+        assert(data.dims(0) == (long)keys.size());
         assert(data.numdims() <= 2);
         keys_ = std::move(keys);
         data_ = std::move(data);
@@ -75,7 +75,7 @@ public:
 
     data_map(const std::vector<std::string>& keys, const af::array& data)
     {
-        assert(data.dims(0) == keys.size());
+        assert(data.dims(0) == (long)keys.size());
         assert(data.numdims() <= 2);
         const std::map<std::string, double> ordered_indices = iota_indices(keys);
         const af::array index_array = make_index_array(ordered_indices);

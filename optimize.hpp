@@ -24,6 +24,7 @@ namespace esn {
 
 namespace po = boost::program_options;
 namespace rg = ranges;
+namespace rga = ranges::actions;
 namespace rgv = ranges::views;
 
 inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
@@ -181,7 +182,8 @@ public:
     void clear_best_evaluation()
     {
         fs::remove_all(output_dir_ / "best-model");
-        best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
+        best_evaluation_ = {
+          .f_value = std::numeric_limits<double>::infinity(), .params = {}, .net = {}};
     }
 
     /// The best evaluation of a single network.
@@ -799,11 +801,11 @@ public:
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
         };
-        for (int i = 0; i < bench_->input_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
             param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.2});
         }
-        for (int i = 0; i < bench_->output_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
             param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.2});
         }
@@ -836,11 +838,11 @@ public:
           "lcnn.adapt.weight-leakage",
           "lcnn.adapt.abs-target-activation",
         };
-        for (int i = 0; i < bench_->input_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             params.insert("lcnn.mu-in-weight-" + std::to_string(i));
             params.insert("lcnn.sigma-in-weight-" + std::to_string(i));
         }
-        for (int i = 0; i < bench_->output_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             params.insert("lcnn.mu-fb-weight-" + std::to_string(i));
             params.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
         }
@@ -881,11 +883,11 @@ public:
           {"lcnn.adapt.weight-leakage", 0.05},
           {"lcnn.adapt.abs-target-activation", 0.05},
         };
-        for (int i = 0; i < bench_->input_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.05});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.05});
         }
-        for (int i = 0; i < bench_->output_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.01});
             params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.01});
         }
@@ -912,11 +914,11 @@ public:
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
         };
-        for (int i = 0; i < bench_->input_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), -1.1});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), -0.1});
         }
-        for (int i = 0; i < bench_->output_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), -1.1});
             params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), -0.1});
         }
@@ -943,11 +945,11 @@ public:
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
         };
-        for (int i = 0; i < bench_->input_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 1.1});
             params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 2.0});
         }
-        for (int i = 0; i < bench_->output_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 1.1});
             params.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 2.0});
         }
@@ -959,7 +961,7 @@ public:
         // TODO only as a config option
         std::set<std::string> fb_w_group;
         std::set<std::string> fb_b_group;
-        for (int i = 0; i < bench_->output_names().size(); ++i) {
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             fb_w_group.insert("lcnn.mu-fb-weight-" + std::to_string(i));
             fb_b_group.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
         }
@@ -1004,9 +1006,9 @@ public:
     {
         std::set<std::string> params = {
           "esn.sigma-res", "esn.mu-res", "esn.sparsity", "esn.leakage"};
-        for (int i = 0; i < bench_->input_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i)
             params.insert("esn.in-weight-" + std::to_string(i));
-        for (int i = 0; i < bench_->output_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             params.insert("esn.fb-weight-" + std::to_string(i));
         return params;
     }
@@ -1018,9 +1020,9 @@ public:
           {"esn.mu-res", 0.0},
           {"esn.sparsity", 0.5},
           {"esn.leakage", 0.9}};
-        for (int i = 0; i < bench_->input_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 0.1});
-        for (int i = 0; i < bench_->output_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight-" + std::to_string(i), 0.0});
         return params;
     }
@@ -1032,9 +1034,9 @@ public:
           {"esn.mu-res", 0.01},
           {"esn.sparsity", 0.01},
           {"esn.leakage", 0.01}};
-        for (int i = 0; i < bench_->input_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 0.01});
-        for (int i = 0; i < bench_->output_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight-" + std::to_string(i), 0.01});
         return params;
     }
@@ -1046,9 +1048,9 @@ public:
           {"esn.mu-res", -1.1},
           {"esn.sparsity", -1.1},
           {"esn.leakage", -1.1}};
-        for (int i = 0; i < bench_->input_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), -1.1});
-        for (int i = 0; i < bench_->output_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight-" + std::to_string(i), -1.1});
         return params;
     }
@@ -1057,9 +1059,9 @@ public:
     {
         std::map<std::string, double> params = {
           {"esn.sigma-res", 1.1}, {"esn.mu-res", 1.1}, {"esn.sparsity", 1.1}, {"esn.leakage", 1.1}};
-        for (int i = 0; i < bench_->input_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i)
             params.insert({"esn.in-weight-" + std::to_string(i), 1.1});
-        for (int i = 0; i < bench_->output_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             params.insert({"esn.fb-weight-" + std::to_string(i), 1.1});
         return params;
     }
@@ -1068,7 +1070,7 @@ public:
     {
         // TODO only as a config option
         std::set<std::string> fb_group;
-        for (int i = 0; i < bench_->output_names().size(); ++i)
+        for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             fb_group.insert("lcnn.fb-weight-" + std::to_string(i));
         return {fb_group};
     }
@@ -1116,7 +1118,7 @@ inline po::options_description optimizer_arg_description()
     return optimizer_arg_desc;
 }
 
-std::unique_ptr<net_optimizer> make_optimizer(
+inline std::unique_ptr<net_optimizer> make_optimizer(
   benchmark_factory_t bench_factory,
   const po::variables_map& args,
   prng_t prng,

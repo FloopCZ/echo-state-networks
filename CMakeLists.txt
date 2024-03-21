@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-# Use clang++ by default because with g++, we could accidentaly
+# If using CPU backend, you may need to use clang++ by default
+# because with g++, you could accidentaly
 # fall into https://github.com/arrayfire/arrayfire/issues/2978.
-set(CMAKE_CXX_COMPILER "clang++")
+# set(CMAKE_CXX_COMPILER "clang++")
 
 # Export compile commants to help VS Code.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)

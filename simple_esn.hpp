@@ -96,8 +96,8 @@ public:
 
         // check dimensions
         assert((reservoir_w_.dims() == af::dim4{n_, n_}));
-        assert((input_w_.dims() == af::dim4{n_, input_names_.size()}));
-        assert((feedback_w_.dims() == af::dim4{n_, output_names_.size()}));
+        assert((input_w_.dims() == af::dim4{n_, (long)input_names_.size()}));
+        assert((feedback_w_.dims() == af::dim4{n_, (long)output_names_.size()}));
         assert((biases_.dims() == af::dim4{n_}));
         assert((state_.dims() == af::dim4{n_}));
     }
@@ -177,7 +177,7 @@ public:
             assert(step_feedback.keys() == output_names_ && "Only full feedback is supported.");
             last_output_ = step_feedback.data();
         }
-        assert(last_output_.dims() == (af::dim4{output_names_.size()}));
+        assert(last_output_.dims() == (af::dim4{(long)output_names_.size()}));
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
@@ -187,7 +187,8 @@ public:
                 {.input = step_input,
                  .feedback = step_feedback,
                  .desired = step_desired,
-                 .meta = step_meta},
+                 .meta = step_meta,
+                 .input_transform = input_transform},
               .output = {output_names_, last_output_},
               .event = event_};
             fnc(*this, std::move(data));
@@ -253,12 +254,12 @@ public:
         assert((data.states.dims() == af::dim4{state_.dims(0), data.outputs.dims(1)}));
         assert(data.outputs.type() == DType);
         assert(data.outputs.numdims() <= 2);
-        assert(data.outputs.dims(0) == output_names_.size());
+        assert(data.outputs.dims(0) == (long)output_names_.size());
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
         assert(data.outputs.dims(1) == data.desired->dims(1));
         assert(data.desired->type() == DType);
         assert(data.desired->numdims() <= 2);
-        assert(data.desired->dims(0) == output_names_.size());
+        assert(data.desired->dims(0) == (long)output_names_.size());
         data.outputs = af::array{};  // free memory
         data.states = data.states.T();
         af::array predictors = af_utils::add_ones(data.states, 1);
@@ -269,7 +270,8 @@ public:
         output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
         assert(
           output_w_.dims()
-          == (af::dim4{output_names_.size(), input_names_.size() + state_.elements() + 1}));
+          == (af::dim4{
+            (long)output_names_.size(), (long)input_names_.size() + state_.elements() + 1}));
         return {.predictors = std::move(predictors), .output_w = output_w_};
     }
 
@@ -418,7 +420,7 @@ simple_esn<DType> random_esn(
 }
 
 /// Echo state network options description for command line parsing.
-po::options_description esn_arg_description()
+inline po::options_description esn_arg_description()
 {
     po::options_description esn_arg_desc{"Echo state network options"};
     esn_arg_desc.add_options()                                                    //

@@ -1062,6 +1062,7 @@ protected:
           {.input = {"xs", init_xs},
            .feedback = {},
            .desired = {},
+           .meta = {},
            .input_transform = input_transform_fn()});
         // build the sequence to be analyzed
         af::array xs =

@@ -3,6 +3,7 @@
 // Ensemble wrapper for lcnn. //
 
 #include "lcnn.hpp"
+#include "simple_esn.hpp"
 
 namespace esn {
 
@@ -20,7 +21,7 @@ protected:
             last_output_.clear();
             return;
         }
-        for (long i = 1; i < nets_.size(); ++i) {
+        for (long i = 1; i < (long)nets_.size(); ++i) {
             last_outputs = last_outputs.concat(nets_.at(i)->last_output());
         }
         last_output_ = {last_outputs.keys(), af::median(last_outputs.data(), 1)};
@@ -55,7 +56,8 @@ public:
                 {.input = step_input,
                  .feedback = step_feedback,
                  .desired = step_desired,
-                 .meta = step_meta},
+                 .meta = step_meta,
+                 .input_transform = input_transform},
               .output = last_output_,
               .event = event_};
             fnc(*this, std::move(data));
