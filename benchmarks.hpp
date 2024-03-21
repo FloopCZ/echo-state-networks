@@ -294,7 +294,7 @@ public:
             }
             assert(i / validation_stride_ == n_validations);
             error = multi_error_fnc(all_predicted, all_desired);
-            std::cout << fmt::format("Epoch {} error {}\n", epoch, error);
+            std::cout << fmt::format("Epoch {} error {}", epoch, error) << std::endl;
         }
         return error;
     }
