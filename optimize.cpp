@@ -102,15 +102,14 @@ int main(int argc, char* argv[])
         std::unique_ptr<esn::net_optimizer> opt =
           esn::make_optimizer(esn::make_benchmark, args, global_prng, run_output_dir);
         cma::CMASolutions cmasols = opt->optimize();
-        cma::Candidate best_candidate = cmasols.get_best_seen_candidate();
-        std::cout << "Best seen candidate:\n";
-        opt->print_candidate(std::cout, best_candidate) << std::endl;
         std::cout << "Distribution mean:\n";
         opt->print_candidate(std::cout, cmasols.xmean(), global_prng) << std::endl;
 
         // CSV rows
+        std::cout << "Best seen candidate:\n";
         esn::net_evaluation_result_t best_evaluation = std::move(opt->best_evaluation());
         if (best_evaluation.net == nullptr) throw std::runtime_error{"No best network."};
+        opt->print_result(std::cout, best_evaluation) << std::endl;
         po::variables_map params = opt->to_variables_map(best_evaluation.params);
         fs::path param_file = output_dir / "best-model" / "params.txt";
         std::ofstream param_out{param_file};

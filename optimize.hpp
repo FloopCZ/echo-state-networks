@@ -675,6 +675,10 @@ public:
     void progress(
       const cma::CMAParameters<GenoPheno>& cmaparams, const cma::CMASolutions& cmasols) override
     {
+        if (best_evaluation_.net) {
+            std::cout << "input names: " << rgv::all(best_evaluation_.net->input_names())
+                      << std::endl;
+        }
         for (const auto& [progress, params] : param_stages_.items()) {
             if (opt_status_.progress >= std::stod(progress)) {
                 for (const auto& [key, value] : params.items()) {
@@ -695,6 +699,18 @@ public:
     std::ostream& print_params(std::ostream& out, const std::vector<double>& params) const override
     {
         return out << to_variables_map(params);
+    }
+
+    std::ostream& print_result(std::ostream& out, const net_evaluation_result_t& result) const
+    {
+        auto out_precision = out.precision();
+        out.precision(std::numeric_limits<double>::max_digits10);
+        // print f-value and params.
+        out << "f-value: " << result.f_value << '\n';
+        out << to_variables_map(result.params) << std::endl;
+        // restore the original precision
+        out.precision(out_precision);
+        return out;
     }
 
     net_optimizer() = default;
