@@ -90,6 +90,9 @@ public:
     }
 };
 
+using benchmark_factory_t =
+  std::function<std::unique_ptr<benchmark_set_base>(const po::variables_map&)>;
+
 /// Base class for echo state network benchmarking tasks.
 class benchmark_set : public benchmark_set_base {
 protected:

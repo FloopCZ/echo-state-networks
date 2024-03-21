@@ -62,7 +62,7 @@
                 "--bench.train-steps=34060",
                 "--bench.valid-steps=11519",
                 "--bench.n-steps-ahead=96",
-                "--bench.validation-stride-start=100",
+                "--bench.validation-stride=100",
                 "--opt.max-fevals=10000",
                 "--gen.n-trials=1",
                 "--gen.n-runs=1",
@@ -166,7 +166,7 @@
                 "--bench.train-steps=500",
                 "--bench.valid-steps=223",
                 "--bench.n-steps-ahead=33",
-                "--bench.validation-stride-start=20",
+                "--bench.validation-stride=20",
                 "--gen.af-device=0"
             ],
             "stopAtEntry": false,

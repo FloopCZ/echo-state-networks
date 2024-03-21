@@ -99,9 +99,8 @@ int main(int argc, char* argv[])
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
         std::cout << "Run " << run << std::endl;
         fs::path run_output_dir = output_dir / ("run" + std::to_string(run));
-        std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
         std::unique_ptr<esn::net_optimizer> opt =
-          esn::make_optimizer(std::move(bench), args, global_prng, run_output_dir);
+          esn::make_optimizer(esn::make_benchmark, args, global_prng, run_output_dir);
         cma::CMASolutions cmasols = opt->optimize();
         cma::Candidate best_candidate = cmasols.get_best_seen_candidate();
         std::cout << "Best seen candidate:\n";

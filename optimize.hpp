@@ -12,6 +12,7 @@
 #include <boost/program_options.hpp>
 #include <execution>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <libcmaes/cmaes.h>
 #include <limits>
@@ -425,6 +426,7 @@ private:
     }
 
 protected:
+    benchmark_factory_t bench_factory_;
     std::unique_ptr<benchmark_set_base> bench_;
     int af_device_;
     nlohmann::json param_stages_;
@@ -679,6 +681,9 @@ public:
                     if (key == "_CLEAR_BEST_MODEL") {
                         if (value.get<bool>()) clear_best_evaluation();
                         param_stages_.at(progress).at(key) = false;
+                    } else if (key == "_REINITIALIZE_BENCHMARK") {
+                        if (value.get<bool>()) initialize_benchmark();
+                        param_stages_.at(progress).at(key) = false;
                     } else if (key.starts_with("_"))
                         throw std::runtime_error{
                           fmt::format("Unknown key `{}` in param stages file.", key)};
@@ -695,25 +700,29 @@ public:
     net_optimizer() = default;
 
     net_optimizer(
-      po::variables_map config,
-      std::unique_ptr<benchmark_set_base> bench,
-      prng_t prng,
-      fs::path output_dir)
+      po::variables_map config, benchmark_factory_t bench_factory, prng_t prng, fs::path output_dir)
       : named_optimizer{std::move(config), std::move(prng), std::move(output_dir)}
-      , bench_{std::move(bench)}
+      , bench_factory_{std::move(bench_factory)}
       , af_device_{config_.at("gen.af-device").as<int>()}
     {
         if (config_.contains("opt.param-stages-json")) {
             std::ifstream param_stages_fin{config_.at("opt.param-stages-json").as<std::string>()};
             param_stages_ = nlohmann::json::parse(param_stages_fin, nullptr, true);
         }
+        initialize_benchmark();
     }
 
     virtual std::unique_ptr<net_base>
     make_net(const std::map<std::string, double>& params, prng_t& prng) const = 0;
 
+    void initialize_benchmark()
+    {
+        bench_ = bench_factory_(patch_via_stages(config_));
+    }
+
     benchmark_set_base& benchmark()
     {
+        if (bench_ == nullptr) throw std::runtime_error{"No benchmark set."};
         return *bench_;
     }
 
@@ -736,11 +745,9 @@ protected:
 
 public:
     lcnn_optimizer(
-      po::variables_map config,
-      std::unique_ptr<benchmark_set_base> bench,
-      prng_t prng,
-      fs::path output_dir)
-      : net_optimizer{std::move(config), std::move(bench), std::move(prng), std::move(output_dir)}
+      po::variables_map config, benchmark_factory_t bench_factory, prng_t prng, fs::path output_dir)
+      : net_optimizer{
+        std::move(config), std::move(bench_factory), std::move(prng), std::move(output_dir)}
     {
         if (config_.at("opt.x0-from-params").as<bool>()) {
             param_x0_ = from_variables_map(available_params(), config_);
@@ -1082,7 +1089,7 @@ inline po::options_description optimizer_arg_description()
 }
 
 std::unique_ptr<net_optimizer> make_optimizer(
-  std::unique_ptr<benchmark_set_base> bench,
+  benchmark_factory_t bench_factory,
   const po::variables_map& args,
   prng_t prng,
   fs::path output_dir)
@@ -1090,20 +1097,20 @@ std::unique_ptr<net_optimizer> make_optimizer(
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn") {
             return std::make_unique<lcnn_optimizer>(
-              args, std::move(bench), std::move(prng), std::move(output_dir));
+              args, std::move(bench_factory), std::move(prng), std::move(output_dir));
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
     if (args.at("gen.net-type").as<std::string>() == "lcnn-ensemble") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn-ensemble") {
             return std::make_unique<lcnn_ensemble_optimizer>(
-              args, std::move(bench), std::move(prng), std::move(output_dir));
+              args, std::move(bench_factory), std::move(prng), std::move(output_dir));
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
     if (args.at("gen.net-type").as<std::string>() == "simple-esn") {
         return std::make_unique<esn_optimizer>(
-          args, std::move(bench), std::move(prng), std::move(output_dir));
+          args, std::move(bench_factory), std::move(prng), std::move(output_dir));
     }
     throw std::runtime_error{
       "Unknown net type \"" + args.at("gen.net-type").as<std::string>() + "\".\n"};

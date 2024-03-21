@@ -152,7 +152,7 @@ int main(int argc, char* argv[])
                   / (state_size_str + "-k" + std::to_string(kernel_size) + "-run"
                      + std::to_string(run));
                 auto opt = std::make_unique<lcnn_optimizer>(
-                  args, esn::make_benchmark(args), esn::global_prng, run_output_dir);
+                  args, esn::make_benchmark, esn::global_prng, run_output_dir);
                 cma::CMASolutions cmasols = opt->optimize();
                 dVec mean = cmasols.xmean();
                 po::variables_map params = opt->to_variables_map(opt->pheno_candidate(mean));
