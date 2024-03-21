@@ -58,14 +58,13 @@ protected:
     bool multithreading_;
     EvaluationResult best_evaluation_ = {.f_value = std::numeric_limits<double>::infinity()};
     std::mutex best_evaluation_mutex_;
-    prng_t* prng_;
+    prng_t prng_;
     fs::path output_dir_;
 
     // Reseed the random generator to a new state.
     void reseed()
     {
-        std::seed_seq sseq{prng_->operator()(), prng_->operator()(), prng_->operator()()};
-        prng_->seed(sseq);
+        prng_.seed(prng_() + 137);
     }
 
     /// Build the ProgressFunc for libcmaes.
@@ -86,7 +85,6 @@ protected:
               std::cout << std::endl;
               std::unique_lock ul{best_evaluation_mutex_};
               if (best_evaluation_.net) best_evaluation_.net->save(output_dir_ / "best-model");
-              reseed();
               return 0;
           };
     }
@@ -96,7 +94,7 @@ protected:
     {
         return [this](const double* p, int n) -> double {
             std::vector<double> params(p, p + n);
-            prng_t prng = *prng_;  // copy the generator for each f_value() call.
+            prng_t prng = prng_;  // copy the generator for each f_value() call.
             return f_value(params, prng);
         };
     }
@@ -105,12 +103,12 @@ public:
     /// Dummy constructor.
     optimizer() = default;
     /// Construct from configuration.
-    optimizer(po::variables_map config, prng_t& prng, fs::path output_dir)
+    optimizer(po::variables_map config, prng_t prng, fs::path output_dir)
       : config_{std::move(config)}
       , n_evals_{config_.at("opt.n-evals").as<int>()}
       , f_value_agg_{config_.at("opt.f-value-agg").as<std::string>()}
       , multithreading_{config_.at("opt.multithreading").as<bool>()}
-      , prng_{&prng}
+      , prng_{std::move(prng)}
       , output_dir_{std::move(output_dir)}
     {
         fs::create_directories(output_dir_);
@@ -131,6 +129,7 @@ public:
 
     void initialize()
     {
+        reseed();
         std::vector<double> x0 = param_x0();
         assert(x0.size() == param_lbounds().size());
         opt_status_ = {.progress = 0.};
@@ -144,12 +143,11 @@ public:
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::STAGNATION, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::NOEFFECTAXIS, false);
         cmaparams_.set_stopping_criteria(cma::CMAStopCritType::NOEFFECTCOOR, false);
-        cmaparams_.set_seed((*prng_)());
+        cmaparams_.set_seed(prng_());
         // The following constructor is broken, it sets sigma to the minimum of the sigmas,
         // while it optimizes on interval [0, 10].
         // cmaparams_ = cma::CMAParameters<GenoPheno>
-        //   {x0, sigmas, config_.at("opt.lambda").as<int>(), lbounds, ubounds,
-        //    prng_->operator()()};
+        //   {x0, sigmas, config_.at("opt.lambda").as<int>(), lbounds, ubounds, prng_()};
         cmaparams_.set_str_algo(config_.at("opt.algorithm").as<std::string>());
         cmaparams_.set_restarts(config_.at("opt.restarts").as<int>());
         cmaparams_.set_fplot(output_dir_ / "fplot.dat");
@@ -314,8 +312,8 @@ protected:
 public:
     named_optimizer() = default;
 
-    named_optimizer(po::variables_map config, prng_t& prng, fs::path output_dir)
-      : optimizer<EvaluationResult>(std::move(config), prng, std::move(output_dir))
+    named_optimizer(po::variables_map config, prng_t prng, fs::path output_dir)
+      : optimizer<EvaluationResult>(std::move(config), std::move(prng), std::move(output_dir))
     {
         if (this->config_.contains("opt.exclude-params")) {
             std::vector<std::string>& excluded_params_arg =
@@ -642,9 +640,9 @@ public:
     net_optimizer(
       po::variables_map config,
       std::unique_ptr<benchmark_set_base> bench,
-      prng_t& prng,
+      prng_t prng,
       fs::path output_dir)
-      : named_optimizer{std::move(config), prng, std::move(output_dir)}
+      : named_optimizer{std::move(config), std::move(prng), std::move(output_dir)}
       , bench_{std::move(bench)}
       , af_device_{config_.at("gen.af-device").as<int>()}
     {
@@ -679,9 +677,9 @@ public:
     lcnn_optimizer(
       po::variables_map config,
       std::unique_ptr<benchmark_set_base> bench,
-      prng_t& prng,
+      prng_t prng,
       fs::path output_dir)
-      : net_optimizer{std::move(config), std::move(bench), prng, std::move(output_dir)}
+      : net_optimizer{std::move(config), std::move(bench), std::move(prng), std::move(output_dir)}
     {
         if (config_.at("opt.x0-from-params").as<bool>()) {
             param_x0_ = from_variables_map(available_params(), config_);
@@ -1023,25 +1021,26 @@ inline po::options_description optimizer_arg_description()
 std::unique_ptr<net_optimizer> make_optimizer(
   std::unique_ptr<benchmark_set_base> bench,
   const po::variables_map& args,
-  prng_t& prng,
+  prng_t prng,
   fs::path output_dir)
 {
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn") {
             return std::make_unique<lcnn_optimizer>(
-              args, std::move(bench), prng, std::move(output_dir));
+              args, std::move(bench), std::move(prng), std::move(output_dir));
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
     if (args.at("gen.net-type").as<std::string>() == "lcnn-ensemble") {
         if (args.at("gen.optimizer-type").as<std::string>() == "lcnn-ensemble") {
             return std::make_unique<lcnn_ensemble_optimizer>(
-              args, std::move(bench), prng, std::move(output_dir));
+              args, std::move(bench), std::move(prng), std::move(output_dir));
         }
         throw std::invalid_argument{"Unknown lcnn optimizer type."};
     }
     if (args.at("gen.net-type").as<std::string>() == "simple-esn") {
-        return std::make_unique<esn_optimizer>(args, std::move(bench), prng, std::move(output_dir));
+        return std::make_unique<esn_optimizer>(
+          args, std::move(bench), std::move(prng), std::move(output_dir));
     }
     throw std::runtime_error{
       "Unknown net type \"" + args.at("gen.net-type").as<std::string>() + "\".\n"};

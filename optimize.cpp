@@ -114,6 +114,7 @@ int main(int argc, char* argv[])
         fs::path param_file = output_dir / "best-model" / "params.txt";
         std::ofstream param_out{param_file};
         param_out << params;
+        global_prng.seed(global_prng() + 13);
         for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {
             for (const std::string& param : param_names) {
                 if (param == "run") {

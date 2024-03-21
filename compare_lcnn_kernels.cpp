@@ -156,6 +156,7 @@ int main(int argc, char* argv[])
                 cma::CMASolutions cmasols = opt->optimize();
                 dVec mean = cmasols.xmean();
                 po::variables_map params = opt->to_variables_map(opt->pheno_candidate(mean));
+                global_prng.seed(global_prng() + 13);
                 for (long trial = 0; trial < args.at("gen.n-trials").as<long>(); ++trial) {
                     double f_value = opt->f_value(mean, esn::global_prng);
                     std::cout << "Best f-value: " << f_value << std::endl << std::endl;
