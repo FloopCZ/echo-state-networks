@@ -430,6 +430,7 @@ protected:
     std::unique_ptr<benchmark_set_base> bench_;
     int af_device_;
     nlohmann::json param_stages_;
+    double weight_cutoff_;
 
     virtual std::string arg_prefix_() const = 0;
 
@@ -588,6 +589,10 @@ public:
         }
         std::vector<double> sigma_in_weight = vector_val(p + "sigma-in-weight", exp_transform);
         if (!sigma_in_weight.empty()) {
+            rga::transform(sigma_in_weight, [this](double v) -> double {
+                if (std::abs(v) < weight_cutoff_) return 0.;
+                return v;
+            });
             cfg.insert_or_assign(p + "sigma-in-weight", po::variable_value{sigma_in_weight, false});
         }
         std::vector<double> mu_fb_weight = vector_val(p + "mu-fb-weight", pow_transform);
@@ -596,6 +601,10 @@ public:
         }
         std::vector<double> sigma_fb_weight = vector_val(p + "sigma-fb-weight", exp_transform);
         if (!sigma_fb_weight.empty()) {
+            rga::transform(sigma_fb_weight, [this](double v) -> double {
+                if (std::abs(v) < weight_cutoff_) return 0.;
+                return v;
+            });
             cfg.insert_or_assign(p + "sigma-fb-weight", po::variable_value(sigma_fb_weight, false));
         }
         if (params.contains(p + "sparsity")) {
@@ -720,6 +729,7 @@ public:
       : named_optimizer{std::move(config), std::move(prng), std::move(output_dir)}
       , bench_factory_{std::move(bench_factory)}
       , af_device_{config_.at("gen.af-device").as<int>()}
+      , weight_cutoff_{config_.at("opt.weight-cutoff").as<double>()}
     {
         if (config_.contains("opt.param-stages-json")) {
             std::ifstream param_stages_fin{config_.at("opt.param-stages-json").as<std::string>()};
@@ -1093,6 +1103,8 @@ inline po::options_description optimizer_arg_description()
        "is not the final solution.")                                                        //
       ("opt.param-stages-json", po::value<std::string>(),                                   //
        "A json file with parameter overrides based on evolution progress.")                 //
+      ("opt.weight-cutoff", po::value<double>()->default_value(0.),                         //
+       "Input and feedback weight sigmas will be cut off under this (abs) value.")          //
       ("opt.multithreading", po::bool_switch(),                                             //
        "Evaluate the individuals in the population in parallel.")                           //
       ("opt.exclude-params",                                                                //
