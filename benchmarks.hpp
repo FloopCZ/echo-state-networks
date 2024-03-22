@@ -16,7 +16,6 @@
 #include <fmt/format.h>
 #include <fstream>
 #include <range/v3/view.hpp>
-#include <semaphore>
 
 namespace esn {
 
@@ -250,10 +249,6 @@ public:
               / validation_stride_;
             std::vector<data_map> all_predicted(n_validations);
             std::vector<data_map> all_desired(n_validations);
-            // parallelism helpers
-            tbb::task_group valid_tasks;
-            std::counting_semaphore<> valid_task_semaphore{2};
-            int af_device = af::getDevice();
             // the last step in the sequence has an unknown desired value, so we skip the
             // last sequence of n_steps_ahead_ (i.e., < instead of <=)
             long i;
@@ -277,32 +272,26 @@ public:
                 // create a copy of the network before the validation so that we can simply
                 // continue feeding of the original net in the next iteration
                 std::unique_ptr<net_base> net_copy = net.clone();
-                valid_task_semaphore.acquire();
-                valid_tasks.run([&, i, net_copy = std::move(net_copy)]() {
-                    af::setDevice(af_device);
-                    // evaluate the performance of the network on the validation subsequence
-                    data_map loop_input = xs_groups.at(2)
-                                            .select(af::seq(i, i + n_steps_ahead_ - 1))
-                                            .filter(persistent_input_names());
-                    data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
-                    data_map meta = meta_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
-                    net_copy->event("validation-start");
-                    af::array raw_predicted = net_copy
-                                                ->feed(
-                                                  {.input = loop_input,
-                                                   .feedback = {},
-                                                   .desired = desired,
-                                                   .meta = meta,
-                                                   .input_transform = input_transform_fn()})
-                                                .outputs;
-                    valid_task_semaphore.release();
-                    data_map predicted{output_names(), std::move(raw_predicted)};
-                    // extract the targets
-                    all_predicted.at(i / validation_stride_) = predicted.filter(target_names());
-                    all_desired.at(i / validation_stride_) = desired.filter(target_names());
-                });
+                // evaluate the performance of the network on the validation subsequence
+                data_map loop_input = xs_groups.at(2)
+                                        .select(af::seq(i, i + n_steps_ahead_ - 1))
+                                        .filter(persistent_input_names());
+                data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
+                data_map meta = meta_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
+                net_copy->event("validation-start");
+                af::array raw_predicted = net_copy
+                                            ->feed(
+                                              {.input = loop_input,
+                                               .feedback = {},
+                                               .desired = desired,
+                                               .meta = meta,
+                                               .input_transform = input_transform_fn()})
+                                            .outputs;
+                data_map predicted{output_names(), std::move(raw_predicted)};
+                // extract the targets
+                all_predicted.at(i / validation_stride_) = predicted.filter(target_names());
+                all_desired.at(i / validation_stride_) = desired.filter(target_names());
             }
-            valid_tasks.wait();
             assert(i / validation_stride_ == n_validations);
             error = multi_error_fnc(all_predicted, all_desired);
             std::cout << fmt::format("Epoch {} error {}", epoch, error) << std::endl;

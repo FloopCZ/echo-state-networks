@@ -1,3 +1,7 @@
+#!/bin/bash
+set -e
+
+export AF_MAX_BUFFERS=100000
 ./build/evaluate_cuda \
 --bench.error-measure=mse \
 --bench.ett-data-path=third_party/ETDataset \
