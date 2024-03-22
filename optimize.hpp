@@ -82,7 +82,6 @@ protected:
     {
         return
           [this](const cma::CMAParameters<GenoPheno>& cmaparams, const cma::CMASolutions& cmasols) {
-              opt_status_ = {.progress = (double)cmasols.nevals() / cmaparams.get_max_fevals()};
               std::cout << "Iteration: " << cmasols.niter() << '\n';
               std::cout << "Evaluations: " << cmasols.nevals() << '\n';
               std::cout << "Sigma: " << cmasols.sigma() << '\n';
@@ -93,6 +92,7 @@ protected:
               print_candidate(std::cout, cmasols.best_candidate()) << '\n';
               std::unique_lock ul{best_evaluation_mutex_};
               if (best_evaluation_.net) best_evaluation_.net->save(output_dir_ / "best-model");
+              opt_status_ = {.progress = (double)cmasols.nevals() / cmaparams.get_max_fevals()};
               progress(cmaparams, cmasols);
               std::cout << std::endl;
               if (reseed_every_epoch_) reseed();
