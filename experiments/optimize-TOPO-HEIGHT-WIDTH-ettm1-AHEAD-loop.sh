@@ -8,6 +8,7 @@ HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
 
+export AF_MAX_BUFFERS=100000
 outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-loop/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
