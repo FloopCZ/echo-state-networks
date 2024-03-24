@@ -48,8 +48,8 @@ int main(int argc, char* argv[])
          {"lcnn-ensemble", esn::lcnn_ensemble_arg_description()},  //
          {"simple-esn", esn::esn_arg_description()}}}});           //
 
-    long seed = args.at("gen.seed").as<long>();
-    if (seed != 0) esn::global_prng.seed(seed);
+    long seed = esn::set_global_seed(args.at("gen.seed").as<long>());
+    std::cout << "Random seed: " << seed << std::endl;
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();

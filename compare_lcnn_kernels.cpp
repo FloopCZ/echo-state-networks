@@ -62,8 +62,8 @@ int main(int argc, char* argv[])
         std::exit(1);
     }
 
-    long seed = args.at("gen.seed").as<long>();
-    if (seed != 0) global_prng.seed(seed);
+    long seed = esn::set_global_seed(args.at("gen.seed").as<long>());
+    std::cout << "Random seed: " << seed << std::endl;
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();
