@@ -390,7 +390,10 @@ public:
     static lcnn<DType> load(const fs::path& dir)
     {
         if (!fs::exists(dir))
-            throw std::runtime_error{"Lcnn snapshot dir " + dir.string() + " does not exist."};
+            throw std::runtime_error{"LCNN snapshot dir `" + dir.string() + "` does not exist."};
+        if (!fs::exists(dir / "params.json"))
+            throw std::runtime_error{
+              "Dir `" + dir.string() + "` does not seem to be a LCNN snapshot directory."};
 
         lcnn<DType> net;
         nlohmann::json data = nlohmann::json::parse(std::ifstream{dir / "params.json"});
