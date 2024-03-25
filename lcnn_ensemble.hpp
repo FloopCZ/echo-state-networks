@@ -182,8 +182,7 @@ lcnn_ensemble<DType> random_lcnn_ensemble(
     for (long i = 0; i < args.at("lcnn-ensemble.n").as<long>(); ++i) {
         nets.push_back(
           std::make_unique<lcnn<DType>>(random_lcnn(input_names, output_names, args, prng)));
-        std::seed_seq sseq{prng(), prng(), prng(), prng()};
-        prng.seed(sseq);
+        reseed(prng);
     }
     return lcnn_ensemble<DType>{std::move(nets)};
 }

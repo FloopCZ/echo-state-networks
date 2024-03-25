@@ -11,8 +11,6 @@
 namespace esn {
 
 namespace po = boost::program_options;
-namespace rg = ranges;
-namespace rgv = ranges::views;
 
 /// Parse generic command line arguments and conditionally select what other parameters
 /// to parse.
@@ -37,7 +35,7 @@ namespace rgv = ranges::views;
 ///                                                   {{"student", student_arg_desc},
 ///                                                    {"house", house_arg_desc}}}});
 /// \endcode
-po::variables_map parse_conditional(
+inline po::variables_map parse_conditional(
   int argc,
   char* argv[],
   const po::options_description& generic,
@@ -74,7 +72,7 @@ po::variables_map parse_conditional(
     return args;
 }
 
-std::ostream& operator<<(std::ostream& out, const po::variables_map& m)
+inline std::ostream& operator<<(std::ostream& out, const po::variables_map& m)
 {
     for (auto& [k, v] : m) {
         if (typeid(std::string) == v.value().type()) {
