@@ -64,12 +64,6 @@ protected:
     prng_t prng_;
     fs::path output_dir_;
 
-    // Reseed the random generator to a new state.
-    void reseed()
-    {
-        prng_.seed(prng_() + 137);
-    }
-
     virtual void
     progress(const cma::CMAParameters<GenoPheno>& cmaparams, const cma::CMASolutions& cmasols)
     {
@@ -95,7 +89,7 @@ protected:
               opt_status_ = {.progress = (double)cmasols.nevals() / cmaparams.get_max_fevals()};
               progress(cmaparams, cmasols);
               std::cout << std::endl;
-              if (reseed_every_epoch_) reseed();
+              if (reseed_every_epoch_) reseed(prng_, 137);
               return 0;
           };
     }
@@ -141,7 +135,7 @@ public:
 
     void initialize()
     {
-        reseed();
+        reseed(prng_, 137);
         clear_best_evaluation();
         std::vector<double> x0 = param_x0();
         assert(x0.size() == param_lbounds().size());
