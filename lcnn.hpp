@@ -5,10 +5,10 @@
 #include "arrayfire_utils.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
-#include "elasticnet_af.hpp"
 #include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
 #include "net.hpp"
+#include "third_party/elasticnet_af/elasticnet_af.hpp"
 
 #include <arrayfire.h>
 #include <boost/algorithm/string.hpp>
@@ -20,7 +20,6 @@
 #include <fstream>
 #include <limits>
 #include <nlohmann/json.hpp>
-#include <random>
 #include <range/v3/all.hpp>
 #include <stdexcept>
 
@@ -670,22 +669,16 @@ public:
         if (enet_lambda_ == 0.) {
             beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_).T();
         } else {
-            elasticnet_af::ElasticNet enet(enet_lambda_, enet_alpha_, 1e-12, 1, 100);
-            bool err = false;
-            try {
-                enet.fit(predictors, data.desired->T());
-            } catch (const elasticnet_af::convergence_error) {
-                std::cerr << "ElasticNet did not converge." << std::endl;
-                err = true;
-            } catch (const std::invalid_argument) {
-                std::cerr << "Invalid input matrix to ElasticNet." << std::endl;
-                err = true;
-            }
-            if (err) {
-                beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
-            } else {
-                beta = enet.coefficients(true).T();
-            }
+            elasticnet_af::ElasticNet enet{
+              {.lambda = enet_lambda_,
+               .alpha = enet_alpha_,
+               .tol = 1e-12,
+               .path_len = 1,
+               .max_grad_steps = 100,
+               .standardize_var = false,
+               .warm_start = true}};
+            enet.fit(predictors, data.desired->T());  // Ignore failed convergence.
+            beta = enet.coefficients(true).T();
         }
         // Distribute the coefficients along the state_predictor_indices, leave the other empty.
         af::array output_w = [&]() {
