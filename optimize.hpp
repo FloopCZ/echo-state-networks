@@ -33,6 +33,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.sigma-b",
   "lcnn.noise",
   "lcnn.sparsity",
+  "lcnn.l2",
   "lcnn.n-state-predictors",
   "lcnn.train-valid-ratio",
   "lcnn.act-steepness",
@@ -506,6 +507,10 @@ public:
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.l2") {
                 params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.enet-lambda") {
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.enet-alpha") {
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.n-state-predictors") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.train-valid-ratio") {
@@ -631,6 +636,15 @@ public:
         if (params.contains("lcnn.l2")) {
             cfg.insert_or_assign("lcnn.l2", expval(params.at("lcnn.l2")));
             params.erase("lcnn.l2");
+        }
+        if (params.contains("lcnn.enet-lambda")) {
+            cfg.insert_or_assign("lcnn.enet-lambda", expval(params.at("lcnn.enet-lambda")));
+            params.erase("lcnn.enet-lambda");
+        }
+        if (params.contains("lcnn.enet-alpha")) {
+            cfg.insert_or_assign(
+              "lcnn.enet-alpha", val(std::clamp(params.at("lcnn.enet-alpha"), 0.0, 1.0)));
+            params.erase("lcnn.enet-alpha");
         }
         if (params.contains("lcnn.n-state-predictors")) {
             double n_predictors = std::clamp(params.at("lcnn.n-state-predictors"), 0.0, 1.0);
@@ -791,6 +805,8 @@ public:
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
+          {"lcnn.enet-lambda", 0.2},
+          {"lcnn.enet-alpha", 0.5},
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
@@ -828,6 +844,8 @@ public:
           "lcnn.n-state-predictors",
           "lcnn.train-valid-ratio",
           "lcnn.l2",
+          "lcnn.enet-lambda",
+          "lcnn.enet-alpha",
           "lcnn.input-to-n",
           "lcnn.act-steepness",
           "lcnn.memory-prob",
@@ -873,6 +891,8 @@ public:
           {"lcnn.n-state-predictors", 0.1},
           {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.05},
+          {"lcnn.enet-lambda", 0.05},
+          {"lcnn.enet-alpha", 0.1},
           {"lcnn.input-to-n", 0.1},
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
@@ -904,6 +924,8 @@ public:
           {"lcnn.n-state-predictors", -0.1},
           {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
+          {"lcnn.enet-lambda", -0.1},
+          {"lcnn.enet-alpha", -0.1},
           {"lcnn.input-to-n", -0.1},
           {"lcnn.act-steepness", -1.1},
           {"lcnn.memory-prob", -0.1},
@@ -935,6 +957,8 @@ public:
           {"lcnn.n-state-predictors", 1.1},
           {"lcnn.train-valid-ratio", 1.1},
           {"lcnn.l2", 2.0},
+          {"lcnn.enet-lambda", 2.0},
+          {"lcnn.enet-alpha", 1.1},
           {"lcnn.input-to-n", 1.1},
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},

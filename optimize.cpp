@@ -91,6 +91,8 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.intermediate-steps");
         param_names.push_back("lcnn.train-aggregation");
         param_names.push_back("lcnn.l2");
+        param_names.push_back("lcnn.enet-lambda");
+        param_names.push_back("lcnn.enet-alpha");
     }
     if (net_type == "lcnn-ensemble") {
         param_names.push_back("lcnn-ensemble.n");

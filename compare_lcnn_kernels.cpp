@@ -103,6 +103,8 @@ int main(int argc, char* argv[])
       "lcnn.intermediate-steps",
       "lcnn.train-aggregation",
       "lcnn.l2",
+      "lcnn.enet-lambda",
+      "lcnn.enet-alpha",
       "lcnn.mu-res",
       "lcnn.mu-in-weight",
       "lcnn.sigma-in-weight",

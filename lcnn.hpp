@@ -5,6 +5,7 @@
 #include "arrayfire_utils.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
+#include "elasticnet_af.hpp"
 #include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
 #include "net.hpp"
@@ -52,9 +53,12 @@ struct lcnn_config {
     double noise = 0;
     /// The leakage of the potential.
     double leakage = 1.0;
-    /// The L2 regularization coefficient.
+    /// The l2 regularization coefficient (only used when enet_lambda==0).
     double l2 = 0;
-    /// The L2 regularization coefficient.
+    /// The elastic net regularization parameters.
+    double enet_lambda = 0;
+    double enet_alpha = 0;
+    /// The number of intermediate steps of the network with each input.
     long intermediate_steps = 1;
     /// The number of training trials (select random indices, train, repeat).
     long n_train_trials = 1;
@@ -76,6 +80,8 @@ struct lcnn_config {
         noise = args.at("lcnn.noise").as<double>();
         leakage = args.at("lcnn.leakage").as<double>();
         l2 = args.at("lcnn.l2").as<double>();
+        enet_lambda = args.at("lcnn.enet-lambda").as<double>();
+        enet_alpha = args.at("lcnn.enet-alpha").as<double>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
         n_state_predictors = std::clamp(args.at("lcnn.n-state-predictors").as<double>(), 0., 1.);
@@ -118,6 +124,8 @@ protected:
     double noise_;
     double leakage_;
     double l2_;
+    double enet_lambda_;
+    double enet_alpha_;
     long intermediate_steps_;
     long n_train_trials_;
     double n_state_predictors_;
@@ -289,6 +297,8 @@ public:
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
       , l2_{cfg.l2}
+      , enet_lambda_{cfg.enet_lambda}
+      , enet_alpha_{cfg.enet_alpha}
       , intermediate_steps_{cfg.intermediate_steps}
       , n_train_trials_{cfg.n_train_trials}
       , n_state_predictors_{cfg.n_state_predictors}
@@ -325,6 +335,8 @@ public:
         data["noise"] = noise_;
         data["leakage"] = leakage_;
         data["l2"] = l2_;
+        data["enet_lambda"] = enet_lambda_;
+        data["enet_alpha"] = enet_alpha_;
         data["intermediate_steps"] = intermediate_steps_;
         data["n_train_trials"] = n_train_trials_;
         data["n_state_predictors"] = n_state_predictors_;
@@ -397,7 +409,7 @@ public:
 
         lcnn<DType> net;
         nlohmann::json data = nlohmann::json::parse(std::ifstream{dir / "params.json"});
-        if (data.at("snapshot_version") != 1)
+        if (data.at("snapshot_version").get<int>() != 1)
             throw std::runtime_error{"Snapshot not compatible with the current binary."};
 
         net.input_names_ = data["input_names"];
@@ -408,6 +420,8 @@ public:
         net.noise_ = data["noise"];
         net.leakage_ = data["leakage"];
         net.l2_ = data["l2"];
+        net.enet_lambda_ = data.value("enet_lambda", 0.);
+        net.enet_alpha_ = data.value("enet_alpha", 0.);
         net.intermediate_steps_ = data["intermediate_steps"];
         net.n_train_trials_ = data["n_train_trials"];
         net.n_state_predictors_ = data["n_state_predictors"];
@@ -651,8 +665,28 @@ public:
         if (!state_predictor_indices.isempty())
             predictors = flat_predictors(af::span, state_predictor_indices);
         // Find the regression coefficients.
-        af::array beta =
-          af_utils::lstsq_train(predictors, data.desired->T(), l2_, training_weights).T();
+        // TODO remove training_weights
+        af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
+        if (enet_lambda_ == 0.) {
+            beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_).T();
+        } else {
+            elasticnet_af::ElasticNet enet(enet_lambda_, enet_alpha_, 1e-12, 1, 100);
+            bool err = false;
+            try {
+                enet.fit(predictors, data.desired->T());
+            } catch (const elasticnet_af::convergence_error) {
+                std::cerr << "ElasticNet did not converge." << std::endl;
+                err = true;
+            } catch (const std::invalid_argument) {
+                std::cerr << "Invalid input matrix to ElasticNet." << std::endl;
+                err = true;
+            }
+            if (err) {
+                beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
+            } else {
+                beta = enet.coefficients(true).T();
+            }
+        }
         // Distribute the coefficients along the state_predictor_indices, leave the other empty.
         af::array output_w = [&]() {
             if (state_predictor_indices.isempty()) return beta;
@@ -1299,6 +1333,10 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.intermediate-steps", po::value<long>()->default_value(1),                //
        "See lcnn_config class.")                                                      //
       ("lcnn.l2", po::value<double>()->default_value(0),                              //
+       "See lcnn_config class.")                                                      //
+      ("lcnn.enet-lambda", po::value<double>()->default_value(0),                     //
+       "See lcnn_config class.")                                                      //
+      ("lcnn.enet-alpha", po::value<double>()->default_value(0.5),                    //
        "See lcnn_config class.")                                                      //
       ("lcnn.n-train-trials", po::value<long>()->default_value(1),                    //
        "See random_lcnn().")                                                          //
