@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
         if (best_evaluation.net == nullptr) throw std::runtime_error{"No best network."};
         opt->print_result(std::cout, best_evaluation) << std::endl;
         po::variables_map params = opt->to_variables_map(best_evaluation.params);
-        fs::path param_file = output_dir / "best-model" / "params.txt";
+        fs::path param_file = run_output_dir / "best-model" / "args.txt";
         std::ofstream param_out{param_file};
         param_out << params;
         reseed(global_prng, 13);
