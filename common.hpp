@@ -1,8 +1,6 @@
 #pragma once
 
 #include <arrayfire.h>
-#include <cassert>
-#include <optional>
 #include <random>
 
 namespace esn {
