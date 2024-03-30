@@ -1027,14 +1027,14 @@ public:
     }
 };
 
-class ettm_lesstime_loop_benchmark_set : public ettm_loop_benchmark_set {
+class ettm_lessins_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
-    std::set<std::string> persistent_input_names_{"date-wday", "date-hour"};
-    std::set<std::string> input_names_{"date-wday", "date-hour", "HUFL", "HULL", "MUFL",
-                                       "MULL",      "LUFL",      "LULL", "OT"};
+    std::set<std::string> persistent_input_names_{"date-mon", "date-mday"};
+    std::set<std::string> input_names_{"date-mon", "date-mday", "MUFL", "MULL",
+                                       "LUFL",     "LULL",      "OT"};
 
 public:
-    ettm_lesstime_loop_benchmark_set(po::variables_map config)
+    ettm_lessins_loop_benchmark_set(po::variables_map config)
       : ettm_loop_benchmark_set{std::move(config)}
     {
     }
@@ -1288,8 +1288,8 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-notime-loop") {
         return std::make_unique<ettm_notime_loop_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-lesstime-loop") {
-        return std::make_unique<ettm_lesstime_loop_benchmark_set>(args);
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-lessins-loop") {
+        return std::make_unique<ettm_lessins_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-single-loop") {
         return std::make_unique<ettm_single_loop_benchmark_set>(args);
