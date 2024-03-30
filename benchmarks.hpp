@@ -946,6 +946,53 @@ public:
     }
 };
 
+class ettm_1ahead_benchmark_set : public benchmark_set, public ettm_loader {
+protected:
+    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
+                                       "date-min", "HUFL",      "HULL",      "MUFL",
+                                       "MULL",     "LUFL",      "LULL",      "OT"};
+    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+
+    data_map input_transform(const data_map& xs) const override
+    {
+        return ett_input_transform(xs);
+    }
+
+    std::tuple<data_map, data_map, data_map>
+    generate_data(long length, af::dtype dtype, prng_t& prng) const override
+    {
+        // TODO lenght shold be used even in basic benchmark_set
+        data_map dataset, meta;
+        std::tie(dataset, meta) = get_dataset(dtype, prng);
+        if (dataset.length() <= length || meta.length() <= length)
+            throw std::runtime_error{"Not enough data for the requested length."};
+        data_map xs = dataset.filter(input_names());
+        data_map ys = dataset.filter(output_names()).shift(-1);
+        return {std::move(xs), std::move(ys), std::move(meta)};
+    }
+
+public:
+    ettm_1ahead_benchmark_set(po::variables_map config)
+      : benchmark_set{std::move(config)}, ettm_loader{config_}
+    {
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    bool constant_data() const override
+    {
+        return true;
+    }
+};
+
 class ettm_notime_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
     std::set<std::string> persistent_input_names_{"zero"};
@@ -1231,6 +1278,9 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "etth-single-loop") {
         return std::make_unique<etth_single_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-1ahead") {
+        return std::make_unique<ettm_1ahead_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
         return std::make_unique<ettm_loop_benchmark_set>(args);
