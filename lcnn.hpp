@@ -57,6 +57,7 @@ struct lcnn_config {
     /// The elastic net regularization parameters.
     double enet_lambda = 0;
     double enet_alpha = 0;
+    bool enet_standardize = false;
     /// The number of intermediate steps of the network with each input.
     long intermediate_steps = 1;
     /// The number of training trials (select random indices, train, repeat).
@@ -81,6 +82,7 @@ struct lcnn_config {
         l2 = args.at("lcnn.l2").as<double>();
         enet_lambda = args.at("lcnn.enet-lambda").as<double>();
         enet_alpha = args.at("lcnn.enet-alpha").as<double>();
+        enet_standardize = args.at("lcnn.enet-standardize").as<bool>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
         n_state_predictors = std::clamp(args.at("lcnn.n-state-predictors").as<double>(), 0., 1.);
@@ -125,6 +127,7 @@ protected:
     double l2_;
     double enet_lambda_;
     double enet_alpha_;
+    bool enet_standardize_;
     long intermediate_steps_;
     long n_train_trials_;
     double n_state_predictors_;
@@ -298,6 +301,7 @@ public:
       , l2_{cfg.l2}
       , enet_lambda_{cfg.enet_lambda}
       , enet_alpha_{cfg.enet_alpha}
+      , enet_standardize_{cfg.enet_standardize}
       , intermediate_steps_{cfg.intermediate_steps}
       , n_train_trials_{cfg.n_train_trials}
       , n_state_predictors_{cfg.n_state_predictors}
@@ -336,6 +340,7 @@ public:
         data["l2"] = l2_;
         data["enet_lambda"] = enet_lambda_;
         data["enet_alpha"] = enet_alpha_;
+        data["enet_standardize"] = enet_standardize_;
         data["intermediate_steps"] = intermediate_steps_;
         data["n_train_trials"] = n_train_trials_;
         data["n_state_predictors"] = n_state_predictors_;
@@ -419,8 +424,10 @@ public:
         net.noise_ = data["noise"];
         net.leakage_ = data["leakage"];
         net.l2_ = data["l2"];
+        // TODO remove defaults when all the models are updated
         net.enet_lambda_ = data.value("enet_lambda", 0.);
         net.enet_alpha_ = data.value("enet_alpha", 0.);
+        net.enet_standardize_ = data.value("enet_standardize", false);
         net.intermediate_steps_ = data["intermediate_steps"];
         net.n_train_trials_ = data["n_train_trials"];
         net.n_state_predictors_ = data["n_state_predictors"];
@@ -675,7 +682,7 @@ public:
                .tol = 1e-12,
                .path_len = 1,
                .max_grad_steps = 100,
-               .standardize_var = false,
+               .standardize_var = enet_standardize_,
                .warm_start = true}};
             enet.fit(predictors, data.desired->T());  // Ignore failed convergence.
             beta = enet.coefficients(true).T();
@@ -1330,6 +1337,8 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.enet-lambda", po::value<double>()->default_value(0),                     //
        "See lcnn_config class.")                                                      //
       ("lcnn.enet-alpha", po::value<double>()->default_value(0.5),                    //
+       "See lcnn_config class.")                                                      //
+      ("lcnn.enet-standardize", po::value<bool>()->default_value(false),              //
        "See lcnn_config class.")                                                      //
       ("lcnn.n-train-trials", po::value<long>()->default_value(1),                    //
        "See random_lcnn().")                                                          //
