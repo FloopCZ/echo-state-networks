@@ -684,8 +684,12 @@ public:
                .max_grad_steps = 100,
                .standardize_var = enet_standardize_,
                .warm_start = true}};
-            enet.fit(predictors, data.desired->T());  // Ignore failed convergence.
-            beta = enet.coefficients(true).T();
+            try {
+                enet.fit(predictors, data.desired->T());  // Ignore failed convergence.
+                beta = enet.coefficients(true).T();
+            } catch (const std::invalid_argument& e) {
+                std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
+            }
         }
         // Distribute the coefficients along the state_predictor_indices, leave the other empty.
         af::array output_w = [&]() {
