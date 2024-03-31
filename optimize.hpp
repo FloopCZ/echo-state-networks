@@ -164,6 +164,7 @@ public:
         cmaparams_.set_max_fevals(config_.at("opt.max-fevals").as<int>());
         if (config_.at("opt.uncertainty").as<bool>()) cmaparams_.set_uh(true);
         if (config_.at("opt.tpa").as<bool>()) cmaparams_.set_tpa(true);
+        if (config_.at("opt.noisy").as<bool>()) cmaparams_.set_noisy();
     }
 
     cma::CMASolutions optimize()
@@ -1115,6 +1116,8 @@ inline po::options_description optimizer_arg_description()
        "Set up uncertainty handling.")                                                      //
       ("opt.tpa", po::value<bool>()->default_value(false),                                  //
        "Set up two-point adaptation for CMA.")                                              //
+      ("opt.noisy", po::value<bool>()->default_value(false),                                //
+       "Use noisy settings for CMA.")                                                       //
       ("opt.n-evals", po::value<int>()->default_value(1),                                   //
        "Run the evaluation function multiple times and aggregate those by f-value-agg.")    //
       ("opt.f-value-agg", po::value<std::string>()->default_value("median"),                //
