@@ -823,7 +823,8 @@ public:
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
             param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.2});
         }
-        std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
+        prng_t prng_clone{prng_};
+        std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
         param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2 * neuron_ins_));
