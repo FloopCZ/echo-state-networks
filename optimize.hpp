@@ -163,7 +163,7 @@ public:
         cmaparams_.set_elitism(config_.at("opt.elitism").as<int>());
         cmaparams_.set_max_fevals(config_.at("opt.max-fevals").as<int>());
         if (config_.at("opt.uncertainty").as<bool>()) cmaparams_.set_uh(true);
-        if (config_.at("opt.tpa").as<bool>()) cmaparams_.set_tpa(true);
+        if (config_.at("opt.tpa").as<bool>()) cmaparams_.set_tpa(2);
         if (config_.at("opt.noisy").as<bool>()) cmaparams_.set_noisy();
     }
 
