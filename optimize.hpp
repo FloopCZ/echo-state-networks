@@ -1095,7 +1095,7 @@ public:
         // TODO only as a config option
         std::set<std::string> fb_group;
         for (int i = 0; i < (int)bench_->output_names().size(); ++i)
-            fb_group.insert("lcnn.fb-weight-" + std::to_string(i));
+            fb_group.insert("esn.fb-weight-" + std::to_string(i));
         return {fb_group};
     }
 };
