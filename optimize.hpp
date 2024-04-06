@@ -34,6 +34,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.noise",
   "lcnn.sparsity",
   "lcnn.l2",
+  "lcnn.enet-alpha",
   "lcnn.n-state-predictors",
   "lcnn.train-valid-ratio",
   "lcnn.act-steepness",
