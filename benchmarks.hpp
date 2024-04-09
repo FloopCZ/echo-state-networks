@@ -535,9 +535,12 @@ protected:
 
     data_map ett_input_transform(const data_map& xs) const
     {
-        if (xs.empty()) return {};
+        // ETT datasets are normalized.
+        return xs;
+        // If it was not the case, we could use the following:
+        // if (xs.empty()) return {};
         // Avoid -1 and 1 to atanh by multiplying by 0.99.
-        return {xs.keys(), af::tanh((xs.data() / 50. - 0.2)) * 0.99};
+        // return {xs.keys(), af::tanh((xs.data() / 50. - 0.2)) * 0.99};
     }
 
 public:
