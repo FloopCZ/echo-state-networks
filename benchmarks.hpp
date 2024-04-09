@@ -799,12 +799,9 @@ public:
 
 class etth_loop_benchmark_set : public loop_benchmark_set, public etth_loader {
 protected:
-    std::set<std::string> persistent_input_names_{
-      "date-mon", "date-mday", "date-wday", "date-hour"};
-    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
-                                       "HUFL",     "HULL",      "MUFL",      "MULL",
-                                       "LUFL",     "LULL",      "OT"};
-    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> persistent_input_names_{};
+    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
     data_map input_transform(const data_map& xs) const override
@@ -891,12 +888,9 @@ public:
 
 class ettm_loop_benchmark_set : public loop_benchmark_set, public ettm_loader {
 protected:
-    std::set<std::string> persistent_input_names_{
-      "date-mon", "date-mday", "date-wday", "date-hour", "date-min"};
-    std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
-                                       "date-min", "HUFL",      "HULL",      "MUFL",
-                                       "MULL",     "LUFL",      "LULL",      "OT"};
-    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> persistent_input_names_{};
+    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
     data_map input_transform(const data_map& xs) const override
@@ -946,12 +940,40 @@ public:
     }
 };
 
-class ettm_1ahead_benchmark_set : public benchmark_set, public ettm_loader {
+class ettm_datetime_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
+    std::set<std::string> persistent_input_names_{
+      "date-mon", "date-mday", "date-wday", "date-hour", "date-min"};
     std::set<std::string> input_names_{"date-mon", "date-mday", "date-wday", "date-hour",
                                        "date-min", "HUFL",      "HULL",      "MUFL",
                                        "MULL",     "LUFL",      "LULL",      "OT"};
-    std::set<std::string> output_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+
+    data_map input_transform(const data_map& xs) const override
+    {
+        return ett_input_transform(xs);
+    }
+
+public:
+    ettm_datetime_loop_benchmark_set(po::variables_map config)
+      : ettm_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+};
+
+class ettm_1ahead_benchmark_set : public benchmark_set, public ettm_loader {
+protected:
+    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> output_names_ = input_names_;
 
     data_map input_transform(const data_map& xs) const override
     {
@@ -961,7 +983,7 @@ protected:
     std::tuple<data_map, data_map, data_map>
     generate_data(long length, af::dtype dtype, prng_t& prng) const override
     {
-        // TODO lenght shold be used even in basic benchmark_set
+        // TODO length shold be used/checked even in basic benchmark_set
         data_map dataset, meta;
         std::tie(dataset, meta) = get_dataset(dtype, prng);
         if (dataset.length() <= length || meta.length() <= length)
@@ -993,55 +1015,14 @@ public:
     }
 };
 
-class ettm_notime_loop_benchmark_set : public ettm_loop_benchmark_set {
-protected:
-    std::set<std::string> persistent_input_names_{"zero"};
-    std::set<std::string> input_names_{"zero", "HUFL", "HULL", "MUFL",
-                                       "MULL", "LUFL", "LULL", "OT"};
-
-    std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, prng_t& prng) const override
-    {
-        data_map dataset, meta;
-        std::tie(dataset, meta) = get_dataset(dtype, prng);
-        dataset = dataset.extend({"zero", af::constant(0, dataset.length(), af::dtype::f64)});
-        data_map xs = dataset.filter(input_names());
-        data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys), std::move(meta)};
-    }
-
-public:
-    ettm_notime_loop_benchmark_set(po::variables_map config)
-      : ettm_loop_benchmark_set{std::move(config)}
-    {
-    }
-
-    const std::set<std::string>& persistent_input_names() const override
-    {
-        return persistent_input_names_;
-    }
-
-    const std::set<std::string>& input_names() const override
-    {
-        return input_names_;
-    }
-};
-
 class ettm_lessins_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
-    std::set<std::string> persistent_input_names_{"date-mon", "date-mday"};
-    std::set<std::string> input_names_{"date-mon", "date-mday", "MUFL", "MULL",
-                                       "LUFL",     "LULL",      "OT"};
+    std::set<std::string> input_names_{"MUFL", "MULL", "LUFL", "LULL", "OT"};
 
 public:
     ettm_lessins_loop_benchmark_set(po::variables_map config)
       : ettm_loop_benchmark_set{std::move(config)}
     {
-    }
-
-    const std::set<std::string>& persistent_input_names() const override
-    {
-        return persistent_input_names_;
     }
 
     const std::set<std::string>& input_names() const override
@@ -1052,10 +1033,7 @@ public:
 
 class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
-    std::set<std::string> persistent_input_names_{
-      "date-mon", "date-mday", "date-wday", "date-hour", "date-min"};
-    std::set<std::string> input_names_{"date-mon",  "date-mday", "date-wday",
-                                       "date-hour", "date-min",  "OT"};
+    std::set<std::string> input_names_{"OT"};
     std::set<std::string> output_names_{"OT"};
     std::set<std::string> target_names_{"OT"};
 
@@ -1063,11 +1041,6 @@ public:
     ettm_single_loop_benchmark_set(po::variables_map config)
       : ettm_loop_benchmark_set{std::move(config)}
     {
-    }
-
-    const std::set<std::string>& persistent_input_names() const override
-    {
-        return persistent_input_names_;
     }
 
     const std::set<std::string>& input_names() const override
@@ -1285,8 +1258,8 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
         return std::make_unique<ettm_loop_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-notime-loop") {
-        return std::make_unique<ettm_notime_loop_benchmark_set>(args);
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-datetime-loop") {
+        return std::make_unique<ettm_datetime_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-lessins-loop") {
         return std::make_unique<ettm_lessins_loop_benchmark_set>(args);
