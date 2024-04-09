@@ -14,7 +14,8 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
-  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.l2 lcnn.train-valid-ratio lcnn.mu-in-weight lcnn.mu-fb-weight lcnn.sigma-fb-weight lcnn.input-to-n lcnn.n-state-predictors lcnn.memory-prob lcnn.adapt.abs-target-activation \
+  --opt.exclude-params=default \
+  --opt.exclude-params=lcnn.sigma-fb-weight \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \

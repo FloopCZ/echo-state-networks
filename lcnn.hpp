@@ -1352,7 +1352,7 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                      //
       ("lcnn.enet-lambda", po::value<double>()->default_value(0),                     //
        "See lcnn_config class.")                                                      //
-      ("lcnn.enet-alpha", po::value<double>()->default_value(0.9),                    //
+      ("lcnn.enet-alpha", po::value<double>()->default_value(0),                      //
        "See lcnn_config class.")                                                      //
       ("lcnn.enet-standardize", po::value<bool>()->default_value(false),              //
        "See lcnn_config class.")                                                      //
