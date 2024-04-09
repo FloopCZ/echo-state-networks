@@ -32,7 +32,7 @@ mkdir -p "${outdir}"
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
-  --opt.max-fevals=5000 \
+  --opt.max-fevals=3500 \
   --gen.n-trials=1 \
   --gen.n-runs=1 \
   --gen.af-device=0 \

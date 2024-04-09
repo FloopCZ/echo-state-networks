@@ -29,7 +29,7 @@ mkdir -p "${outdir}"
   --bench.init-steps=500 \
   --bench.train-steps=34060 \
   --bench.valid-steps=11519 \
-  --opt.max-fevals=5000 \
+  --opt.max-fevals=3500 \
   --gen.n-trials=1 \
   --gen.n-runs=1 \
   --gen.af-device=0 \
