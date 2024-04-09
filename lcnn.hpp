@@ -517,7 +517,6 @@ public:
         // validate all input data
         assert(tr_step_input.length() == 1);
         assert(tr_step_input.keys() == input_names_);
-        assert(af::allTrue<bool>(tr_step_input.data() >= -1. && tr_step_input.data() <= 1.));
         if (!step_feedback.empty()) {
             assert(step_feedback.length() == 1);
         }
@@ -611,6 +610,7 @@ public:
         check_data(input.input);
         check_data(input.feedback);
         check_data(input.desired);
+        assert(data_len > 0);
 
         feed_result_t result;
         result.states = af::array(state_.dims(0), state_.dims(1), data_len, DType);

@@ -116,6 +116,7 @@ public:
     data_map filter(Rng&& keys_rng) const
     {
         std::set<std::string> keys = keys_rng | rg::to<std::set<std::string>>;
+        if (keys.empty()) return {};
         if (keys == keys_) return *this;
 
         const std::map<std::string, double> indices = key_indices(keys_rng | rg::to<std::set>);
