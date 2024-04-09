@@ -198,16 +198,16 @@ public:
     }
 
     /// Probabilistically change values to NaN.
-    data_map
-    probably_nan(const std::set<std::string>& keys, double p, af::randomEngine& af_prng) const
+    data_map probably_nan(
+      const std::set<std::string>& keys, double p, long keep_tail, af::randomEngine& af_prng) const
     {
         if (keys_.empty()) return *this;
         if (p <= 0.) return *this;
         const std::map<std::string, double> indices = key_indices(keys);
         af::array indices_arr = af_utils::to_array(rgv::values(indices) | rg::to_vector);
         af::array selector = af::constant(false, data_.dims(), af::dtype::b8);
-        selector(indices_arr, af::span) =
-          af::randu({(dim_t)keys.size(), data_.dims(1)}, af::dtype::f32, af_prng) < p;
+        selector(indices_arr, af::seq(0, af::end - keep_tail)) =
+          af::randu({(dim_t)keys.size(), data_.dims(1) - keep_tail}, af::dtype::f32, af_prng) < p;
         af::array data = data_;
         data(selector) = af::NaN;
         return {keys_, std::move(data)};

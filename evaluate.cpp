@@ -4,6 +4,7 @@
 #include "benchmarks.hpp"
 #include "lcnn.hpp"
 #include "lcnn_ensemble.hpp"
+#include "lcnn_fixer.hpp"
 #include "simple_esn.hpp"
 
 #include <iostream>
@@ -53,6 +54,7 @@ int main(int argc, char* argv[])
       {{"gen.net-type",                                            //
         {{"lcnn", esn::lcnn_arg_description()},                    //
          {"lcnn-ensemble", esn::lcnn_ensemble_arg_description()},  //
+         {"lcnn-fixer", esn::lcnn_fixer_arg_description()},        //
          {"simple-esn", esn::esn_arg_description()}}}});           //
 
     long seed = esn::set_global_seed(args.at("gen.seed").as<long>());

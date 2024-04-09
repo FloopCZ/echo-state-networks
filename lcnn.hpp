@@ -828,6 +828,18 @@ public:
         prev_step_feedback_.clear();
     }
 
+    /// Get the current output weights.
+    const std::vector<af::array>& output_w() const
+    {
+        return output_w_;
+    }
+
+    /// Set the output weights.
+    void output_w(std::vector<af::array> output_w)
+    {
+        output_w_ = std::move(output_w);
+    }
+
     /// Get the current state of the network.
     const af::array& state() const override
     {
