@@ -143,3 +143,4 @@ cmake-build-singularity.o*
 c_cpp_properties.json
 
 datasets/
+tmp/
