@@ -19,27 +19,33 @@ namespace fs = std::filesystem;
 int main(int argc, char* argv[])
 {
     po::options_description arg_desc{"Generic options"};
-    arg_desc.add_options()                                                         //
-      ("help",                                                                     //
-       "Produce help message.")                                                    //
-      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),            //
-       "Network type, one of {simple-esn, lcnn}.")                                 //
-      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),      //
-       "The type of the optimizer (e.g., lcnn, simple-esn).")                      //
-      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),    //
-       "Benchmark set to be evaluated.")                                           //
-      ("gen.output-dir",                                                           //
-       po::value<std::string>()->default_value("./log/optimization/"),             //
-       "Output directory with the results.")                                       //
-      ("gen.n-runs", po::value<long>()->default_value(10),                         //
-       "The number of full optimization runs of the provided set of parameters.")  //
-      ("gen.n-trials", po::value<long>()->default_value(100),                      //
-       "The number of evaluations of the best network. "                           //
-       "The number of lines in CSV is n-runs * n-trials.")                         //
-      ("gen.af-device", po::value<int>()->default_value(0),                        //
-       "ArrayFire device to be used.")                                             //
-      ("gen.seed", po::value<long>()->default_value(esn::DEFAULT_SEED),            //
-       "Seed value for random generator. Use 0 for random_device().");             //
+    arg_desc.add_options()                                                                 //
+      ("help",                                                                             //
+       "Produce help message.")                                                            //
+      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),                    //
+       "Network type, one of {simple-esn, lcnn}.")                                         //
+      ("gen.optimizer-type", po::value<std::string>()->default_value("lcnn"),              //
+       "The type of the optimizer (e.g., lcnn, simple-esn).")                              //
+      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),            //
+       "Benchmark set to be evaluated.")                                                   //
+      ("gen.output-dir",                                                                   //
+       po::value<std::string>()->default_value("./log/optimization/"),                     //
+       "Output directory with the results.")                                               //
+      ("gen.n-runs", po::value<long>()->default_value(5),                                  //
+       "The number of full optimization runs of the provided set of parameters.")          //
+      ("gen.n-trials", po::value<long>()->default_value(100),                              //
+       "The number of evaluations of the best network. "                                   //
+       "The number of lines in CSV is n-runs * n-trials.")                                 //
+      ("gen.task-offset", po::value<long>()->default_value(0),                             //
+       "Cluster experiment parameter. Start evaluation from task with this index.")        //
+      ("gen.n-tasks", po::value<long>()->default_value(std::numeric_limits<long>::max()),  //
+       "Cluster experiment parameter. Only do this up to this number of tasks.")           //
+      ("gen.overwrite", po::bool_switch(),                                                 //
+       "Overwrite existing files.")                                                        //
+      ("gen.af-device", po::value<int>()->default_value(0),                                //
+       "ArrayFire device to be used.")                                                     //
+      ("gen.seed", po::value<long>()->default_value(esn::DEFAULT_SEED),                    //
+       "Seed value for random generator. Use 0 for random_device().");                     //
     arg_desc.add(esn::benchmark_arg_description());
     arg_desc.add(esn::optimizer_arg_description());
     po::variables_map args = esn::parse_conditional(
@@ -49,16 +55,26 @@ int main(int argc, char* argv[])
          {"lcnn-ensemble", esn::lcnn_ensemble_arg_description()},  //
          {"simple-esn", esn::esn_arg_description()}}}});           //
 
-    long seed = esn::set_global_seed(args.at("gen.seed").as<long>());
-    std::cout << "Random seed: " << seed << std::endl;
-
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();
     std::cout << std::endl;
 
+    long task_offset = args.at("gen.task-offset").as<long>();
+    long n_tasks = args.at("gen.n-tasks").as<long>();
     fs::path output_dir = args.at("gen.output-dir").as<std::string>();
+    fs::path output_file;
+    if (task_offset == 0 && n_tasks == std::numeric_limits<long>::max())
+        output_file = output_dir / "optimization_results.csv";
+    else
+        output_file = output_dir
+          / ("optimization_results" + std::to_string(task_offset) + "_" + std::to_string(n_tasks)
+             + ".csv");
+    if (!args.contains("overwrite") && fs::exists(output_file)) {
+        std::cout << "Output file `" << output_file << "` exists, will not overwrite." << std::endl;
+        return 1;
+    }
     fs::create_directories(output_dir);
-    std::ofstream fout{output_dir / "optimization_results.csv"};
+    std::ofstream fout{output_file};
     std::string net_type = args.at("gen.net-type").as<std::string>();
     std::vector<std::string> param_names = {
       "run",
@@ -99,8 +115,17 @@ int main(int argc, char* argv[])
     }
     fout << boost::join(param_names, ",") << std::endl;
 
+    long task = -1;
     for (long run = 0; run < args.at("gen.n-runs").as<long>(); ++run) {
+        // Check if we are in a valid task range.
+        ++task;
+        if (task < task_offset) continue;
+        if (task >= task_offset + n_tasks) continue;
+        // Prepare parameters.
         std::cout << "Run " << run << std::endl;
+        std::cout << "Task: " << task << std::endl;
+        long seed = esn::set_global_seed(args.at("gen.seed").as<long>() + task);
+        std::cout << "Random seed: " << seed << std::endl;
         fs::path run_output_dir = output_dir / ("run" + std::to_string(run));
         std::unique_ptr<esn::net_optimizer> opt =
           esn::make_optimizer(esn::make_benchmark, args, global_prng, run_output_dir);
