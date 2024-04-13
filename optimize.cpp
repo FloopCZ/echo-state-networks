@@ -109,6 +109,11 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.l2");
         param_names.push_back("lcnn.enet-lambda");
         param_names.push_back("lcnn.enet-alpha");
+        param_names.push_back("lcnn.memory-length");
+        param_names.push_back("lcnn.memory-prob");
+        param_names.push_back("lcnn.adapt.learning-rate");
+        param_names.push_back("lcnn.adapt.weight-leakage");
+        param_names.push_back("lcnn.adapt.abs-target-activation");
     }
     if (net_type == "lcnn-ensemble") {
         param_names.push_back("lcnn-ensemble.n");

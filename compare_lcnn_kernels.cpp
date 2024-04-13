@@ -111,7 +111,13 @@ int main(int argc, char* argv[])
       "lcnn.leakage",
       "lcnn.noise",
       "lcnn.sigma-b",
-      "lcnn.mu-b"};
+      "lcnn.mu-b",
+      "lcnn.memory-length",
+      "lcnn.memory-prob",
+      "lcnn.adapt.learning-rate",
+      "lcnn.adapt.weight-leakage",
+      "lcnn.adapt.abs-target-activation",
+    };
     fout << (rgv::join(param_names, ',') | rg::to<std::string>()) << std::endl;
 
     if (!args.contains("gen.state-heights"))
