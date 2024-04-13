@@ -25,10 +25,8 @@ mkdir -p "${outdir}"
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
-  --lcnn.state-height="${HEIGHT}" \
-  --lcnn.state-width="${WIDTH}" \
-  --lcnn.memory-length=60 \
-  --lcnn.memory-prob=1 \
+  --lcnn.state-heights="${HEIGHT}" \
+  --lcnn.state-widths="${WIDTH}" \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
