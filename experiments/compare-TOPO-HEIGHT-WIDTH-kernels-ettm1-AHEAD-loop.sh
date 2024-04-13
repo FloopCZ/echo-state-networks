@@ -36,7 +36,6 @@ mkdir -p "${outdir}"
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.n-trials=1 \
-  --gen.n-runs=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
   --gen.task-offset="${TASK_OFFSET}" \

@@ -9,6 +9,8 @@ WIDTH="$3"
 AHEAD="$4"
 MEMLEN="$5"
 MEMPROB="$6"
+TASK_OFFSET=${TASK_OFFSET:-0}
+N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
 outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-memlen${MEMLEN}-memprob${MEMPROB}-loop/"
@@ -35,7 +37,8 @@ mkdir -p "${outdir}"
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.n-trials=1 \
-  --gen.n-runs=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
-  2>&1 | tee -a "${outdir}/out.txt"
+  --gen.task-offset="${TASK_OFFSET}" \
+  --gen.n-tasks="${N_TASKS}" \
+  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
