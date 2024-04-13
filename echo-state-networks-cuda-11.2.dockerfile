@@ -97,6 +97,10 @@ RUN /usr/local/bin/aur-install range-v3-git --noconfirm --needed
 RUN /usr/local/bin/aur-install libcmaes --noconfirm --needed
 RUN /usr/local/bin/aur-install googletest-git --noconfirm --needed
 
+# Update glibc
+RUN pacman -U --noconfirm --needed \
+    https://archive.archlinux.org/packages/g/glibc/glibc-2.35-6-x86_64.pkg.tar.zst
+
 # Compile echo-state-networks.
 COPY ./ ${HOME}/echo-state-networks/
 WORKDIR ${HOME}/echo-state-networks/
