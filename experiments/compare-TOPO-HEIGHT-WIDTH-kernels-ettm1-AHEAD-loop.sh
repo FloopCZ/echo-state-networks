@@ -18,6 +18,8 @@ mkdir -p "${outdir}"
 ./build/compare_lcnn_kernels_cuda \
   --gen.net-type=lcnn \
   --gen.kernel-sizes=${KERNELS} \
+  --gen.state-heights="${HEIGHT}" \
+  --gen.state-widths="${WIDTH}" \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.sigma-fb-weight \
@@ -25,8 +27,6 @@ mkdir -p "${outdir}"
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
-  --lcnn.state-heights="${HEIGHT}" \
-  --lcnn.state-widths="${WIDTH}" \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
