@@ -3,7 +3,8 @@ set -e
 
 if [ $# -lt 1 ]; then echo "Invalid usage"; exit 1; fi
 MODEL_DIR="$1"
-VALIDATION_STRIDE="${2:-1}"
+N_STEPS_AHEAD="${2:-96}"
+VALIDATION_STRIDE="${3:-1}"
 
 export AF_MAX_BUFFERS=100000
 ./build/evaluate_cuda \
@@ -16,7 +17,7 @@ export AF_MAX_BUFFERS=100000
 --bench.mackey-glass-tau=30 \
 --bench.memory-history=0 \
 --bench.n-epochs=1 \
---bench.n-steps-ahead=96 \
+--bench.n-steps-ahead="${N_STEPS_AHEAD}" \
 --bench.n-trials=1 \
 --bench.narma-tau=1 \
 --bench.train-steps=34060 \
