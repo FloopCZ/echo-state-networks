@@ -525,6 +525,9 @@ public:
             assert(step_desired.keys() == output_names_);
         }
 
+        // Restore memory neuron states from memory.
+        update_via_memory();
+
         // Update the internal state.
         for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
             // Perform matrix multiplication instead of state unwrapping for large kernels.
@@ -551,9 +554,6 @@ public:
         }
 
         update_state_memory();
-
-        // restore memory neuron states from memory
-        update_via_memory();
 
         adapt_weights();
 
