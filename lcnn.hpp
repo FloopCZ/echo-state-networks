@@ -45,8 +45,9 @@ struct lcnn_config {
     af::array input_w;
     /// The feedback weights of size [state_height, state_width, n_outs].
     af::array feedback_w;
-    // The mapping of each state position to its memory point (0 to memory_length - 1).
+    // The mapping and weight of each state position to its memory point (0 to memory_length - 1).
     af::array memory_map;
+    af::array memory_w;
 
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
@@ -105,6 +106,7 @@ protected:
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
     af::array memory_map_;
+    af::array memory_w_;
     long memory_length_;
     af::array state_memory_;
     data_map last_output_;  // the last output of the net as a data map
@@ -153,7 +155,7 @@ protected:
     /// Update the state matrix using masked matrix multiplication.
     virtual void update_via_weights_matmul()
     {
-        state_delta_ = update_via_weights_matmul_impl(state_);
+        state_delta_ += update_via_weights_matmul_impl(state_);
     }
 
     af::array update_via_weights_impl(const af::array& state)
@@ -165,7 +167,7 @@ protected:
     virtual void update_via_weights()
     {
         assert(!force_matmul_);
-        state_delta_ = update_via_weights_impl(state_);
+        state_delta_ += update_via_weights_impl(state_);
     }
 
     /// Update the state matrix by adding the inputs.
@@ -250,8 +252,8 @@ protected:
         af::array memory = af::moddims(
           state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
-        af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
-        state_ = af::moddims(new_state, state_.dims());
+        memory = af::approx2(memory, state_indices, af::flat(memory_map_));
+        state_delta_ += memory_w_ * af::moddims(memory, state_.dims());
     }
 
     void adapt_weights()
@@ -313,6 +315,7 @@ public:
     {
         state(std::move(cfg.init_state));
         memory_map(std::move(cfg.memory_map));
+        memory_w(std::move(cfg.memory_w));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
         if (!cfg.reservoir_w.isempty()) reservoir_weights(std::move(cfg.reservoir_w));
         if (!cfg.reservoir_w_full.isempty())
@@ -366,6 +369,10 @@ public:
         if (!memory_map_.isempty()) {
             std::string p = dir / "memory_map.bin";
             af::saveArray("data", memory_map_, p.c_str());
+        }
+        if (!memory_w_.isempty()) {
+            std::string p = dir / "memory_w.bin";
+            af::saveArray("data", memory_w_, p.c_str());
         }
         if (!state_memory_.isempty()) {
             std::string p = dir / "state_memory.bin";
@@ -452,6 +459,10 @@ public:
             if (fs::exists(p)) net.memory_map_ = af::readArray(p.c_str(), "data");
         }
         {
+            std::string p = dir / "memory_w.bin";
+            if (fs::exists(p)) net.memory_w_ = af::readArray(p.c_str(), "data");
+        }
+        {
             std::string p = dir / "state_memory.bin";
             if (fs::exists(p)) net.state_memory_ = af::readArray(p.c_str(), "data");
         }
@@ -524,6 +535,9 @@ public:
             assert(step_desired.length() == 1);
             assert(step_desired.keys() == output_names_);
         }
+
+        // Prepare state delta.
+        state_delta_ = af::constant(0, state_.dims(), state_.type());
 
         // Restore memory neuron states from memory.
         update_via_memory();
@@ -930,6 +944,16 @@ public:
         state_memory_ = af::tile(state_, 1, 1, std::max(3L, memory_length_));
     }
 
+    /// Set the memory weights of the network.
+    ///
+    /// The shape has to be the same as the state.
+    void memory_w(af::array new_weights)
+    {
+        assert(new_weights.type() == DType);
+        assert(new_weights.dims() == state_.dims());
+        memory_w_ = std::move(new_weights);
+    }
+
     /// Set the reservoir weights of the network.
     ///
     /// Also initializes the fully connected reservoir matrix.
@@ -1112,6 +1136,9 @@ lcnn<DType> random_lcnn(
     long memory_length = std::clamp(args.at("lcnn.memory-length").as<long>(), 0L, 1000L);
     // The probability that a neuron is a memory neuron.
     double memory_prob = std::clamp(args.at("lcnn.memory-prob").as<double>(), 0., 1.);
+    // The distribution of memory weights.
+    double sigma_memory = args.at("lcnn.sigma-memory").as<double>();
+    double mu_memory = args.at("lcnn.mu-memory").as<double>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1284,12 +1311,18 @@ lcnn<DType> random_lcnn(
 
     if (memory_length == 0) {
         cfg.memory_map = af::array{};
+        cfg.memory_w = af::array{};
     } else {
         cfg.memory_map = af::constant(0, {state_height, state_width}, DType);
         af::array memory_full =
           af::round(af::randu(cfg.memory_map.dims(), DType, af_prng) * (memory_length - 1));
         af::array memory_mask = af::randu(cfg.memory_map.dims()) < memory_prob;
         cfg.memory_map(memory_mask) = memory_full(memory_mask);
+
+        cfg.memory_w = af::constant(0, {state_height, state_width}, DType);
+        af::array memory_w_full =
+          (af::randu(cfg.memory_map.dims(), DType, af_prng) * 2 - 1) * sigma_memory + mu_memory;
+        cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 
     return lcnn<DType>{std::move(cfg), prng};
@@ -1370,6 +1403,10 @@ inline po::options_description lcnn_arg_description()
        "The maximum reach of the memory. Set to 0 to disable memory.")                //
       ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
+      ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
+       "See random_lcnn().")                                                          //
+      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                     //
+       "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
       ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //

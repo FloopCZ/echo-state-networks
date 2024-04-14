@@ -41,6 +41,8 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.act-steepness",
   "lcnn.input-to-n",
   "lcnn.memory-prob",
+  "lcnn.sigma-memory",
+  "lcnn.mu-memory",
   "lcnn.adapt.learning-rate",
   "lcnn.adapt.weight-leakage",
   "lcnn.adapt.abs-target-activation",
@@ -345,6 +347,11 @@ public:
                 excluded_params_.insert(
                   DEFAULT_EXCLUDED_PARAMS.begin(), DEFAULT_EXCLUDED_PARAMS.end());
             }
+            if (this->config_.contains("opt.include-params")) {
+                for (const std::string& param :
+                     this->config_.at("opt.include-params").template as<std::vector<std::string>>())
+                    excluded_params_.erase(param);
+            }
             // Update the original argument to have better logs.
             excluded_params_arg = excluded_params_ | rg::to<std::vector<std::string>>();
         }
@@ -525,6 +532,10 @@ public:
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.memory-prob") {
                 params.emplace(key, vm.at(key).as<double>());
+            } else if (key == "lcnn.sigma-memory") {
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.mu-memory") {
+                params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.learning-rate") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.weight-leakage") {
@@ -675,6 +686,14 @@ public:
               "lcnn.memory-prob", val(std::clamp(params.at("lcnn.memory-prob"), 0.0, 1.0)));
             params.erase("lcnn.memory-prob");
         }
+        if (params.contains("lcnn.sigma-memory")) {
+            cfg.insert_or_assign("lcnn.sigma-memory", expval(params.at("lcnn.sigma-memory")));
+            params.erase("lcnn.sigma-memory");
+        }
+        if (params.contains("lcnn.mu-memory")) {
+            cfg.insert_or_assign("lcnn.mu-memory", powval(params.at("lcnn.mu-memory")));
+            params.erase("lcnn.mu-memory");
+        }
         if (params.contains("lcnn.adapt.learning-rate")) {
             cfg.insert_or_assign(
               "lcnn.adapt.learning-rate", expval(params.at("lcnn.adapt.learning-rate")));
@@ -814,6 +833,8 @@ public:
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
+          {"lcnn.sigma-memory", 0.2},
+          {"lcnn.mu-memory", 0.0},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
@@ -854,6 +875,8 @@ public:
           "lcnn.input-to-n",
           "lcnn.act-steepness",
           "lcnn.memory-prob",
+          "lcnn.sigma-memory",
+          "lcnn.mu-memory",
           "lcnn.adapt.learning-rate",
           "lcnn.adapt.weight-leakage",
           "lcnn.adapt.abs-target-activation",
@@ -901,6 +924,8 @@ public:
           {"lcnn.input-to-n", 0.1},
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
+          {"lcnn.sigma-memory", 0.05},
+          {"lcnn.mu-memory", 0.05},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
           {"lcnn.adapt.abs-target-activation", 0.05},
@@ -934,6 +959,8 @@ public:
           {"lcnn.input-to-n", -0.1},
           {"lcnn.act-steepness", -1.1},
           {"lcnn.memory-prob", -0.1},
+          {"lcnn.sigma-memory", -0.1},
+          {"lcnn.mu-memory", -1.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
@@ -967,6 +994,8 @@ public:
           {"lcnn.input-to-n", 1.1},
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},
+          {"lcnn.sigma-memory", 1.1},
+          {"lcnn.mu-memory", 1.1},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
@@ -1145,6 +1174,9 @@ inline po::options_description optimizer_arg_description()
        po::value<std::vector<std::string>>()->multitoken()->default_value(                  //
          DEFAULT_EXCLUDED_PARAMS, DEFAULT_EXCLUDED_PARAMS_STR),                             //
        "The list of parameters that should be excluded from optimization.")                 //
+      ("opt.include-params",                                                                //
+       po::value<std::vector<std::string>>()->multitoken(),                                 //
+       "The list of parameters that should be included even if they have been excluded.")   //
       ("opt.x0-from-params", po::bool_switch(),                                             //
        "Start optimization from input arguments.");                                         //
     return optimizer_arg_desc;

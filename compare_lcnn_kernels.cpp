@@ -114,6 +114,8 @@ int main(int argc, char* argv[])
       "lcnn.mu-b",
       "lcnn.memory-length",
       "lcnn.memory-prob",
+      "lcnn.sigma-memory",
+      "lcnn.mu-memory",
       "lcnn.adapt.learning-rate",
       "lcnn.adapt.weight-leakage",
       "lcnn.adapt.abs-target-activation",
