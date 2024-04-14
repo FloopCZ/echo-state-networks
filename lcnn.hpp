@@ -253,7 +253,8 @@ protected:
           state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         memory = af::approx2(memory, state_indices, af::flat(memory_map_));
-        state_delta_ += memory_w_ * af::moddims(memory, state_.dims());
+        state_ *= 1. - memory_w_;
+        state_ += memory_w_ * af::moddims(memory, state_.dims());
     }
 
     void adapt_weights()
