@@ -926,7 +926,7 @@ public:
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", 0.01},
-          {"lcnn.mu-memory", 0.05},
+          {"lcnn.mu-memory", 0.1},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
           {"lcnn.adapt.abs-target-activation", 0.05},
