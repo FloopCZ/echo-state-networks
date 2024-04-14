@@ -834,7 +834,7 @@ public:
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
-          {"lcnn.sigma-memory", 0.2},
+          {"lcnn.sigma-memory", inv_exp_transform(0.2)},
           {"lcnn.mu-memory", 0.5},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
