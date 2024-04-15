@@ -10,7 +10,7 @@ AHEAD="$4"
 SEED="${5:-50}"
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-loop-sigmamemory-seed${SEED}/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-loop-sigmamemory-unbounded-seed${SEED}/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \

@@ -1323,7 +1323,6 @@ lcnn<DType> random_lcnn(
         cfg.memory_w = af::constant(0, {state_height, state_width}, DType);
         af::array memory_w_full =
           (af::randu(cfg.memory_map.dims(), DType, af_prng) * 2 - 1) * sigma_memory + mu_memory;
-        memory_w_full = af::clamp(memory_w_full, 0., 1.);
         cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 

@@ -691,8 +691,7 @@ public:
             params.erase("lcnn.sigma-memory");
         }
         if (params.contains("lcnn.mu-memory")) {
-            double input_to_n = std::clamp(params.at("lcnn.mu-memory"), 0.0, 1.0);
-            cfg.insert_or_assign("lcnn.mu-memory", val(input_to_n));
+            cfg.insert_or_assign("lcnn.mu-memory", val(params.at("lcnn.mu-memory")));
             params.erase("lcnn.mu-memory");
         }
         if (params.contains("lcnn.adapt.learning-rate")) {
@@ -926,7 +925,7 @@ public:
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", 0.01},
-          {"lcnn.mu-memory", 0.1},
+          {"lcnn.mu-memory", 0.2},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
           {"lcnn.adapt.abs-target-activation", 0.05},
@@ -961,7 +960,7 @@ public:
           {"lcnn.act-steepness", -1.1},
           {"lcnn.memory-prob", -0.1},
           {"lcnn.sigma-memory", -0.1},
-          {"lcnn.mu-memory", -0.1},
+          {"lcnn.mu-memory", -2.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
@@ -996,7 +995,7 @@ public:
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},
           {"lcnn.sigma-memory", 1.1},
-          {"lcnn.mu-memory", 1.1},
+          {"lcnn.mu-memory", 2.1},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
