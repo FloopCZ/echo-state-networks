@@ -49,18 +49,6 @@ set(CMAKE_CXX_FLAGS "-Wall -Wmissing-field-initializers -pedantic ${CMAKE_CXX_FL
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 
-# ----------------------
-# Shorter Error Messages
-# ----------------------
-
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "-Wfatal-errors ${CMAKE_CXX_FLAGS}")
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  # GCC truncates multiline errors with -Wfatal-errors
-  # using -fmax-erorrs instead
-  set(CMAKE_CXX_FLAGS "-fmax-errors=2 ${CMAKE_CXX_FLAGS}")
-endif()
-
 # ---------------------------------
 # Compile lcnn step implementations
 # ---------------------------------

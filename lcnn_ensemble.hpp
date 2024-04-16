@@ -198,28 +198,4 @@ inline po::options_description lcnn_ensemble_arg_description()
     return lcnn_arg_desc;
 }
 
-inline std::unique_ptr<net_base> make_net(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
-  const po::variables_map& args,
-  prng_t& prng)
-{
-    if (args.at("gen.net-type").as<std::string>() == "lcnn") {
-        if (args.contains("lcnn.load")) {
-            fs::path net_dir = args.at("lcnn.load").as<std::string>();
-            return std::make_unique<lcnn<>>(lcnn<>::load(net_dir));
-        }
-        return std::make_unique<lcnn<>>(random_lcnn(input_names, output_names, args, prng));
-    }
-    if (args.at("gen.net-type").as<std::string>() == "lcnn-ensemble") {
-        return std::make_unique<lcnn_ensemble<>>(
-          random_lcnn_ensemble(input_names, output_names, args, prng));
-    }
-    if (args.at("gen.net-type").as<std::string>() == "simple-esn") {
-        return std::make_unique<simple_esn<>>(random_esn(input_names, output_names, args, prng));
-    }
-    throw std::runtime_error{
-      "Unknown net type \"" + args.at("gen.net-type").as<std::string>() + "\"."};
-}
-
 }  // namespace esn
