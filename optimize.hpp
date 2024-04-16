@@ -1168,7 +1168,7 @@ inline po::options_description optimizer_arg_description()
        "Input and feedback weight sigmas will be cut off under this (abs) value.")          //
       ("opt.reseed-every-epoch", po::value<bool>()->default_value(false),                   //
        "Reseed the random generator in every epoch (i.e., new network in every epoch)")     //
-      ("opt.multithreading", po::bool_switch(),                                             //
+      ("opt.multithreading", po::value<bool>()->default_value(false),                       //
        "Evaluate the individuals in the population in parallel.")                           //
       ("opt.exclude-params",                                                                //
        po::value<std::vector<std::string>>()->multitoken()->default_value(                  //
