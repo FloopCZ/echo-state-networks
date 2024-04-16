@@ -49,13 +49,11 @@ lcnn_step_kernel(double* state, double* reservoir_w, double* output, int N, int 
     if (i >= N || j >= M) return;
 
     double sum = 0.0;
-    int k_idx_coef = N * M;
-    int l_idx_coef = N * M * K;
     for (int l = 0; l < L; ++l) {
         int perimeter_j = threadIdx.y + l;
         for (int k = 0; k < K; ++k) {
             int perimeter_i = threadIdx.x + k;
-            int reservoir_idx = i + N * j + k_idx_coef * k + l_idx_coef * l;
+            int reservoir_idx = i + N * j + N * M * k + N * M * K * l;
             int perimeter_idx = perimeter_i + perimeter_height * perimeter_j;
             // printf(
             //   "reservoir i,j,k,l = %d,%d,%d,%d, perimeter i,j = %d,%d, value = %f\n", i, j, k, l,
