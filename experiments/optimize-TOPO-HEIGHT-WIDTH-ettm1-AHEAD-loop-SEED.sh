@@ -39,4 +39,4 @@ mkdir -p "${outdir}"
   --gen.n-runs=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
-  2>&1 | tee -a "${outdir}/out.txt"
+  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
