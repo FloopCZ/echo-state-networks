@@ -7,12 +7,19 @@ TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
+KERNELS=${KERNELS:-"3 5 7 11 15"}
+TASK_OFFSET=${TASK_OFFSET:-0}
+N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-etth1-ahead${AHEAD}-single-loop/"
+kernels_str="k$(echo "${KERNELS}" | sed -e 's/ \+/k/g')"
+outdir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-${kernels_str}-ettm1-ahead${AHEAD}-loop/"
 mkdir -p "${outdir}"
-./build/optimize_cuda \
+./build/compare_lcnn_kernels_cuda \
   --gen.net-type=lcnn \
+  --gen.kernel-sizes=${KERNELS} \
+  --gen.state-heights="${HEIGHT}" \
+  --gen.state-widths="${WIDTH}" \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.sigma-fb-weight \
@@ -20,20 +27,17 @@ mkdir -p "${outdir}"
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
-  --lcnn.state-height="${HEIGHT}" \
-  --lcnn.state-width="${WIDTH}" \
-  --lcnn.memory-length=60 \
-  --lcnn.memory-prob=1 \
-  --gen.benchmark-set=etth-single-loop \
+  --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
-  --bench.init-steps=300 \
-  --bench.train-steps=8340 \
-  --bench.valid-steps=2880 \
+  --bench.init-steps=500 \
+  --bench.train-steps=34060 \
+  --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
-  --bench.validation-stride=10 \
+  --bench.validation-stride=30 \
   --gen.n-trials=1 \
-  --gen.n-runs=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
-  2>&1 | tee -a "${outdir}/out.txt"
+  --gen.task-offset="${TASK_OFFSET}" \
+  --gen.n-tasks="${N_TASKS}" \
+  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"

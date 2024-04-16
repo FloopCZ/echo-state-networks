@@ -28,7 +28,7 @@ int main(int argc, char* argv[])
       ("gen.output-dir",                                                                   //
        po::value<std::string>()->default_value("./log/lcnn_kernel_comparison/"),           //
        "Directory to store the results.")                                                  //
-      ("gen.n-runs", po::value<long>()->default_value(10),                                 //
+      ("gen.n-runs", po::value<long>()->default_value(5),                                  //
        "The number of full optimization runs of one kernel size setting.")                 //
       ("gen.kernel-sizes", po::value<std::vector<long>>()->multitoken(),                   //
        "The sizes of the kernel to be tested.")                                            //
@@ -61,9 +61,6 @@ int main(int argc, char* argv[])
         std::cout << arg_desc << "\n";
         std::exit(1);
     }
-
-    long seed = esn::set_global_seed(args.at("gen.seed").as<long>());
-    std::cout << "Random seed: " << seed << std::endl;
 
     af::setDevice(args.at("gen.af-device").as<int>());
     af::info();
@@ -103,6 +100,8 @@ int main(int argc, char* argv[])
       "lcnn.intermediate-steps",
       "lcnn.train-aggregation",
       "lcnn.l2",
+      "lcnn.enet-lambda",
+      "lcnn.enet-alpha",
       "lcnn.mu-res",
       "lcnn.mu-in-weight",
       "lcnn.sigma-in-weight",
@@ -112,7 +111,15 @@ int main(int argc, char* argv[])
       "lcnn.leakage",
       "lcnn.noise",
       "lcnn.sigma-b",
-      "lcnn.mu-b"};
+      "lcnn.mu-b",
+      "lcnn.memory-length",
+      "lcnn.memory-prob",
+      "lcnn.sigma-memory",
+      "lcnn.mu-memory",
+      "lcnn.adapt.learning-rate",
+      "lcnn.adapt.weight-leakage",
+      "lcnn.adapt.abs-target-activation",
+    };
     fout << (rgv::join(param_names, ',') | rg::to<std::string>()) << std::endl;
 
     if (!args.contains("gen.state-heights"))
@@ -134,6 +141,8 @@ int main(int argc, char* argv[])
                 if (task < task_offset) continue;
                 if (task >= task_offset + n_tasks) continue;
                 // Prepare parameters.
+                long seed = esn::set_global_seed(args.at("gen.seed").as<long>() + task);
+                std::cout << "Random seed: " << seed << std::endl;
                 long state_height = args.at("gen.state-heights").as<std::vector<long>>().at(isize);
                 long state_width = args.at("gen.state-widths").as<std::vector<long>>().at(isize);
                 std::string state_size_str =

@@ -14,7 +14,8 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
-  --opt.exclude-params=lcnn.sigma-b lcnn.noise lcnn.sparsity lcnn.leakage lcnn.train-valid-ratio lcnn.act-steepness lcnn.mu-in-weight lcnn.mu-fb-weight lcnn.sigma-fb-weight lcnn.input-to-n lcnn.n-state-predictors lcnn.memory-prob lcnn.adapt.learning-rate lcnn.adapt.weight-leakage lcnn.adapt.abs-target-activation \
+  --opt.exclude-params=default \
+  --opt.exclude-params=lcnn.sigma-fb-weight \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
@@ -31,7 +32,6 @@ mkdir -p "${outdir}"
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
-  --opt.max-fevals=5000 \
   --gen.n-trials=1 \
   --gen.n-runs=1 \
   --gen.af-device=0 \

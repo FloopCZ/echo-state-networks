@@ -131,6 +131,9 @@ ENV/
 # Singularity images
 *.sif
 
+# Vim swap files
+*.swp
+
 .git/
 log/
 compare_plot.pdf
@@ -141,3 +144,6 @@ fplot.dat
 run-gpu-experiment.o*
 cmake-build-singularity.o*
 c_cpp_properties.json
+
+datasets/
+tmp/

@@ -33,11 +33,16 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.sigma-b",
   "lcnn.noise",
   "lcnn.sparsity",
+  "lcnn.leakage",
+  "lcnn.l2",
+  "lcnn.enet-alpha",
   "lcnn.n-state-predictors",
   "lcnn.train-valid-ratio",
   "lcnn.act-steepness",
   "lcnn.input-to-n",
   "lcnn.memory-prob",
+  "lcnn.sigma-memory",
+  "lcnn.mu-memory",
   "lcnn.adapt.learning-rate",
   "lcnn.adapt.weight-leakage",
   "lcnn.adapt.abs-target-activation",
@@ -162,6 +167,8 @@ public:
         cmaparams_.set_elitism(config_.at("opt.elitism").as<int>());
         cmaparams_.set_max_fevals(config_.at("opt.max-fevals").as<int>());
         if (config_.at("opt.uncertainty").as<bool>()) cmaparams_.set_uh(true);
+        if (config_.at("opt.tpa").as<bool>()) cmaparams_.set_tpa(2);
+        if (config_.at("opt.noisy").as<bool>()) cmaparams_.set_noisy();
     }
 
     cma::CMASolutions optimize()
@@ -340,6 +347,11 @@ public:
                 excluded_params_.insert(
                   DEFAULT_EXCLUDED_PARAMS.begin(), DEFAULT_EXCLUDED_PARAMS.end());
             }
+            if (this->config_.contains("opt.include-params")) {
+                for (const std::string& param :
+                     this->config_.at("opt.include-params").template as<std::vector<std::string>>())
+                    excluded_params_.erase(param);
+            }
             // Update the original argument to have better logs.
             excluded_params_arg = excluded_params_ | rg::to<std::vector<std::string>>();
         }
@@ -506,6 +518,10 @@ public:
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.l2") {
                 params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.enet-lambda") {
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.enet-alpha") {
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.n-state-predictors") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.train-valid-ratio") {
@@ -515,6 +531,10 @@ public:
             } else if (key == p + "act-steepness") {
                 params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.memory-prob") {
+                params.emplace(key, vm.at(key).as<double>());
+            } else if (key == "lcnn.sigma-memory") {
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.mu-memory") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.adapt.learning-rate") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
@@ -632,6 +652,15 @@ public:
             cfg.insert_or_assign("lcnn.l2", expval(params.at("lcnn.l2")));
             params.erase("lcnn.l2");
         }
+        if (params.contains("lcnn.enet-lambda")) {
+            cfg.insert_or_assign("lcnn.enet-lambda", expval(params.at("lcnn.enet-lambda")));
+            params.erase("lcnn.enet-lambda");
+        }
+        if (params.contains("lcnn.enet-alpha")) {
+            cfg.insert_or_assign(
+              "lcnn.enet-alpha", val(std::clamp(params.at("lcnn.enet-alpha"), 0.0, 1.0)));
+            params.erase("lcnn.enet-alpha");
+        }
         if (params.contains("lcnn.n-state-predictors")) {
             double n_predictors = std::clamp(params.at("lcnn.n-state-predictors"), 0.0, 1.0);
             cfg.insert_or_assign("lcnn.n-state-predictors", val(n_predictors));
@@ -656,6 +685,14 @@ public:
             cfg.insert_or_assign(
               "lcnn.memory-prob", val(std::clamp(params.at("lcnn.memory-prob"), 0.0, 1.0)));
             params.erase("lcnn.memory-prob");
+        }
+        if (params.contains("lcnn.sigma-memory")) {
+            cfg.insert_or_assign("lcnn.sigma-memory", expval(params.at("lcnn.sigma-memory")));
+            params.erase("lcnn.sigma-memory");
+        }
+        if (params.contains("lcnn.mu-memory")) {
+            cfg.insert_or_assign("lcnn.mu-memory", val(params.at("lcnn.mu-memory")));
+            params.erase("lcnn.mu-memory");
         }
         if (params.contains("lcnn.adapt.learning-rate")) {
             cfg.insert_or_assign(
@@ -791,9 +828,13 @@ public:
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
+          {"lcnn.enet-lambda", 0.2},
+          {"lcnn.enet-alpha", 0.5},
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
+          {"lcnn.sigma-memory", inv_exp_transform(0.2)},
+          {"lcnn.mu-memory", 0.5},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
@@ -806,7 +847,8 @@ public:
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
             param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.2});
         }
-        std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng);
+        prng_t prng_clone{prng_};
+        std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
         param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2 * neuron_ins_));
@@ -828,9 +870,13 @@ public:
           "lcnn.n-state-predictors",
           "lcnn.train-valid-ratio",
           "lcnn.l2",
+          "lcnn.enet-lambda",
+          "lcnn.enet-alpha",
           "lcnn.input-to-n",
           "lcnn.act-steepness",
           "lcnn.memory-prob",
+          "lcnn.sigma-memory",
+          "lcnn.mu-memory",
           "lcnn.adapt.learning-rate",
           "lcnn.adapt.weight-leakage",
           "lcnn.adapt.abs-target-activation",
@@ -873,9 +919,13 @@ public:
           {"lcnn.n-state-predictors", 0.1},
           {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.05},
+          {"lcnn.enet-lambda", 0.05},
+          {"lcnn.enet-alpha", 0.1},
           {"lcnn.input-to-n", 0.1},
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
+          {"lcnn.sigma-memory", 0.01},
+          {"lcnn.mu-memory", 0.2},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
           {"lcnn.adapt.abs-target-activation", 0.05},
@@ -904,9 +954,13 @@ public:
           {"lcnn.n-state-predictors", -0.1},
           {"lcnn.train-valid-ratio", -0.1},
           {"lcnn.l2", -0.1},
+          {"lcnn.enet-lambda", -0.1},
+          {"lcnn.enet-alpha", -0.1},
           {"lcnn.input-to-n", -0.1},
           {"lcnn.act-steepness", -1.1},
           {"lcnn.memory-prob", -0.1},
+          {"lcnn.sigma-memory", -0.1},
+          {"lcnn.mu-memory", -2.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
@@ -935,9 +989,13 @@ public:
           {"lcnn.n-state-predictors", 1.1},
           {"lcnn.train-valid-ratio", 1.1},
           {"lcnn.l2", 2.0},
+          {"lcnn.enet-lambda", 2.0},
+          {"lcnn.enet-alpha", 1.1},
           {"lcnn.input-to-n", 1.1},
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},
+          {"lcnn.sigma-memory", 1.1},
+          {"lcnn.mu-memory", 2.1},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
@@ -1068,7 +1126,7 @@ public:
         // TODO only as a config option
         std::set<std::string> fb_group;
         for (int i = 0; i < (int)bench_->output_names().size(); ++i)
-            fb_group.insert("lcnn.fb-weight-" + std::to_string(i));
+            fb_group.insert("esn.fb-weight-" + std::to_string(i));
         return {fb_group};
     }
 };
@@ -1087,6 +1145,10 @@ inline po::options_description optimizer_arg_description()
        "the optimized range is [0, 10].")                                                   //
       ("opt.uncertainty", po::value<bool>()->default_value(false),                          //
        "Set up uncertainty handling.")                                                      //
+      ("opt.tpa", po::value<bool>()->default_value(false),                                  //
+       "Set up two-point adaptation for CMA.")                                              //
+      ("opt.noisy", po::value<bool>()->default_value(false),                                //
+       "Use noisy settings for CMA.")                                                       //
       ("opt.n-evals", po::value<int>()->default_value(1),                                   //
        "Run the evaluation function multiple times and aggregate those by f-value-agg.")    //
       ("opt.f-value-agg", po::value<std::string>()->default_value("median"),                //
@@ -1112,6 +1174,9 @@ inline po::options_description optimizer_arg_description()
        po::value<std::vector<std::string>>()->multitoken()->default_value(                  //
          DEFAULT_EXCLUDED_PARAMS, DEFAULT_EXCLUDED_PARAMS_STR),                             //
        "The list of parameters that should be excluded from optimization.")                 //
+      ("opt.include-params",                                                                //
+       po::value<std::vector<std::string>>()->multitoken(),                                 //
+       "The list of parameters that should be included even if they have been excluded.")   //
       ("opt.x0-from-params", po::bool_switch(),                                             //
        "Start optimization from input arguments.");                                         //
     return optimizer_arg_desc;

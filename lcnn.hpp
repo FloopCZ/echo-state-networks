@@ -8,6 +8,7 @@
 #include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
 #include "net.hpp"
+#include "third_party/elasticnet_af/elasticnet_af.hpp"
 
 #include <arrayfire.h>
 #include <boost/algorithm/string.hpp>
@@ -19,7 +20,6 @@
 #include <fstream>
 #include <limits>
 #include <nlohmann/json.hpp>
-#include <random>
 #include <range/v3/all.hpp>
 #include <stdexcept>
 
@@ -45,16 +45,21 @@ struct lcnn_config {
     af::array input_w;
     /// The feedback weights of size [state_height, state_width, n_outs].
     af::array feedback_w;
-    // The mapping of each state position to its memory point (0 to memory_length - 1).
+    // The mapping and weight of each state position to its memory point (0 to memory_length - 1).
     af::array memory_map;
+    af::array memory_w;
 
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
     /// The leakage of the potential.
     double leakage = 1.0;
-    /// The L2 regularization coefficient.
+    /// The l2 regularization coefficient (only used when enet_lambda==0).
     double l2 = 0;
-    /// The L2 regularization coefficient.
+    /// The elastic net regularization parameters.
+    double enet_lambda = 0;
+    double enet_alpha = 0;
+    bool enet_standardize = false;
+    /// The number of intermediate steps of the network with each input.
     long intermediate_steps = 1;
     /// The number of training trials (select random indices, train, repeat).
     long n_train_trials = 1;
@@ -76,6 +81,9 @@ struct lcnn_config {
         noise = args.at("lcnn.noise").as<double>();
         leakage = args.at("lcnn.leakage").as<double>();
         l2 = args.at("lcnn.l2").as<double>();
+        enet_lambda = args.at("lcnn.enet-lambda").as<double>();
+        enet_alpha = args.at("lcnn.enet-alpha").as<double>();
+        enet_standardize = args.at("lcnn.enet-standardize").as<bool>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
         n_state_predictors = std::clamp(args.at("lcnn.n-state-predictors").as<double>(), 0., 1.);
@@ -98,6 +106,7 @@ protected:
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
     af::array memory_map_;
+    af::array memory_w_;
     long memory_length_;
     af::array state_memory_;
     data_map last_output_;  // the last output of the net as a data map
@@ -118,6 +127,9 @@ protected:
     double noise_;
     double leakage_;
     double l2_;
+    double enet_lambda_;
+    double enet_alpha_;
+    bool enet_standardize_;
     long intermediate_steps_;
     long n_train_trials_;
     double n_state_predictors_;
@@ -143,7 +155,7 @@ protected:
     /// Update the state matrix using masked matrix multiplication.
     virtual void update_via_weights_matmul()
     {
-        state_delta_ = update_via_weights_matmul_impl(state_);
+        state_delta_ += update_via_weights_matmul_impl(state_);
     }
 
     af::array update_via_weights_impl(const af::array& state)
@@ -155,7 +167,7 @@ protected:
     virtual void update_via_weights()
     {
         assert(!force_matmul_);
-        state_delta_ = update_via_weights_impl(state_);
+        state_delta_ += update_via_weights_impl(state_);
     }
 
     /// Update the state matrix by adding the inputs.
@@ -240,8 +252,9 @@ protected:
         af::array memory = af::moddims(
           state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
-        af::array new_state = af::approx2(memory, state_indices, af::flat(memory_map_));
-        state_ = af::moddims(new_state, state_.dims());
+        memory = af::approx2(memory, state_indices, af::flat(memory_map_));
+        state_ *= 1. - memory_w_;
+        state_ += memory_w_ * af::moddims(memory, state_.dims());
     }
 
     void adapt_weights()
@@ -289,6 +302,9 @@ public:
       , noise_{cfg.noise}
       , leakage_{cfg.leakage}
       , l2_{cfg.l2}
+      , enet_lambda_{cfg.enet_lambda}
+      , enet_alpha_{cfg.enet_alpha}
+      , enet_standardize_{cfg.enet_standardize}
       , intermediate_steps_{cfg.intermediate_steps}
       , n_train_trials_{cfg.n_train_trials}
       , n_state_predictors_{cfg.n_state_predictors}
@@ -300,6 +316,7 @@ public:
     {
         state(std::move(cfg.init_state));
         memory_map(std::move(cfg.memory_map));
+        memory_w(std::move(cfg.memory_w));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
         if (!cfg.reservoir_w.isempty()) reservoir_weights(std::move(cfg.reservoir_w));
         if (!cfg.reservoir_w_full.isempty())
@@ -325,6 +342,9 @@ public:
         data["noise"] = noise_;
         data["leakage"] = leakage_;
         data["l2"] = l2_;
+        data["enet_lambda"] = enet_lambda_;
+        data["enet_alpha"] = enet_alpha_;
+        data["enet_standardize"] = enet_standardize_;
         data["intermediate_steps"] = intermediate_steps_;
         data["n_train_trials"] = n_train_trials_;
         data["n_state_predictors"] = n_state_predictors_;
@@ -350,6 +370,10 @@ public:
         if (!memory_map_.isempty()) {
             std::string p = dir / "memory_map.bin";
             af::saveArray("data", memory_map_, p.c_str());
+        }
+        if (!memory_w_.isempty()) {
+            std::string p = dir / "memory_w.bin";
+            af::saveArray("data", memory_w_, p.c_str());
         }
         if (!state_memory_.isempty()) {
             std::string p = dir / "state_memory.bin";
@@ -397,7 +421,7 @@ public:
 
         lcnn<DType> net;
         nlohmann::json data = nlohmann::json::parse(std::ifstream{dir / "params.json"});
-        if (data.at("snapshot_version") != 1)
+        if (data.at("snapshot_version").get<int>() != 1)
             throw std::runtime_error{"Snapshot not compatible with the current binary."};
 
         net.input_names_ = data["input_names"];
@@ -408,6 +432,10 @@ public:
         net.noise_ = data["noise"];
         net.leakage_ = data["leakage"];
         net.l2_ = data["l2"];
+        // TODO remove defaults when all the models are updated
+        net.enet_lambda_ = data.value("enet_lambda", 0.);
+        net.enet_alpha_ = data.value("enet_alpha", 0.);
+        net.enet_standardize_ = data.value("enet_standardize", false);
         net.intermediate_steps_ = data["intermediate_steps"];
         net.n_train_trials_ = data["n_train_trials"];
         net.n_state_predictors_ = data["n_state_predictors"];
@@ -430,6 +458,10 @@ public:
         {
             std::string p = dir / "memory_map.bin";
             if (fs::exists(p)) net.memory_map_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "memory_w.bin";
+            if (fs::exists(p)) net.memory_w_ = af::readArray(p.c_str(), "data");
         }
         {
             std::string p = dir / "state_memory.bin";
@@ -497,7 +529,6 @@ public:
         // validate all input data
         assert(tr_step_input.length() == 1);
         assert(tr_step_input.keys() == input_names_);
-        assert(af::allTrue<bool>(tr_step_input.data() >= -1. && tr_step_input.data() <= 1.));
         if (!step_feedback.empty()) {
             assert(step_feedback.length() == 1);
         }
@@ -505,6 +536,12 @@ public:
             assert(step_desired.length() == 1);
             assert(step_desired.keys() == output_names_);
         }
+
+        // Prepare state delta.
+        state_delta_ = af::constant(0, state_.dims(), state_.type());
+
+        // Restore memory neuron states from memory.
+        update_via_memory();
 
         // Update the internal state.
         for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
@@ -532,9 +569,6 @@ public:
         }
 
         update_state_memory();
-
-        // restore memory neuron states from memory
-        update_via_memory();
 
         adapt_weights();
 
@@ -591,6 +625,7 @@ public:
         check_data(input.input);
         check_data(input.feedback);
         check_data(input.desired);
+        assert(data_len > 0);
 
         feed_result_t result;
         result.states = af::array(state_.dims(0), state_.dims(1), data_len, DType);
@@ -651,8 +686,26 @@ public:
         if (!state_predictor_indices.isempty())
             predictors = flat_predictors(af::span, state_predictor_indices);
         // Find the regression coefficients.
-        af::array beta =
-          af_utils::lstsq_train(predictors, data.desired->T(), l2_, training_weights).T();
+        // TODO remove training_weights
+        af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
+        if (enet_lambda_ == 0.) {
+            beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_).T();
+        } else {
+            elasticnet_af::ElasticNet enet{
+              {.lambda = enet_lambda_,
+               .alpha = enet_alpha_,
+               .tol = 1e-12,
+               .path_len = 1,
+               .max_grad_steps = 100,
+               .standardize_var = enet_standardize_,
+               .warm_start = true}};
+            try {
+                enet.fit(predictors, data.desired->T());  // Ignore failed convergence.
+                beta = enet.coefficients(true).T();
+            } catch (const std::invalid_argument& e) {
+                std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
+            }
+        }
         // Distribute the coefficients along the state_predictor_indices, leave the other empty.
         af::array output_w = [&]() {
             if (state_predictor_indices.isempty()) return beta;
@@ -790,6 +843,18 @@ public:
         prev_step_feedback_.clear();
     }
 
+    /// Get the current output weights.
+    const std::vector<af::array>& output_w() const
+    {
+        return output_w_;
+    }
+
+    /// Set the output weights.
+    void output_w(std::vector<af::array> output_w)
+    {
+        output_w_ = std::move(output_w);
+    }
+
     /// Get the current state of the network.
     const af::array& state() const override
     {
@@ -878,6 +943,16 @@ public:
         }
         // We need memory of length at least 3 for weight adaptation.
         state_memory_ = af::tile(state_, 1, 1, std::max(3L, memory_length_));
+    }
+
+    /// Set the memory weights of the network.
+    ///
+    /// The shape has to be the same as the state.
+    void memory_w(af::array new_weights)
+    {
+        assert(new_weights.type() == DType);
+        assert(new_weights.dims() == state_.dims());
+        memory_w_ = std::move(new_weights);
     }
 
     /// Set the reservoir weights of the network.
@@ -1062,6 +1137,9 @@ lcnn<DType> random_lcnn(
     long memory_length = std::clamp(args.at("lcnn.memory-length").as<long>(), 0L, 1000L);
     // The probability that a neuron is a memory neuron.
     double memory_prob = std::clamp(args.at("lcnn.memory-prob").as<double>(), 0., 1.);
+    // The distribution of memory weights.
+    double sigma_memory = args.at("lcnn.sigma-memory").as<double>();
+    double mu_memory = args.at("lcnn.mu-memory").as<double>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1234,12 +1312,18 @@ lcnn<DType> random_lcnn(
 
     if (memory_length == 0) {
         cfg.memory_map = af::array{};
+        cfg.memory_w = af::array{};
     } else {
         cfg.memory_map = af::constant(0, {state_height, state_width}, DType);
         af::array memory_full =
           af::round(af::randu(cfg.memory_map.dims(), DType, af_prng) * (memory_length - 1));
         af::array memory_mask = af::randu(cfg.memory_map.dims()) < memory_prob;
         cfg.memory_map(memory_mask) = memory_full(memory_mask);
+
+        cfg.memory_w = af::constant(0, {state_height, state_width}, DType);
+        af::array memory_w_full =
+          (af::randu(cfg.memory_map.dims(), DType, af_prng) * 2 - 1) * sigma_memory + mu_memory;
+        cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 
     return lcnn<DType>{std::move(cfg), prng};
@@ -1300,6 +1384,12 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                      //
       ("lcnn.l2", po::value<double>()->default_value(0),                              //
        "See lcnn_config class.")                                                      //
+      ("lcnn.enet-lambda", po::value<double>()->default_value(0),                     //
+       "See lcnn_config class.")                                                      //
+      ("lcnn.enet-alpha", po::value<double>()->default_value(0),                      //
+       "See lcnn_config class.")                                                      //
+      ("lcnn.enet-standardize", po::value<bool>()->default_value(false),              //
+       "See lcnn_config class.")                                                      //
       ("lcnn.n-train-trials", po::value<long>()->default_value(1),                    //
        "See random_lcnn().")                                                          //
       ("lcnn.n-state-predictors", po::value<double>()->default_value(1.),             //
@@ -1314,6 +1404,10 @@ inline po::options_description lcnn_arg_description()
        "The maximum reach of the memory. Set to 0 to disable memory.")                //
       ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
+      ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
+       "See random_lcnn().")                                                          //
+      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                     //
+       "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
       ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //
