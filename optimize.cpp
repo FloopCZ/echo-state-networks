@@ -67,7 +67,7 @@ int main(int argc, char* argv[])
         output_file = output_dir / "optimization_results.csv";
     else
         output_file = output_dir
-          / ("optimization_results" + std::to_string(task_offset) + "_" + std::to_string(n_tasks)
+          / ("optimization_results_" + std::to_string(task_offset) + "_" + std::to_string(n_tasks)
              + ".csv");
     if (!args.contains("overwrite") && fs::exists(output_file)) {
         std::cout << "Output file `" << output_file << "` exists, will not overwrite." << std::endl;

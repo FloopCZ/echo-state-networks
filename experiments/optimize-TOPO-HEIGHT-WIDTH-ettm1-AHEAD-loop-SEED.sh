@@ -8,6 +8,8 @@ HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
 SEED="${5:-50}"
+TASK_OFFSET=${TASK_OFFSET:-0}
+N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
 outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-loop-seed${SEED}/"
@@ -39,4 +41,6 @@ mkdir -p "${outdir}"
   --gen.n-runs=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
+  --gen.task-offset="${TASK_OFFSET}" \
+  --gen.n-tasks="${N_TASKS}" \
   2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
