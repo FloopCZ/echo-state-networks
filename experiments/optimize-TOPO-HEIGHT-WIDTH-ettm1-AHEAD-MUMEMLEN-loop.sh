@@ -7,13 +7,12 @@ TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
-MEMLEN="$5"
-MEMPROB="$6"
+MUMEMLEN="$5"
 TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-memlen${MEMLEN}-memprob${MEMPROB}-loop/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-mumemlen${MUMEMLEN}-loop/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
@@ -27,8 +26,9 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --lcnn.memory-length="${MEMLEN}" \
-  --lcnn.memory-prob="${MEMPROB}" \
+  --lcnn.sigma-memory-length=30 \
+  --lcnn.mu-memory-length="${MUMEMLEN}" \
+  --lcnn.memory-prob=1 \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \

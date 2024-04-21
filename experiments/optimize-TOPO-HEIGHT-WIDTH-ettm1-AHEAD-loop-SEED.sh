@@ -26,7 +26,8 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --lcnn.memory-length=60 \
+  --lcnn.sigma-memory-length=30 \
+  --lcnn.mu-memory-length=30 \
   --lcnn.memory-prob=1 \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \

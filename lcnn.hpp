@@ -1133,8 +1133,9 @@ lcnn<DType> random_lcnn(
     boost::split(topo_params, topology, boost::is_any_of("-"));
     // How many neurons are injected with each input.
     double input_to_n = std::clamp(args.at("lcnn.input-to-n").as<double>(), 0., 1.);
-    // The maximum memory length.
-    long memory_length = std::clamp(args.at("lcnn.memory-length").as<long>(), 0L, 1000L);
+    // The memory indices.
+    long sigma_memory_length = args.at("lcnn.sigma-memory-length").as<long>();
+    long mu_memory_length = args.at("lcnn.mu-memory-length").as<long>();
     // The probability that a neuron is a memory neuron.
     double memory_prob = std::clamp(args.at("lcnn.memory-prob").as<double>(), 0., 1.);
     // The distribution of memory weights.
@@ -1310,13 +1311,15 @@ lcnn<DType> random_lcnn(
     // the initial state is random
     // cfg.init_state = af::randu({state_height, state_width}, DType, af_prng) * 2. - 1.;
 
-    if (memory_length == 0) {
+    if (mu_memory_length == 0) {
         cfg.memory_map = af::array{};
         cfg.memory_w = af::array{};
     } else {
         cfg.memory_map = af::constant(0, {state_height, state_width}, DType);
         af::array memory_full =
-          af::round(af::randu(cfg.memory_map.dims(), DType, af_prng) * (memory_length - 1));
+          (af::randu(cfg.memory_map.dims(), DType, af_prng) * 2 - 1) * sigma_memory_length
+          + mu_memory_length - 1;
+        memory_full = af::max(0, af::round(memory_full));
         af::array memory_mask = af::randu(cfg.memory_map.dims()) < memory_prob;
         cfg.memory_map(memory_mask) = memory_full(memory_mask);
 
@@ -1400,8 +1403,10 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                      //
       ("lcnn.act-steepness", po::value<double>()->default_value(1.0),                 //
        "See lcnn_config class.")                                                      //
-      ("lcnn.memory-length", po::value<long>()->default_value(0.0),                   //
-       "The maximum reach of the memory. Set to 0 to disable memory.")                //
+      ("lcnn.sigma-memory-length", po::value<long>()->default_value(0.0),             //
+       "The spread of the memory indices")                                            //
+      ("lcnn.mu-memory-length", po::value<long>()->default_value(0.0),                //
+       "The mean of the memory indices. Set to 0 to disable memory.")                 //
       ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
       ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
