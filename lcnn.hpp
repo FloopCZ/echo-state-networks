@@ -1268,11 +1268,13 @@ lcnn<DType> random_lcnn(
             cfg.input_w(af::span, af::span, i) *= sigma_in_weight.at(i);
             cfg.input_w(af::span, af::span, i) += mu_in_weight.at(i);
         }
+        cfg.input_w *= af::randu({cfg.input_w.dims()}, DType, af_prng) >= in_fb_sparsity;
         cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_outs; ++i) {
             cfg.feedback_w(af::span, af::span, i) *= sigma_fb_weight.at(i);
             cfg.feedback_w(af::span, af::span, i) += mu_fb_weight.at(i);
         }
+        cfg.feedback_w *= af::randu({cfg.feedback_w.dims()}, DType, af_prng) >= in_fb_sparsity;
     } else {
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
@@ -1290,7 +1292,6 @@ lcnn<DType> random_lcnn(
                 cfg.input_w(af::span, af::span, i) = input_w_single;
             }
         }
-        cfg.input_w *= af::randu({cfg.input_w.dims()}, DType, af_prng) >= in_fb_sparsity;
         cfg.feedback_w = af::constant(0, state_height, state_width, n_outs, DType);
         for (long i = 0; i < n_outs; ++i) {
             if (n_input_neurons == 1 && free_position != nice_positions.end()) {
@@ -1306,7 +1307,6 @@ lcnn<DType> random_lcnn(
                 cfg.feedback_w(af::span, af::span, i) = feedback_w_single;
             }
         }
-        cfg.feedback_w *= af::randu({cfg.feedback_w.dims()}, DType, af_prng) >= in_fb_sparsity;
     }
 
     // the initial state is full of zeros
