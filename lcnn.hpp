@@ -1176,7 +1176,10 @@ lcnn<DType> random_lcnn(
     } else if (topo_params.contains("lcnn")) {
         // generate reservoir weights
         af::dim4 res_dims{state_height, state_width, kernel_height, kernel_width};
-        cfg.reservoir_w = sigma_res * (af::randu(res_dims, DType, af_prng) * 2 - 1) + mu_res;
+        af::dim4 res_flatkernel_dims{state_height, state_width, kernel_height * kernel_width};
+        cfg.reservoir_w = af::randu(res_dims, DType, af_prng) * 2 - 1;
+        cfg.reservoir_w -= af::mean(af::moddims(cfg.reservoir_w, res_flatkernel_dims), 2);
+        cfg.reservoir_w = sigma_res * cfg.reservoir_w + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w *= af::randu({cfg.reservoir_w.dims()}, DType, af_prng) >= sparsity;
         if (topo_params.contains("noself")) {
@@ -1266,11 +1269,13 @@ lcnn<DType> random_lcnn(
             cfg.input_w(af::span, af::span, i) *= sigma_in_weight.at(i);
             cfg.input_w(af::span, af::span, i) += mu_in_weight.at(i);
         }
+        cfg.input_w -= af::mean(cfg.input_w, 2);
         cfg.feedback_w = af::randu({state_height, state_width, n_outs}, DType, af_prng) * 2 - 1;
         for (long i = 0; i < n_outs; ++i) {
             cfg.feedback_w(af::span, af::span, i) *= sigma_fb_weight.at(i);
             cfg.feedback_w(af::span, af::span, i) += mu_fb_weight.at(i);
         }
+        cfg.feedback_w -= af::mean(cfg.feedback_w, 2);
     } else {
         // choose the locations for inputs and feedbacks
         cfg.input_w = af::constant(0, state_height, state_width, n_ins, DType);
