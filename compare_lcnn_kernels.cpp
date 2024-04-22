@@ -108,6 +108,7 @@ int main(int argc, char* argv[])
       "lcnn.mu-fb-weight",
       "lcnn.sigma-fb-weight",
       "lcnn.sparsity",
+      "lcnn.in-fb-sparsity",
       "lcnn.leakage",
       "lcnn.noise",
       "lcnn.sigma-b",

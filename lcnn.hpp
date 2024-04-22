@@ -1127,6 +1127,8 @@ lcnn<DType> random_lcnn(
     // The sparsity of the reservoir weight matrix. For 0, the matrix is
     // fully connected. For 1, the matrix is completely zero.
     double sparsity = args.at("lcnn.sparsity").as<double>();
+    // The sparsity of the input and feedback matrix.
+    double in_fb_sparsity = args.at("lcnn.in-fb-sparsity").as<double>();
     // The reservoir topology.
     std::string topology = args.at("lcnn.topology").as<std::string>();
     std::set<std::string> topo_params;
@@ -1288,6 +1290,7 @@ lcnn<DType> random_lcnn(
                 cfg.input_w(af::span, af::span, i) = input_w_single;
             }
         }
+        cfg.input_w *= af::randu({cfg.input_w.dims()}, DType, af_prng) >= in_fb_sparsity;
         cfg.feedback_w = af::constant(0, state_height, state_width, n_outs, DType);
         for (long i = 0; i < n_outs; ++i) {
             if (n_input_neurons == 1 && free_position != nice_positions.end()) {
@@ -1303,6 +1306,7 @@ lcnn<DType> random_lcnn(
                 cfg.feedback_w(af::span, af::span, i) = feedback_w_single;
             }
         }
+        cfg.feedback_w *= af::randu({cfg.feedback_w.dims()}, DType, af_prng) >= in_fb_sparsity;
     }
 
     // the initial state is full of zeros
@@ -1371,6 +1375,8 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.mu-b", po::value<double>()->default_value(0),                            //
        "See random_lcnn().")                                                          //
       ("lcnn.sparsity", po::value<double>()->default_value(0),                        //
+       "See random_lcnn().")                                                          //
+      ("lcnn.in-fb-sparsity", po::value<double>()->default_value(0),                  //
        "See random_lcnn().")                                                          //
       ("lcnn.topology", po::value<std::string>()->default_value("sparse"),            //
        "See random_lcnn().")                                                          //

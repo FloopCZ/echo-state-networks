@@ -33,6 +33,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.sigma-b",
   "lcnn.noise",
   "lcnn.sparsity",
+  "lcnn.in-fb-sparsity",
   "lcnn.leakage",
   "lcnn.l2",
   "lcnn.enet-alpha",
@@ -508,6 +509,8 @@ public:
                 params.emplace(key, inv_exp_transform(std::max(sigma_fb_weights.at(idx), 1e-40)));
             } else if (key == p + "sparsity") {
                 params.emplace(key, vm.at(key).as<double>());
+            } else if (key == p + "in-fb-sparsity") {
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "leakage") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == p + "noise") {
@@ -630,6 +633,11 @@ public:
             cfg.insert_or_assign(
               p + "sparsity", val(std::clamp(params.at(p + "sparsity"), 0.0, 1.0)));
             params.erase(p + "sparsity");
+        }
+        if (params.contains(p + "in-fb-sparsity")) {
+            cfg.insert_or_assign(
+              p + "in-fb-sparsity", val(std::clamp(params.at(p + "in-fb-sparsity"), 0.0, 1.0)));
+            params.erase(p + "in-fb-sparsity");
         }
         if (params.contains(p + "leakage")) {
             cfg.insert_or_assign(
@@ -821,6 +829,7 @@ public:
           {"lcnn.sigma-res", unit_sigma},
           {"lcnn.mu-res", 0.0},
           {"lcnn.sparsity", 0.1},
+          {"lcnn.in-fb-sparsity", 0.1},
           {"lcnn.leakage", 0.9},
           {"lcnn.noise", 0.2},
           {"lcnn.sigma-b", 0.2},
@@ -863,6 +872,7 @@ public:
           "lcnn.sigma-res",
           "lcnn.mu-res",
           "lcnn.sparsity",
+          "lcnn.in-fb-sparsity",
           "lcnn.leakage",
           "lcnn.noise",
           "lcnn.sigma-b",
@@ -912,6 +922,7 @@ public:
           {"lcnn.sigma-res", 0.01},
           {"lcnn.mu-res", 0.05},
           {"lcnn.sparsity", 0.05},
+          {"lcnn.in-fb-sparsity", 0.05},
           {"lcnn.leakage", 0.05},
           {"lcnn.noise", 0.05},
           {"lcnn.sigma-b", 0.05},
@@ -947,6 +958,7 @@ public:
           {"lcnn.sigma-res", -0.1},
           {"lcnn.mu-res", -1.1},
           {"lcnn.sparsity", -0.1},
+          {"lcnn.in-fb-sparsity", -0.1},
           {"lcnn.leakage", -0.1},
           {"lcnn.noise", -0.1},
           {"lcnn.sigma-b", -0.1},
@@ -982,6 +994,7 @@ public:
           {"lcnn.sigma-res", 1.1},
           {"lcnn.mu-res", 1.1},
           {"lcnn.sparsity", 1.1},
+          {"lcnn.in-fb-sparsity", 1.1},
           {"lcnn.leakage", 1.1},
           {"lcnn.noise", 2.0},
           {"lcnn.sigma-b", 2.0},

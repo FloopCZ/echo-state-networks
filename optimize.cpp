@@ -93,6 +93,7 @@ int main(int argc, char* argv[])
         param_names.push_back("esn.fb-weight");
     }
     if (net_type == "lcnn" || net_type == "lcnn-ensemble") {
+        param_names.push_back("lcnn.in-fb-sparsity");
         param_names.push_back("lcnn.mu-fb-weight");
         param_names.push_back("lcnn.sigma-fb-weight");
         param_names.push_back("lcnn.state-height");
