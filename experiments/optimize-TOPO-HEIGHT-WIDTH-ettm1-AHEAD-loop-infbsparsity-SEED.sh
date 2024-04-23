@@ -19,7 +19,7 @@ mkdir -p "${outdir}"
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.sigma-fb-weight \
-  --opt.include-params=lcnn.sigma-memory lcnn.mu-memory lcnn.in-fb-sparsity \
+  --opt.include-params=lcnn.sigma-memory lcnn.mu-memory lcnn.in-fb-sparsity lcnn.sparsity \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
@@ -37,6 +37,7 @@ mkdir -p "${outdir}"
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \
+  --gen.n-runs=1 \
   --gen.n-trials=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
