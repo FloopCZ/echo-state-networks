@@ -804,8 +804,8 @@ public:
                 state_predictor_indices = generate_random_state_indices(n_predictors);
             // train
             long n = train_data.states.dims(2);
-            af::array seq = af::seq(1, n);
-            af::array training_weights = af::pow(10, seq.as(DType) / n);
+            af::array seq = af::seq(n);
+            af::array training_weights = af::exp(seq.as(DType) / n);
             train_result_t train_result =
               train_impl(train_data, state_predictor_indices, training_weights);
             af::array train_prediction =
