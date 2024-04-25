@@ -700,7 +700,8 @@ public:
                .standardize_var = enet_standardize_,
                .warm_start = true}};
             try {
-                enet.fit(predictors, data.desired->T());  // Ignore failed convergence.
+                enet.fit(
+                  predictors, data.desired->T(), training_weights);  // Ignore failed convergence.
                 beta = enet.coefficients(true).T();
             } catch (const std::invalid_argument& e) {
                 std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
@@ -802,6 +803,9 @@ public:
             if (predictor_subset)
                 state_predictor_indices = generate_random_state_indices(n_predictors);
             // train
+            long n = train_data.states.dims(2);
+            af::array seq = af::seq(1, n);
+            af::array training_weights = af::pow(10, seq.as(DType) / n);
             train_result_t train_result =
               train_impl(train_data, state_predictor_indices, training_weights);
             af::array train_prediction =
