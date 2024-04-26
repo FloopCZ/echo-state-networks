@@ -199,7 +199,7 @@ protected:
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
-        state_ += af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
+        state_ += leakage_ * af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
     }
 
     /// Update the last output of the network after having a new state.
