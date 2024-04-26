@@ -19,7 +19,7 @@ mkdir -p "${outdir}"
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.sigma-fb-weight \
-  --opt.include-params=lcnn.sigma-memory lcnn.mu-memory lcnn.leakage \
+  --opt.include-params=lcnn.mu-memory lcnn.leakage \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \

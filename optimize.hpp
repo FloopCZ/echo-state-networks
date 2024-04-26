@@ -640,8 +640,7 @@ public:
             params.erase(p + "in-fb-sparsity");
         }
         if (params.contains(p + "leakage")) {
-            cfg.insert_or_assign(
-              p + "leakage", val(std::clamp(params.at(p + "leakage"), 0.0, 1.0)));
+            cfg.insert_or_assign(p + "leakage", val(params.at(p + "leakage")));
             params.erase(p + "leakage");
         }
         if (params.contains(p + "noise")) {
@@ -923,7 +922,7 @@ public:
           {"lcnn.mu-res", 0.05},
           {"lcnn.sparsity", 0.05},
           {"lcnn.in-fb-sparsity", 0.05},
-          {"lcnn.leakage", 0.05},
+          {"lcnn.leakage", 0.2},
           {"lcnn.noise", 0.05},
           {"lcnn.sigma-b", 0.05},
           {"lcnn.mu-b", 0.05},
@@ -959,7 +958,7 @@ public:
           {"lcnn.mu-res", -1.1},
           {"lcnn.sparsity", -0.1},
           {"lcnn.in-fb-sparsity", -0.1},
-          {"lcnn.leakage", -0.1},
+          {"lcnn.leakage", -2.1},
           {"lcnn.noise", -0.1},
           {"lcnn.sigma-b", -0.1},
           {"lcnn.mu-b", -1.1},
@@ -995,7 +994,7 @@ public:
           {"lcnn.mu-res", 1.1},
           {"lcnn.sparsity", 1.1},
           {"lcnn.in-fb-sparsity", 1.1},
-          {"lcnn.leakage", 1.1},
+          {"lcnn.leakage", 2.1},
           {"lcnn.noise", 2.0},
           {"lcnn.sigma-b", 2.0},
           {"lcnn.mu-b", 1.1},
