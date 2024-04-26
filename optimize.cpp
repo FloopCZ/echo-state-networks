@@ -109,7 +109,8 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.l2");
         param_names.push_back("lcnn.enet-lambda");
         param_names.push_back("lcnn.enet-alpha");
-        param_names.push_back("lcnn.memory-length");
+        param_names.push_back("lcnn.sigma-memory-length");
+        param_names.push_back("lcnn.mu-memory-length");
         param_names.push_back("lcnn.memory-prob");
         param_names.push_back("lcnn.sigma-memory");
         param_names.push_back("lcnn.mu-memory");
