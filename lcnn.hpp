@@ -750,13 +750,6 @@ public:
                 data.desired = af::tanh((*data.desired - 3.) / 30.) / 0.99;
         }
 
-        // Weight the training data according to the given training weights.
-        af::array training_weights;
-        if (input.meta.contains("training-weights"))
-            training_weights = input.meta.at("training-weights");
-        else
-            training_weights = af::constant(1, data.outputs.dims(1), DType);
-
         struct train_trial_result_t {
             train_result_t result;
             double valid_err;
@@ -789,7 +782,6 @@ public:
               .states = data.states(af::span, af::span, train_set_idx),
               .outputs = data.outputs(af::span, train_set_idx),
               .desired = (*data.desired)(af::span, train_set_idx)};
-            training_weights = training_weights(train_set_idx);
             valid_data = {
               .states = data.states(af::span, af::span, valid_set_idx),
               .outputs = data.outputs(af::span, valid_set_idx),
@@ -806,7 +798,7 @@ public:
             // set exponential training weights
             long n = train_data.states.dims(2);
             af::array seq = af::seq(n);
-            training_weights *= af::exp(seq.as(DType) / n);
+            af::array training_weights = af::exp(seq.as(DType) / n);
             // train
             train_result_t train_result =
               train_impl(train_data, state_predictor_indices, training_weights);
