@@ -587,7 +587,6 @@ public:
                     data[col].push_back(std::stod(value));
                 }
             }
-            meta["training-weights"].push_back(data["OT"].back() != 0.);
         };
 
         long long n_features = header_.size() - 1;
@@ -1276,7 +1275,6 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
 
 inline po::options_description benchmark_arg_description()
 {
-    // TODO move to benchmarks
     po::options_description benchmark_arg_desc{"Benchmark options"};
     benchmark_arg_desc.add_options()                                                             //
       ("bench.memory-history", po::value<long>()->default_value(0),                              //

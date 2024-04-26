@@ -686,7 +686,6 @@ public:
         if (!state_predictor_indices.isempty())
             predictors = flat_predictors(af::span, state_predictor_indices);
         // Find the regression coefficients.
-        // TODO remove training_weights
         af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
         if (enet_lambda_ == 0.) {
             beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_).T();
@@ -755,6 +754,8 @@ public:
         af::array training_weights;
         if (input.meta.contains("training-weights"))
             training_weights = input.meta.at("training-weights");
+        else
+            training_weights = af::constant(1, data.outputs.dims(1), DType);
 
         struct train_trial_result_t {
             train_result_t result;
@@ -802,10 +803,11 @@ public:
             af::array state_predictor_indices;
             if (predictor_subset)
                 state_predictor_indices = generate_random_state_indices(n_predictors);
-            // train
+            // set exponential training weights
             long n = train_data.states.dims(2);
             af::array seq = af::seq(n);
-            af::array training_weights = af::exp(seq.as(DType) / n);
+            training_weights *= af::exp(seq.as(DType) / n);
+            // train
             train_result_t train_result =
               train_impl(train_data, state_predictor_indices, training_weights);
             af::array train_prediction =
