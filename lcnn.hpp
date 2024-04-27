@@ -203,7 +203,7 @@ protected:
     }
 
     /// Update the last output of the network after having a new state.
-    virtual void update_last_output()
+    virtual void update_last_output(const data_map& input)
     {
         if (output_w_.empty()) {
             last_output_.clear();
@@ -217,7 +217,8 @@ protected:
         // Evaluate every output_w and aggregate them to the final output.
         for (int i = 0; i < (long)output_w_.size(); ++i) {
             const af::array& ow = output_w_.at(i);
-            af::array predictors = af_utils::add_ones(af::flat(state_), 0);
+            af::array predictors =
+              af_utils::add_ones(af::join(0, af::flat(input.data()), af::flat(state_)), 0);
             output(af::span, i) = af::matmul(ow, predictors);
             if (train_aggregation_ == "funagg") {
                 if (i == 1)
@@ -571,7 +572,7 @@ public:
 
         adapt_weights();
 
-        update_last_output();
+        update_last_output(tr_step_input);
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
@@ -662,6 +663,7 @@ public:
 
     /// Train the network on already processed feed result.
     train_result_t train_impl(
+      const input_t& input,
       const feed_result_t& data,
       const af::array& state_predictor_indices,
       const af::array& training_weights) const
@@ -681,6 +683,8 @@ public:
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
         af::array flat_predictors =
           af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
+        flat_predictors =
+          af::join(1, input.input_transform(input.input).data().T(), std::move(flat_predictors));
         af::array predictors = flat_predictors;
         if (!state_predictor_indices.isempty())
             predictors = flat_predictors(af::span, state_predictor_indices);
@@ -716,7 +720,9 @@ public:
             return w;
         }();
         assert(
-          output_w.dims() == (af::dim4{(long)output_names_.size(), (long)state_.elements() + 1}));
+          output_w.dims()
+          == (af::dim4{
+            (long)output_names_.size(), (long)input_names_.size() + (long)state_.elements() + 1}));
         return {.predictors = std::move(flat_predictors), .output_w = std::move(output_w)};
     }
 
@@ -800,7 +806,7 @@ public:
             af::array training_weights = af::exp(seq.as(DType) / n);
             // train
             train_result_t train_result =
-              train_impl(train_data, state_predictor_indices, training_weights);
+              train_impl(input, train_data, state_predictor_indices, training_weights);
             af::array train_prediction =
               af_utils::lstsq_predict(train_result.predictors, train_result.output_w.T());
             double train_err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);
@@ -830,7 +836,7 @@ public:
 
         if (train_aggregation_ == "replace") output_w_.clear();
         output_w_.push_back(best_train.result.output_w);
-        update_last_output();
+        update_last_output(input.input.select(af::end));
         return best_train.result;
     }
 
@@ -947,8 +953,8 @@ public:
     /// The shape has to be the same as the state.
     void memory_w(af::array new_weights)
     {
-        assert(new_weights.type() == DType);
-        assert(new_weights.dims() == state_.dims());
+        assert(new_weights.isempty() || new_weights.type() == DType);
+        assert(new_weights.isempty() || new_weights.dims() == state_.dims());
         memory_w_ = std::move(new_weights);
     }
 
