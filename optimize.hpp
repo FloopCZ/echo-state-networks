@@ -849,7 +849,7 @@ public:
         };
         for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.2});
+            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), inv_exp_transform(0.1)});
         }
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
