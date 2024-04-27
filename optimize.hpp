@@ -44,6 +44,10 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.memory-prob",
   "lcnn.sigma-memory",
   "lcnn.mu-memory",
+  "lcnn.sigma-state-ema-alpha",
+  "lcnn.mu-state-ema-alpha",
+  "lcnn.sigma-state-ema-w",
+  "lcnn.mu-state-ema-w",
   "lcnn.adapt.learning-rate",
   "lcnn.adapt.weight-leakage",
   "lcnn.adapt.abs-target-activation",
@@ -539,6 +543,14 @@ public:
                 params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == "lcnn.mu-memory") {
                 params.emplace(key, vm.at(key).as<double>());
+            } else if (key == "lcnn.sigma-state-ema-alpha") {
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.mu-state-ema-alpha") {
+                params.emplace(key, vm.at(key).as<double>());
+            } else if (key == "lcnn.sigma-state-ema-w") {
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+            } else if (key == "lcnn.mu-state-ema-w") {
+                params.emplace(key, inv_pow_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.learning-rate") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.weight-leakage") {
@@ -701,6 +713,25 @@ public:
             cfg.insert_or_assign("lcnn.mu-memory", val(params.at("lcnn.mu-memory")));
             params.erase("lcnn.mu-memory");
         }
+        if (params.contains("lcnn.sigma-state-ema-alpha")) {
+            cfg.insert_or_assign(
+              "lcnn.sigma-state-ema-alpha", expval(params.at("lcnn.sigma-state-ema-alpha")));
+            params.erase("lcnn.sigma-state-ema-alpha");
+        }
+        if (params.contains("lcnn.mu-state-ema-alpha")) {
+            cfg.insert_or_assign(
+              "lcnn.mu-state-ema-alpha", val(params.at("lcnn.mu-state-ema-alpha")));
+            params.erase("lcnn.mu-state-ema-alpha");
+        }
+        if (params.contains("lcnn.sigma-state-ema-w")) {
+            cfg.insert_or_assign(
+              "lcnn.sigma-state-ema-w", expval(params.at("lcnn.sigma-state-ema-w")));
+            params.erase("lcnn.sigma-state-ema-w");
+        }
+        if (params.contains("lcnn.mu-state-ema-w")) {
+            cfg.insert_or_assign("lcnn.mu-state-ema-w", powval(params.at("lcnn.mu-state-ema-w")));
+            params.erase("lcnn.mu-state-ema-w");
+        }
         if (params.contains("lcnn.adapt.learning-rate")) {
             cfg.insert_or_assign(
               "lcnn.adapt.learning-rate", expval(params.at("lcnn.adapt.learning-rate")));
@@ -843,6 +874,10 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", inv_exp_transform(0.2)},
           {"lcnn.mu-memory", 0.9},
+          {"lcnn.sigma-state-ema-alpha", inv_exp_transform(0.1)},
+          {"lcnn.mu-state-ema-alpha", 0.9},
+          {"lcnn.sigma-state-ema-w", inv_exp_transform(0.1)},
+          {"lcnn.mu-state-ema-w", 0.0},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
@@ -886,6 +921,10 @@ public:
           "lcnn.memory-prob",
           "lcnn.sigma-memory",
           "lcnn.mu-memory",
+          "lcnn.sigma-state-ema-alpha",
+          "lcnn.mu-state-ema-alpha",
+          "lcnn.sigma-state-ema-w",
+          "lcnn.mu-state-ema-w",
           "lcnn.adapt.learning-rate",
           "lcnn.adapt.weight-leakage",
           "lcnn.adapt.abs-target-activation",
@@ -936,6 +975,10 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", 0.01},
           {"lcnn.mu-memory", 0.2},
+          {"lcnn.sigma-state-ema-alpha", 0.01},
+          {"lcnn.mu-state-ema-alpha", 0.1},
+          {"lcnn.sigma-state-ema-w", 0.01},
+          {"lcnn.mu-state-ema-w", 0.1},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
           {"lcnn.adapt.abs-target-activation", 0.05},
@@ -972,6 +1015,10 @@ public:
           {"lcnn.memory-prob", -0.1},
           {"lcnn.sigma-memory", -0.1},
           {"lcnn.mu-memory", -2.1},
+          {"lcnn.sigma-state-ema-alpha", -0.1},
+          {"lcnn.mu-state-ema-alpha", -0.1},
+          {"lcnn.sigma-state-ema-w", -0.1},
+          {"lcnn.mu-state-ema-w", -2.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
@@ -1008,6 +1055,10 @@ public:
           {"lcnn.memory-prob", 1.1},
           {"lcnn.sigma-memory", 1.1},
           {"lcnn.mu-memory", 2.1},
+          {"lcnn.sigma-state-ema-alpha", 1.1},
+          {"lcnn.mu-state-ema-alpha", 1.1},
+          {"lcnn.sigma-state-ema-w", 1.1},
+          {"lcnn.mu-state-ema-w", 2.1},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},

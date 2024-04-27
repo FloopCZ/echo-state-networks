@@ -48,6 +48,9 @@ struct lcnn_config {
     // The mapping and weight of each state position to its memory point (0 to memory_length - 1).
     af::array memory_map;
     af::array memory_w;
+    // The alphas and weights for the state ema.
+    af::array state_ema_alpha;
+    af::array state_ema_w;
 
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
@@ -108,6 +111,9 @@ protected:
     af::array memory_map_;
     af::array memory_w_;
     long memory_length_;
+    af::array state_ema_;
+    af::array state_ema_alpha_;
+    af::array state_ema_w_;
     af::array state_memory_;
     data_map last_output_;  // the last output of the net as a data map
     data_map prev_step_feedback_;
@@ -240,6 +246,20 @@ protected:
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
     }
 
+    virtual void update_state_ema()
+    {
+        if (state_ema_alpha_.isempty()) return;
+        state_ema_ *= 1. - state_ema_alpha_;
+        state_ema_ += state_ema_alpha_ * state_;
+    }
+
+    virtual void update_via_state_ema()
+    {
+        if (state_ema_w_.isempty()) return;
+        state_ *= 1. - state_ema_w_;
+        state_ += state_ema_w_ * state_ema_;
+    }
+
     virtual void update_state_memory()
     {
         state_memory_ = af::shift(state_memory_, 0, 0, 1);
@@ -317,6 +337,8 @@ public:
         state(std::move(cfg.init_state));
         memory_map(std::move(cfg.memory_map));
         memory_w(std::move(cfg.memory_w));
+        state_ema_alpha(std::move(cfg.state_ema_alpha));
+        state_ema_w(std::move(cfg.state_ema_w));
         assert(cfg.reservoir_w.isempty() ^ cfg.reservoir_w_full.isempty());
         if (!cfg.reservoir_w.isempty()) reservoir_weights(std::move(cfg.reservoir_w));
         if (!cfg.reservoir_w_full.isempty())
@@ -378,6 +400,18 @@ public:
         if (!state_memory_.isempty()) {
             std::string p = dir / "state_memory.bin";
             af::saveArray("data", state_memory_, p.c_str());
+        }
+        {
+            std::string p = dir / "state_ema.bin";
+            af::saveArray("data", state_ema_, p.c_str());
+        }
+        {
+            std::string p = dir / "state_ema_alpha.bin";
+            af::saveArray("data", state_ema_alpha_, p.c_str());
+        }
+        {
+            std::string p = dir / "state_ema_w.bin";
+            af::saveArray("data", state_ema_w_, p.c_str());
         }
         last_output_.save(dir / "last_output/");
         prev_step_feedback_.save(dir / "prev_step_feedback/");
@@ -467,6 +501,18 @@ public:
             std::string p = dir / "state_memory.bin";
             if (fs::exists(p)) net.state_memory_ = af::readArray(p.c_str(), "data");
         }
+        {
+            std::string p = dir / "state_ema.bin";
+            net.state_ema_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "state_ema_alpha.bin";
+            net.state_ema_alpha_ = af::readArray(p.c_str(), "data");
+        }
+        {
+            std::string p = dir / "state_ema_w.bin";
+            net.state_ema_w_ = af::readArray(p.c_str(), "data");
+        }
         net.last_output_.load(dir / "last_output/");
         net.prev_step_feedback_.load(dir / "prev_step_feedback/");
         {
@@ -543,6 +589,9 @@ public:
         // Restore memory neuron states from memory.
         update_via_memory();
 
+        // Combine the state with its exponential moving average.
+        update_via_state_ema();
+
         // Update the internal state.
         for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
             // Perform matrix multiplication instead of state unwrapping for large kernels.
@@ -565,10 +614,15 @@ public:
             // activation function
             update_via_activation();
 
-            assert(!af::anyTrue<bool>(af::isNaN(state_)));
+            // TODO should the state ema update be here?
+
+            if (af::anyTrue<bool>(af::isNaN(state_)))
+                std::cerr << "WARNING: NaN in state" << std::endl;
         }
 
         update_state_memory();
+
+        update_state_ema();
 
         adapt_weights();
 
@@ -865,6 +919,7 @@ public:
         assert(new_state.type() == DType);
         // assert(new_state.numdims() == 2);  // Not true for vector state.
         state_ = std::move(new_state);
+        state_ema_ = state_;
     }
 
     /// The input names.
@@ -948,9 +1003,29 @@ public:
     /// The shape has to be the same as the state.
     void memory_w(af::array new_weights)
     {
+        assert(new_weights.isempty() || new_weights.type() == DType);
+        assert(new_weights.isempty() || new_weights.dims() == state_.dims());
+        memory_w_ = std::move(new_weights);
+    }
+
+    /// Set the state ema alpha.
+    ///
+    /// The shape has to be the same as the state.
+    void state_ema_alpha(af::array new_alpha)
+    {
+        assert(new_alpha.type() == DType);
+        assert(new_alpha.dims() == state_.dims());
+        state_ema_alpha_ = std::move(new_alpha);
+    }
+
+    /// Set the state ema alpha.
+    ///
+    /// The shape has to be the same as the state.
+    void state_ema_w(af::array new_weights)
+    {
         assert(new_weights.type() == DType);
         assert(new_weights.dims() == state_.dims());
-        memory_w_ = std::move(new_weights);
+        state_ema_w_ = std::move(new_weights);
     }
 
     /// Set the reservoir weights of the network.
@@ -1140,6 +1215,11 @@ lcnn<DType> random_lcnn(
     // The distribution of memory weights.
     double sigma_memory = args.at("lcnn.sigma-memory").as<double>();
     double mu_memory = args.at("lcnn.mu-memory").as<double>();
+    // The distribution of state ema alphas and weights.
+    double sigma_state_ema_alpha = args.at("lcnn.sigma-state-ema-alpha").as<double>();
+    double mu_state_ema_alpha = args.at("lcnn.mu-state-ema-alpha").as<double>();
+    double sigma_state_ema_w = args.at("lcnn.sigma-state-ema-w").as<double>();
+    double mu_state_ema_w = args.at("lcnn.mu-state-ema-w").as<double>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1328,6 +1408,14 @@ lcnn<DType> random_lcnn(
         cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 
+    cfg.state_ema_alpha =
+      (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1) * sigma_state_ema_alpha
+      + mu_state_ema_alpha;
+    cfg.state_ema_alpha = af::clamp(cfg.state_ema_alpha, 0., 1.);
+    cfg.state_ema_w =
+      (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1) * sigma_state_ema_w
+      + mu_state_ema_w;
+
     return lcnn<DType>{std::move(cfg), prng};
 }
 
@@ -1411,6 +1499,14 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
        "See random_lcnn().")                                                          //
       ("lcnn.mu-memory", po::value<double>()->default_value(1.0),                     //
+       "See random_lcnn().")                                                          //
+      ("lcnn.sigma-state-ema-alpha", po::value<double>()->default_value(0.0),         //
+       "See random_lcnn().")                                                          //
+      ("lcnn.mu-state-ema-alpha", po::value<double>()->default_value(0.0),            //
+       "See random_lcnn().")                                                          //
+      ("lcnn.sigma-state-ema-w", po::value<double>()->default_value(0.0),             //
+       "See random_lcnn().")                                                          //
+      ("lcnn.mu-state-ema-w", po::value<double>()->default_value(0.0),                //
        "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //

@@ -114,6 +114,10 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.memory-prob");
         param_names.push_back("lcnn.sigma-memory");
         param_names.push_back("lcnn.mu-memory");
+        param_names.push_back("lcnn.sigma-state-ema-alpha");
+        param_names.push_back("lcnn.mu-state-ema-alpha");
+        param_names.push_back("lcnn.sigma-state-ema-w");
+        param_names.push_back("lcnn.mu-state-ema-w");
         param_names.push_back("lcnn.adapt.learning-rate");
         param_names.push_back("lcnn.adapt.weight-leakage");
         param_names.push_back("lcnn.adapt.abs-target-activation");
