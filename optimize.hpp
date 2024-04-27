@@ -1147,7 +1147,7 @@ inline po::options_description optimizer_arg_description()
 {
     po::options_description optimizer_arg_desc{"Optimizer options"};
     optimizer_arg_desc.add_options()                                                        //
-      ("opt.max-fevals", po::value<int>()->default_value(2500),                             //
+      ("opt.max-fevals", po::value<int>()->default_value(2000),                             //
        "Set the maximum number of evaluations of the objective function "                   //
        "aggregated evals are considered as one).")                                          //
       ("opt.lambda", po::value<int>()->default_value(25),                                   //

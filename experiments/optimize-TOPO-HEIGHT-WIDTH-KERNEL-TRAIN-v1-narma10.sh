@@ -24,4 +24,5 @@ mkdir -p "${outdir}"
   --bench.valid-steps=1000 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
+  --opt.max-fevals=2500 \
   2>&1 | tee -a "${outdir}/out.txt"
