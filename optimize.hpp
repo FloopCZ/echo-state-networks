@@ -546,7 +546,7 @@ public:
             } else if (key == "lcnn.sigma-state-ema-alpha") {
                 params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == "lcnn.mu-state-ema-alpha") {
-                params.emplace(key, vm.at(key).as<double>());
+                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == "lcnn.sigma-state-ema-w") {
                 params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
             } else if (key == "lcnn.mu-state-ema-w") {
@@ -720,7 +720,7 @@ public:
         }
         if (params.contains("lcnn.mu-state-ema-alpha")) {
             cfg.insert_or_assign(
-              "lcnn.mu-state-ema-alpha", val(params.at("lcnn.mu-state-ema-alpha")));
+              "lcnn.mu-state-ema-alpha", expval(params.at("lcnn.mu-state-ema-alpha")));
             params.erase("lcnn.mu-state-ema-alpha");
         }
         if (params.contains("lcnn.sigma-state-ema-w")) {
@@ -874,8 +874,8 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", inv_exp_transform(0.2)},
           {"lcnn.mu-memory", 0.9},
-          {"lcnn.sigma-state-ema-alpha", inv_exp_transform(0.1)},
-          {"lcnn.mu-state-ema-alpha", 0.9},
+          {"lcnn.sigma-state-ema-alpha", inv_exp_transform(0.05)},
+          {"lcnn.mu-state-ema-alpha", inv_exp_transform(0.05)},
           {"lcnn.sigma-state-ema-w", inv_exp_transform(0.1)},
           {"lcnn.mu-state-ema-w", 0.0},
           {"lcnn.adapt.learning-rate", 0.1},
@@ -976,7 +976,7 @@ public:
           {"lcnn.sigma-memory", 0.01},
           {"lcnn.mu-memory", 0.2},
           {"lcnn.sigma-state-ema-alpha", 0.01},
-          {"lcnn.mu-state-ema-alpha", 0.1},
+          {"lcnn.mu-state-ema-alpha", 0.01},
           {"lcnn.sigma-state-ema-w", 0.01},
           {"lcnn.mu-state-ema-w", 0.1},
           {"lcnn.adapt.learning-rate", 0.05},
