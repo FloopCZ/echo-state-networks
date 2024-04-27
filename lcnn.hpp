@@ -206,6 +206,7 @@ protected:
         state_ *= 1. - leakage_;
         // Apply the activation function.
         state_ += leakage_ * af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
+        af::eval(state_);
     }
 
     /// Update the last output of the network after having a new state.
@@ -251,6 +252,7 @@ protected:
         if (state_ema_alpha_.isempty()) return;
         state_ema_ *= 1. - state_ema_alpha_;
         state_ema_ += state_ema_alpha_ * state_;
+        af::eval(state_ema_);
     }
 
     virtual void update_via_state_ema()
@@ -616,8 +618,7 @@ public:
 
             // TODO should the state ema update be here?
 
-            if (af::anyTrue<bool>(af::isNaN(state_)))
-                std::cerr << "WARNING: NaN in state" << std::endl;
+            assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
 
         update_state_memory();
