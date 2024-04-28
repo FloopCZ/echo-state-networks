@@ -205,7 +205,7 @@ protected:
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
-        state_ += leakage_ * af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
+        state_ += af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
         af::eval(state_);
     }
 
@@ -274,7 +274,6 @@ protected:
           state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         memory = af::approx2(memory, state_indices, af::flat(memory_map_));
-        state_ *= 1. - memory_w_;
         state_ += memory_w_ * af::moddims(memory, state_.dims());
     }
 

@@ -873,7 +873,7 @@ public:
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", inv_exp_transform(0.2)},
-          {"lcnn.mu-memory", 0.9},
+          {"lcnn.mu-memory", -0.9},
           {"lcnn.sigma-state-ema-alpha", inv_exp_transform(0.05)},
           {"lcnn.mu-state-ema-alpha", inv_exp_transform(0.05)},
           {"lcnn.sigma-state-ema-w", inv_exp_transform(0.1)},
