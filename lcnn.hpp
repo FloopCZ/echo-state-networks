@@ -615,8 +615,6 @@ public:
             // activation function
             update_via_activation();
 
-            // TODO should the state ema update be here?
-
             assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
 
@@ -1018,7 +1016,7 @@ public:
         state_ema_alpha_ = std::move(new_alpha);
     }
 
-    /// Set the state ema alpha.
+    /// Set the state ema weights.
     ///
     /// The shape has to be the same as the state.
     void state_ema_w(af::array new_weights)
