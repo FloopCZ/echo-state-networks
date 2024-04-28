@@ -250,6 +250,7 @@ protected:
     virtual void update_via_memory()
     {
         if (memory_length_ <= 0) return;
+        assert(!memory_w_.isempty());
         af::array memory = af::moddims(
           state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
@@ -948,6 +949,8 @@ public:
     /// The shape has to be the same as the state.
     void memory_w(af::array new_weights)
     {
+        if (memory_length_ == 0) return;
+        assert(!new_weights.isempty());
         assert(new_weights.type() == DType);
         assert(new_weights.dims() == state_.dims());
         memory_w_ = std::move(new_weights);
