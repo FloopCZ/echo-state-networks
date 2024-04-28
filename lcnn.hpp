@@ -48,6 +48,8 @@ struct lcnn_config {
     // The mapping and weight of each state position to its memory point (0 to memory_length - 1).
     af::array memory_map;
     af::array memory_w;
+    // Activation function variations
+    af::array act_funcs;
 
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
@@ -118,6 +120,7 @@ protected:
     af::array feedback_w_;
     std::vector<af::array> output_w_;
     bool force_matmul_;
+    af::array act_funcs_;
 
     // Random engines.
     prng_t prng_init_;
@@ -199,7 +202,15 @@ protected:
         // Leak some potential.
         state_ *= 1. - leakage_;
         // Apply the activation function.
-        state_ += af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
+        if (act_funcs_.isempty()) {
+            state_ += af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
+        } else {
+            af::array act_input = act_steepness_ * std::move(state_delta_) + reservoir_b_;
+            state_(act_funcs_ == 0) += af::tanh(act_input(act_funcs_ == 0));
+            state_(act_funcs_ == 1) += af::tanh(-1 * act_input(act_funcs_ == 1));
+            state_(act_funcs_ == 2) += af::sin(act_input(act_funcs_ == 2));
+            state_(act_funcs_ == 3) += af::pow(act_input(act_funcs_ == 3), 3);
+        }
         af::eval(state_);
     }
 
@@ -324,6 +335,7 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
+        act_funcs(std::move(cfg.act_funcs));
     }
 
     void save(const fs::path& dir) override
@@ -926,6 +938,16 @@ public:
         return feedback_w_;
     }
 
+    /// Set the activation function variations.
+    ///
+    /// The shape has to be the same as the state.
+    void act_funcs(af::array new_act_funcs)
+    {
+        assert(new_act_funcs.isempty() || new_act_funcs.type() == DType);
+        assert(new_act_funcs.isempty() || new_act_funcs.dims() == state_.dims());
+        act_funcs_ = std::move(new_act_funcs);
+    }
+
     /// Set the memory map (and memory length) of the network.
     ///
     /// The shape has to be the same as the state.
@@ -1140,6 +1162,8 @@ lcnn<DType> random_lcnn(
     // The distribution of memory weights.
     double sigma_memory = args.at("lcnn.sigma-memory").as<double>();
     double mu_memory = args.at("lcnn.mu-memory").as<double>();
+    // Variate activation functions.
+    double variate_act_fun = args.at("lcnn.variate-activations").as<double>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1328,6 +1352,13 @@ lcnn<DType> random_lcnn(
         cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 
+    cfg.act_funcs = af::array{};
+    if (variate_act_fun > 0.) {
+        cfg.act_funcs = af::randu({state_height, state_width}, DType, af_prng) * 4;
+        cfg.act_funcs = af::floor(cfg.act_funcs);
+        cfg.act_funcs = af::min(3, cfg.act_funcs);
+    }
+
     return lcnn<DType>{std::move(cfg), prng};
 }
 
@@ -1411,6 +1442,8 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
        "See random_lcnn().")                                                          //
       ("lcnn.mu-memory", po::value<double>()->default_value(1.0),                     //
+       "See random_lcnn().")                                                          //
+      ("lcnn.variate-activations", po::value<bool>()->default_value(false),           //
        "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
