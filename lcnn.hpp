@@ -264,7 +264,7 @@ protected:
     virtual void permute_state()
     {
         if (state_perm_.isempty()) return;
-        state_ = state_(state_perm_);
+        state_ = af::moddims(state_(state_perm_), state_.dims());
     }
 
     void adapt_weights()

@@ -37,6 +37,7 @@ mkdir -p "${outdir}"
   --bench.valid-steps=11520 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
+  --gen.n-runs=1 \
   --gen.seed="${SEED}" \
   --gen.n-trials=1 \
   --gen.af-device=0 \
