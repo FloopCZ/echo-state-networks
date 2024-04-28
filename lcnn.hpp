@@ -48,6 +48,8 @@ struct lcnn_config {
     // The mapping and weight of each state position to its memory point (0 to memory_length - 1).
     af::array memory_map;
     af::array memory_w;
+    // The state permutation
+    af::array state_perm;
 
     /// The standard deviation of the noise added to the potentials.
     double noise = 0;
@@ -118,6 +120,7 @@ protected:
     af::array feedback_w_;
     std::vector<af::array> output_w_;
     bool force_matmul_;
+    af::array state_perm_;
 
     // Random engines.
     prng_t prng_init_;
@@ -258,6 +261,12 @@ protected:
         state_ += memory_w_ * af::moddims(memory, state_.dims());
     }
 
+    virtual void permute_state()
+    {
+        if (state_perm_.isempty()) return;
+        state_ = state_(state_perm_);
+    }
+
     void adapt_weights()
     {
         assert(!state_memory_.isempty() && state_memory_.dims(2) >= 3);
@@ -325,6 +334,7 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
+        state_perm(std::move(cfg.state_perm));
     }
 
     void save(const fs::path& dir) override
@@ -543,6 +553,9 @@ public:
 
         // Restore memory neuron states from memory.
         update_via_memory();
+
+        // Swap neuron positions.
+        permute_state();
 
         // Update the internal state.
         for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
@@ -929,6 +942,16 @@ public:
         return feedback_w_;
     }
 
+    /// Set the state permutation.
+    ///
+    /// The shape has to be the same as the state.
+    void state_perm(af::array perm)
+    {
+        assert(perm.isempty() || perm.type() == DType);
+        assert(perm.isempty() || (perm.dims() == af::dim4{state_.elements()}));
+        state_perm_ = std::move(perm);
+    }
+
     /// Set the memory map (and memory length) of the network.
     ///
     /// The shape has to be the same as the state.
@@ -1141,6 +1164,8 @@ lcnn<DType> random_lcnn(
     // The distribution of memory weights.
     double sigma_memory = args.at("lcnn.sigma-memory").as<double>();
     double mu_memory = args.at("lcnn.mu-memory").as<double>();
+    // Permute the state.
+    bool state_perm = args.at("lcnn.state-permutation").as<bool>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
@@ -1327,6 +1352,9 @@ lcnn<DType> random_lcnn(
         cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 
+    cfg.state_perm = af::array{};
+    if (state_perm) cfg.state_perm = af_utils::shuffle(af::seq(cfg.init_state.elements()), af_prng);
+
     return lcnn<DType>{std::move(cfg), prng};
 }
 
@@ -1408,6 +1436,8 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
        "See random_lcnn().")                                                          //
       ("lcnn.mu-memory", po::value<double>()->default_value(1.0),                     //
+       "See random_lcnn().")                                                          //
+      ("lcnn.state-permutation", po::value<bool>()->default_value(false),             //
        "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
