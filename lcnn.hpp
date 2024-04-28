@@ -208,8 +208,9 @@ protected:
             af::array act_input = act_steepness_ * std::move(state_delta_) + reservoir_b_;
             state_(act_funcs_ == 0) += af::tanh(act_input(act_funcs_ == 0));
             state_(act_funcs_ == 1) += af::tanh(-1 * act_input(act_funcs_ == 1));
-            state_(act_funcs_ == 2) += af::sin(act_input(act_funcs_ == 2));
+            state_(act_funcs_ == 2) += af::cos(act_input(act_funcs_ == 2));
             state_(act_funcs_ == 3) += af::pow(act_input(act_funcs_ == 3), 3);
+            state_ = af::clamp(state_, -1., 1.);
         }
         af::eval(state_);
     }
