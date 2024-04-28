@@ -877,7 +877,7 @@ public:
           {"lcnn.sigma-state-ema-alpha", inv_exp_transform(0.05)},
           {"lcnn.mu-state-ema-alpha", inv_exp_transform(0.05)},
           {"lcnn.sigma-state-ema-w", inv_exp_transform(0.1)},
-          {"lcnn.mu-state-ema-w", 0.0},
+          {"lcnn.mu-state-ema-w", -0.9},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
