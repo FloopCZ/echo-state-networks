@@ -206,11 +206,11 @@ protected:
             state_ += af::tanh(act_steepness_ * std::move(state_delta_) + reservoir_b_);
         } else {
             af::array act_input = act_steepness_ * std::move(state_delta_) + reservoir_b_;
-            state_(act_funcs_ == 0) += af::tanh(act_input(act_funcs_ == 0));
-            state_(act_funcs_ == 1) += af::tanh(-1 * act_input(act_funcs_ == 1));
-            state_(act_funcs_ == 2) += af::cos(act_input(act_funcs_ == 2));
-            state_(act_funcs_ == 3) +=
-              act_input(act_funcs_ == 3) * af::abs(act_input(act_funcs_ == 3));
+            af::eval(act_input);
+            std::array<af::array, 3> activated = {
+              af::tanh(act_input), af::sin(act_input), act_input * af::abs(act_input)};
+            for (int i = 0; i < 3; ++i)
+                state_ = af::select(act_funcs_ == i, activated.at(i), state_);
             state_ = af::clamp(state_, -1., 1.);
         }
         af::eval(state_);
@@ -1359,9 +1359,9 @@ lcnn<DType> random_lcnn(
 
     cfg.act_funcs = af::array{};
     if (variate_act_fun > 0.) {
-        cfg.act_funcs = af::randu({state_height, state_width}, DType, af_prng) * 4;
+        cfg.act_funcs = af::randu({state_height, state_width}, DType, af_prng) * 3;
         cfg.act_funcs = af::floor(cfg.act_funcs);
-        cfg.act_funcs = af::min(3, cfg.act_funcs);
+        cfg.act_funcs = af::min(2, cfg.act_funcs);
     }
 
     return lcnn<DType>{std::move(cfg), prng};
