@@ -258,7 +258,6 @@ protected:
     virtual void update_via_state_ema()
     {
         if (state_ema_w_.isempty()) return;
-        state_ *= 1. - state_ema_w_;
         state_ += state_ema_w_ * state_ema_;
     }
 
