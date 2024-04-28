@@ -209,7 +209,8 @@ protected:
             state_(act_funcs_ == 0) += af::tanh(act_input(act_funcs_ == 0));
             state_(act_funcs_ == 1) += af::tanh(-1 * act_input(act_funcs_ == 1));
             state_(act_funcs_ == 2) += af::cos(act_input(act_funcs_ == 2));
-            state_(act_funcs_ == 3) += af::pow(act_input(act_funcs_ == 3), 3);
+            state_(act_funcs_ == 3) +=
+              act_input(act_funcs_ == 3) * af::abs(act_input(act_funcs_ == 3));
             state_ = af::clamp(state_, -1., 1.);
         }
         af::eval(state_);
