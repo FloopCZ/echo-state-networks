@@ -253,7 +253,7 @@ protected:
           state_memory_.slices(0, memory_length_ - 1), state_.elements(), memory_length_);
         af::array state_indices = af::array(af::seq(state_.elements())).as(DType);
         memory = af::approx2(memory, state_indices, af::flat(memory_map_));
-        state_ += memory_w_ * af::moddims(memory, state_.dims());
+        state_delta_ += memory_w_ * af::moddims(memory, state_.dims());
     }
 
     void adapt_weights()
@@ -539,9 +539,6 @@ public:
         // Prepare state delta.
         state_delta_ = af::constant(0, state_.dims(), state_.type());
 
-        // Restore memory neuron states from memory.
-        update_via_memory();
-
         // Update the internal state.
         for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
             // Perform matrix multiplication instead of state unwrapping for large kernels.
@@ -551,6 +548,9 @@ public:
                 // Use state unwrapping for small kernels
                 update_via_weights();
             }
+
+            // Restore memory neuron states from memory.
+            update_via_memory();
 
             // add input
             update_via_input(tr_step_input.data());
@@ -564,12 +564,12 @@ public:
             // activation function
             update_via_activation();
 
+            update_state_memory();
+
+            adapt_weights();
+
             assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
-
-        update_state_memory();
-
-        adapt_weights();
 
         update_last_output();
 
