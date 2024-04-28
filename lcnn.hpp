@@ -1163,7 +1163,7 @@ lcnn<DType> random_lcnn(
     double sigma_memory = args.at("lcnn.sigma-memory").as<double>();
     double mu_memory = args.at("lcnn.mu-memory").as<double>();
     // Variate activation functions.
-    double variate_act_fun = args.at("lcnn.variate-activations").as<double>();
+    bool variate_act_fun = args.at("lcnn.variate-activations").as<bool>();
 
     if (kernel_height % 2 == 0 || kernel_width % 2 == 0)
         throw std::invalid_argument{"Kernel size has to be odd."};
