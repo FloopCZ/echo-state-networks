@@ -258,7 +258,7 @@ protected:
     virtual void update_via_state_ema()
     {
         if (state_ema_w_.isempty()) return;
-        state_ += state_ema_w_ * state_ema_;
+        state_delta_ += state_ema_w_ * state_ema_;
     }
 
     virtual void update_state_memory()
@@ -587,12 +587,6 @@ public:
         // Prepare state delta.
         state_delta_ = af::constant(0, state_.dims(), state_.type());
 
-        // Restore memory neuron states from memory.
-        update_via_memory();
-
-        // Combine the state with its exponential moving average.
-        update_via_state_ema();
-
         // Update the internal state.
         for (long interm_step = 0; interm_step < intermediate_steps_; ++interm_step) {
             // Perform matrix multiplication instead of state unwrapping for large kernels.
@@ -602,6 +596,12 @@ public:
                 // Use state unwrapping for small kernels
                 update_via_weights();
             }
+
+            // Restore memory neuron states from memory.
+            // update_via_memory();
+
+            // Combine the state with its exponential moving average.
+            update_via_state_ema();
 
             // add input
             update_via_input(tr_step_input.data());
@@ -615,14 +615,12 @@ public:
             // activation function
             update_via_activation();
 
-            // TODO should the state ema update be here?
+            // update_state_memory();
+
+            update_state_ema();
 
             assert(!af::anyTrue<bool>(af::isNaN(state_)));
         }
-
-        update_state_memory();
-
-        update_state_ema();
 
         adapt_weights();
 
