@@ -249,7 +249,7 @@ protected:
 
     virtual void update_state_ema()
     {
-        if (state_ema_alpha_.isempty()) return;
+        if (state_ema_.isempty() || state_ema_alpha_.isempty()) return;
         state_ema_ *= 1. - state_ema_alpha_;
         state_ema_ += state_ema_alpha_ * state_;
         af::eval(state_ema_);
@@ -257,7 +257,7 @@ protected:
 
     virtual void update_via_state_ema()
     {
-        if (state_ema_w_.isempty()) return;
+        if (state_ema_.isempty() || state_ema_w_.isempty()) return;
         state_ += state_ema_w_ * state_ema_;
     }
 
@@ -401,15 +401,15 @@ public:
             std::string p = dir / "state_memory.bin";
             af::saveArray("data", state_memory_, p.c_str());
         }
-        {
+        if (!state_ema_.isempty()) {
             std::string p = dir / "state_ema.bin";
             af::saveArray("data", state_ema_, p.c_str());
         }
-        {
+        if (!state_ema_alpha_.isempty()) {
             std::string p = dir / "state_ema_alpha.bin";
             af::saveArray("data", state_ema_alpha_, p.c_str());
         }
-        {
+        if (!state_ema_w_.isempty()) {
             std::string p = dir / "state_ema_w.bin";
             af::saveArray("data", state_ema_w_, p.c_str());
         }
@@ -503,15 +503,15 @@ public:
         }
         {
             std::string p = dir / "state_ema.bin";
-            net.state_ema_ = af::readArray(p.c_str(), "data");
+            if (fs::exists(p)) net.state_ema_ = af::readArray(p.c_str(), "data");
         }
         {
             std::string p = dir / "state_ema_alpha.bin";
-            net.state_ema_alpha_ = af::readArray(p.c_str(), "data");
+            if (fs::exists(p)) net.state_ema_alpha_ = af::readArray(p.c_str(), "data");
         }
         {
             std::string p = dir / "state_ema_w.bin";
-            net.state_ema_w_ = af::readArray(p.c_str(), "data");
+            if (fs::exists(p)) net.state_ema_w_ = af::readArray(p.c_str(), "data");
         }
         net.last_output_.load(dir / "last_output/");
         net.prev_step_feedback_.load(dir / "prev_step_feedback/");
@@ -916,7 +916,7 @@ public:
         assert(new_state.type() == DType);
         // assert(new_state.numdims() == 2);  // Not true for vector state.
         state_ = std::move(new_state);
-        state_ema_ = state_;
+        if (!state_ema_alpha_.isempty()) state_ema_ = state_;
     }
 
     /// The input names.
@@ -1010,8 +1010,8 @@ public:
     /// The shape has to be the same as the state.
     void state_ema_alpha(af::array new_alpha)
     {
-        assert(new_alpha.type() == DType);
-        assert(new_alpha.dims() == state_.dims());
+        assert(new_alpha.isempty() || new_alpha.type() == DType);
+        assert(new_alpha.isempty() || new_alpha.dims() == state_.dims());
         state_ema_alpha_ = std::move(new_alpha);
     }
 
@@ -1020,8 +1020,8 @@ public:
     /// The shape has to be the same as the state.
     void state_ema_w(af::array new_weights)
     {
-        assert(new_weights.type() == DType);
-        assert(new_weights.dims() == state_.dims());
+        assert(new_weights.isempty() || new_weights.type() == DType);
+        assert(new_weights.isempty() || new_weights.dims() == state_.dims());
         state_ema_w_ = std::move(new_weights);
     }
 
@@ -1405,13 +1405,19 @@ lcnn<DType> random_lcnn(
         cfg.memory_w(memory_mask) = memory_w_full(memory_mask);
     }
 
-    cfg.state_ema_alpha =
-      (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1) * sigma_state_ema_alpha
-      + mu_state_ema_alpha;
-    cfg.state_ema_alpha = af::clamp(cfg.state_ema_alpha, 0., 1.);
-    cfg.state_ema_w =
-      (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1) * sigma_state_ema_w
-      + mu_state_ema_w;
+    cfg.state_ema_alpha = af::array{};
+    if (mu_state_ema_alpha != 0. || sigma_state_ema_alpha != 0.) {
+        cfg.state_ema_alpha =
+          (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1) * sigma_state_ema_alpha
+          + mu_state_ema_alpha;
+        cfg.state_ema_alpha = af::clamp(cfg.state_ema_alpha, 0., 1.);
+    }
+    cfg.state_ema_w = af::array{};
+    if (mu_state_ema_w != 0. || sigma_state_ema_w != 0.) {
+        cfg.state_ema_w =
+          (af::randu({state_height, state_width}, DType, af_prng) * 2 - 1) * sigma_state_ema_w
+          + mu_state_ema_w;
+    }
 
     return lcnn<DType>{std::move(cfg), prng};
 }
