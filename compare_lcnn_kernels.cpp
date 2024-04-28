@@ -76,7 +76,7 @@ int main(int argc, char* argv[])
         output_file = output_dir
           / ("kernel_comparison_" + std::to_string(task_offset) + "_" + std::to_string(n_tasks)
              + ".csv");
-    if (!args.contains("overwrite") && fs::exists(output_file)) {
+    if (!args.at("gen.overwrite").as<bool>() && fs::exists(output_file)) {
         std::cout << "Output file `" << output_file << "` exists, will not overwrite." << std::endl;
         return 1;
     }
