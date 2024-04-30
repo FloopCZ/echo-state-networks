@@ -25,6 +25,7 @@ af::array lcnn_step_generic(const af::array& state, const af::array& reservoir_w
             if ((i * kernel_height + j) % SHIFT_STEP_MAX_JIT_SIZE == 0) af::eval(new_state);
         }
     }
+    new_state /= kernel_height * kernel_width;
     af::eval(new_state);
     return new_state;
 }

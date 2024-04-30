@@ -16,8 +16,7 @@ void const_test()
             af::array reservoir_w = af::constant(
               5, state_height, state_width, kernel_height, kernel_width, af::dtype::f64);
             af::array new_state = lcnn_step(state, reservoir_w);
-            af::array expected = af::constant(
-              kernel_height * kernel_width * 3 * 5, state_height, state_width, af::dtype::f64);
+            af::array expected = af::constant(3 * 5, state_height, state_width, af::dtype::f64);
             ASSERT_TRUE(af::allTrue<bool>(af::abs(new_state - expected) < 1e-12));
         }
     }
@@ -41,7 +40,8 @@ static void test_step(int state_height, int state_width, int kernel_height, int 
                     sum += w.scalar<double>() * s.scalar<double>();
                 }
             }
-            ASSERT_NEAR(sum, new_state(i, j).scalar<double>(), 1e-12);
+            double mean = sum / kernel_height / kernel_width;
+            ASSERT_NEAR(mean, new_state(i, j).scalar<double>(), 1e-12);
         }
     }
 }

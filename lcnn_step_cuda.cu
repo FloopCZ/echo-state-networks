@@ -63,7 +63,7 @@ lcnn_step_kernel(double* state, double* reservoir_w, double* output, int N, int 
     }
 
     // printf("output i,j = %d,%d, value = %f\n", i, j, sum);
-    output[i + N * j] = sum;
+    output[i + N * j] = sum / (K * L);
 }
 
 af::array lcnn_step(const af::array& state, const af::array& reservoir_w)

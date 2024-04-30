@@ -842,7 +842,7 @@ public:
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", inv_exp_transform(0.2)},
-          {"lcnn.mu-memory", -0.9},
+          {"lcnn.mu-memory", -2.0},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
@@ -859,7 +859,7 @@ public:
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
-        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2 * neuron_ins_));
+        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(0.2);
         // Sparse nets should be biased towards positive mu_res, e.g. 0.3, negative mu-res
         // provide slightly worse results than positive mu-res.
         if (neuron_ins_ < 5.) param_x0_.at("lcnn.mu-res") = inv_pow_transform(0.3);
@@ -971,7 +971,7 @@ public:
           {"lcnn.act-steepness", -1.1},
           {"lcnn.memory-prob", -0.1},
           {"lcnn.sigma-memory", -0.1},
-          {"lcnn.mu-memory", -2.1},
+          {"lcnn.mu-memory", -4.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
@@ -1007,7 +1007,7 @@ public:
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},
           {"lcnn.sigma-memory", 1.1},
-          {"lcnn.mu-memory", 2.1},
+          {"lcnn.mu-memory", 0.1},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
