@@ -1414,7 +1414,7 @@ inline po::options_description lcnn_arg_description()
        "The probability that a neuron is a memory neuron.")                           //
       ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
        "See random_lcnn().")                                                          //
-      ("lcnn.mu-memory", po::value<double>()->default_value(1.0),                     //
+      ("lcnn.mu-memory", po::value<double>()->default_value(-1.0),                    //
        "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
