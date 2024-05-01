@@ -12,14 +12,13 @@ TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k7-ettm1-ahead${AHEAD}-loop-seed${SEED}/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k7-ettm1-ahead${AHEAD}-loop-fixed-seed${SEED}/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.sigma-fb-weight \
-  --opt.include-params=lcnn.mu-memory \
+  --opt.exclude-params=lcnn.sigma-fb-weight lcnn.mu-res lcnn.mu-b \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
