@@ -12,21 +12,23 @@ TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-ettm1-ahead${AHEAD}-loop-addmem-seed${SEED}/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k7-ettm1-ahead${AHEAD}-loop-memsigmaonly-seed${SEED}/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.sigma-fb-weight \
-  --opt.include-params=lcnn.mu-memory \
+  --opt.exclude-params=lcnn.sigma-fb-weight lcnn.mu-res lcnn.mu-b \
+  --opt.include-params=lcnn.sigma-memory \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --lcnn.memory-length=60 \
+  --lcnn.kernel-height=7 \
+  --lcnn.kernel-width=7 \
+  --lcnn.memory-length=48 \
   --lcnn.memory-prob=1 \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
