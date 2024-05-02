@@ -1028,11 +1028,13 @@ public:
         // TODO only as a config option
         std::set<std::string> mu_in_group;
         std::set<std::string> sigma_in_group;
+        for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
+            mu_in_group.insert("lcnn.mu-in-weight-" + std::to_string(i));
+            sigma_in_group.insert("lcnn.sigma-in-weight-" + std::to_string(i));
+        }
         std::set<std::string> mu_fb_group;
         std::set<std::string> sigma_fb_group;
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
-            mu_in_group.insert("lcnn.mu-in-weight-" + std::to_string(i));
-            sigma_in_group.insert("lcnn.sigma-in-weight-" + std::to_string(i));
             mu_fb_group.insert("lcnn.mu-fb-weight-" + std::to_string(i));
             sigma_fb_group.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
         }
