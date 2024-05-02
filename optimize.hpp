@@ -1026,13 +1026,13 @@ public:
     std::vector<std::set<std::string>> param_groups() const override
     {
         // TODO only as a config option
-        std::set<std::string> fb_w_group;
-        std::set<std::string> fb_b_group;
+        std::set<std::string> mu_fb_group;
+        std::set<std::string> sigma_fb_group;
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
-            fb_w_group.insert("lcnn.mu-fb-weight-" + std::to_string(i));
-            fb_b_group.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
+            mu_fb_group.insert("lcnn.mu-fb-weight-" + std::to_string(i));
+            sigma_fb_group.insert("lcnn.sigma-fb-weight-" + std::to_string(i));
         }
-        return {fb_w_group, fb_b_group};
+        return {mu_fb_group, sigma_fb_group};
     }
 };
 
