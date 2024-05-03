@@ -1321,8 +1321,9 @@ lcnn<DType> random_lcnn(
         cfg.memory_w = af::array{};
     } else {
         cfg.memory_map = af::constant(0, {state_height, state_width}, DType);
-        af::array memory_full =
-          af::round(af::randu(cfg.memory_map.dims(), DType, af_prng) * (memory_length - 1));
+        af::array memory_full = af::randu(cfg.memory_map.dims(), DType, af_prng) * memory_length;
+        memory_full = af::min(memory_length - 1, af::floor(memory_full));
+
         af::array memory_mask = af::randu(cfg.memory_map.dims()) < memory_prob;
         cfg.memory_map(memory_mask) = memory_full(memory_mask);
 
