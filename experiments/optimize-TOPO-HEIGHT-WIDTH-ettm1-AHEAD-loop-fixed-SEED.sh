@@ -18,7 +18,8 @@ mkdir -p "${outdir}"
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.sigma-fb-weight lcnn.mu-res lcnn.mu-b \
+  --opt.exclude-params=lcnn.sigma-fb-weight lcnn.mu-res lcnn.mu-b lcnn.enet-lambda \
+  --lcnn.enet-lambda=1e-5 \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
