@@ -2,46 +2,41 @@
 set -e
 set -o pipefail
 
-if [ $# -lt 4 ]; then echo "Invalid usage"; exit 1; fi
+if [ $# != 5 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
 AHEAD="$4"
-SEED="${5:-50}"
-TASK_OFFSET=${TASK_OFFSET:-0}
-N_TASKS=${N_TASKS:-99999}
+KERNEL="$5"
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k7-ettm1-ahead${AHEAD}-loop-fixed-seed${SEED}/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-etth1-ahead${AHEAD}-loop/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.sigma-fb-weight lcnn.mu-res lcnn.mu-b lcnn.enet-lambda \
-  --lcnn.enet-lambda=1e-5 \
+  --opt.exclude-params=lcnn.sigma-fb-weight \
+  --opt.include-params=lcnn.sigma-memory lcnn.mu-memory \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --lcnn.kernel-height=7 \
-  --lcnn.kernel-width=7 \
+  --lcnn.kernel-height="${KERNEL}" \
+  --lcnn.kernel-width="${KERNEL}" \
   --lcnn.memory-length=96 \
   --lcnn.memory-prob=1 \
-  --gen.benchmark-set=ettm-loop \
+  --gen.benchmark-set=etth-loop \
   --bench.etth-variant=1 \
   --bench.ett-set-type=train-valid \
-  --bench.init-steps=500 \
-  --bench.train-steps=34060 \
-  --bench.valid-steps=11520 \
+  --bench.init-steps=300 \
+  --bench.train-steps=8340 \
+  --bench.valid-steps=2880 \
   --bench.n-steps-ahead="${AHEAD}" \
-  --bench.validation-stride=30 \
-  --gen.seed="${SEED}" \
+  --bench.validation-stride=10 \
   --gen.n-trials=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
-  --gen.task-offset="${TASK_OFFSET}" \
-  --gen.n-tasks="${N_TASKS}" \
-  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
+  2>&1 | tee -a "${outdir}/out.txt"
