@@ -6,5 +6,7 @@ if [ $# -lt 1 ]; then
 fi
 
 for f in "$@"; do
-    grep --text "Best candidate" "$f"/out* | tail -n1
+    for out in "$f"/out*; do
+        grep --text "Best candidate" "$out" | tail -n1
+    done
 done
