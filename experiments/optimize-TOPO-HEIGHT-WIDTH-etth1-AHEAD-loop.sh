@@ -23,7 +23,7 @@ mkdir -p "${outdir}"
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --lcnn.memory-length=60 \
+  --lcnn.memory-length=96 \
   --lcnn.memory-prob=1 \
   --gen.benchmark-set=etth-loop \
   --bench.etth-variant=1 \

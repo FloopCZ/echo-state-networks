@@ -28,7 +28,7 @@ mkdir -p "${outdir}"
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
-  --lcnn.memory-length=60 \
+  --lcnn.memory-length=96 \
   --lcnn.memory-prob=1 \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \

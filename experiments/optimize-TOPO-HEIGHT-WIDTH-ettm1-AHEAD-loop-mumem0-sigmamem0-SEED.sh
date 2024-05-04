@@ -28,7 +28,7 @@ mkdir -p "${outdir}"
   --lcnn.state-width="${WIDTH}" \
   --lcnn.kernel-height=7 \
   --lcnn.kernel-width=7 \
-  --lcnn.memory-length=48 \
+  --lcnn.memory-length=96 \
   --lcnn.memory-prob=1 \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
