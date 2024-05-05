@@ -536,7 +536,7 @@ public:
             } else if (key == "lcnn.memory-prob") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.sigma-memory") {
-                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.mu-memory") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.adapt.learning-rate") {
@@ -694,7 +694,7 @@ public:
             params.erase("lcnn.memory-prob");
         }
         if (params.contains("lcnn.sigma-memory")) {
-            cfg.insert_or_assign("lcnn.sigma-memory", expval(params.at("lcnn.sigma-memory")));
+            cfg.insert_or_assign("lcnn.sigma-memory", val(params.at("lcnn.sigma-memory")));
             params.erase("lcnn.sigma-memory");
         }
         if (params.contains("lcnn.mu-memory")) {
@@ -841,7 +841,7 @@ public:
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
-          {"lcnn.sigma-memory", inv_exp_transform(0.2)},
+          {"lcnn.sigma-memory", 0.5},
           {"lcnn.mu-memory", 1.0},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
@@ -934,7 +934,7 @@ public:
           {"lcnn.input-to-n", 0.1},
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
-          {"lcnn.sigma-memory", 0.01},
+          {"lcnn.sigma-memory", 0.1},
           {"lcnn.mu-memory", 0.05},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
