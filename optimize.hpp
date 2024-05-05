@@ -836,7 +836,7 @@ public:
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
-          {"lcnn.enet-lambda", inv_exp_transform(1e-11)},
+          {"lcnn.enet-lambda", inv_exp_transform(1e-9)},
           {"lcnn.enet-alpha", 0.5},
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
@@ -859,7 +859,7 @@ public:
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
-        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / neuron_ins_);
+        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2. * neuron_ins_));
         // Sparse nets should be biased towards positive mu_res, e.g. 0.3, negative mu-res
         // provide slightly worse results than positive mu-res.
         if (neuron_ins_ < 5.) param_x0_.at("lcnn.mu-res") = inv_pow_transform(0.3);
