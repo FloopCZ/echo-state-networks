@@ -836,7 +836,7 @@ public:
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
-          {"lcnn.enet-lambda", inv_exp_transform(1e-9)},
+          {"lcnn.enet-lambda", inv_exp_transform(1e-8)},
           {"lcnn.enet-alpha", 0.5},
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
@@ -849,11 +849,13 @@ public:
         };
         for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.2});
+            param_x0_.insert(
+              {"lcnn.sigma-in-weight-" + std::to_string(i), inv_exp_transform(1e-5)});
         }
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.2});
+            param_x0_.insert(
+              {"lcnn.sigma-fb-weight-" + std::to_string(i), inv_exp_transform(1e-5)});
         }
         prng_t prng_clone{prng_};
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
