@@ -1154,7 +1154,7 @@ inline po::options_description optimizer_arg_description()
        "aggregated evals are considered as one).")                                          //
       ("opt.lambda", po::value<int>()->default_value(25),                                   //
        "The number of offspring sampled in each step. Use -1 for automatic deduction.")     //
-      ("opt.sigma", po::value<double>()->default_value(2),                                  //
+      ("opt.sigma", po::value<double>()->default_value(1),                                  //
        "The initial sigma value, i.e., the level of exploration. Beware that internally, "  //
        "the optimized range is [0, 10].")                                                   //
       ("opt.uncertainty", po::value<bool>()->default_value(false),                          //
