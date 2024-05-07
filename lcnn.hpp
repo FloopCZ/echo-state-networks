@@ -1421,7 +1421,7 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                      //
       ("lcnn.memory-length", po::value<long>()->default_value(0.0),                   //
        "The maximum reach of the memory. Set to 0 to disable memory.")                //
-      ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
+      ("lcnn.memory-prob", po::value<double>()->default_value(1.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
       ("lcnn.sigma-memory", po::value<double>()->default_value(1.0),                  //
        "See random_lcnn().")                                                          //
