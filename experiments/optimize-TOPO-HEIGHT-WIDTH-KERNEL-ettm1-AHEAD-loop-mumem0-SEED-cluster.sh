@@ -4,6 +4,6 @@ set -e
 n_tasks=1
 for task_offset in `seq 0 $n_tasks 4`; do
     echo $task_offset $n_tasks
-    cmd="./experiments/optimize-TOPO-HEIGHT-WIDTH-ettm1-AHEAD-loop-mumem0-sigmamem0-SEED.sh $@"
+    cmd="./experiments/optimize-TOPO-HEIGHT-WIDTH-KERNEL-ettm1-AHEAD-loop-mumem0-SEED.sh $@"
     qsub -v TASK_OFFSET="${task_offset}",N_TASKS="${n_tasks}",cmd="${cmd}" ../run-gpu-experiment-singularity.sh
 done

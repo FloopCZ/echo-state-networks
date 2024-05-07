@@ -2,33 +2,35 @@
 set -e
 set -o pipefail
 
-if [ $# -lt 4 ]; then echo "Invalid usage"; exit 1; fi
+if [ $# -lt 5 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
-AHEAD="$4"
-SEED="${5:-50}"
+KERNEL="$4"
+AHEAD="$5"
+SEED="${6:-50}"
 TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k7-ettm1-ahead${AHEAD}-loop-fixed-seed${SEED}/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-ettm1-ahead${AHEAD}-loop-mumem0-memlen96-optset3-seed${SEED}/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
-  --opt.exclude-params=lcnn.sigma-fb-weight lcnn.mu-res lcnn.mu-b lcnn.enet-lambda \
-  --lcnn.enet-lambda=1e-5 \
+  --opt.exclude-params=lcnn.sigma-fb-weight \
+  --opt.include-params=lcnn.sigma-memory \
+  --lcnn.mu-memory=0 \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
-  --lcnn.kernel-height=7 \
-  --lcnn.kernel-width=7 \
-  --lcnn.memory-length=48 \
+  --lcnn.kernel-height="${KERNEL}" \
+  --lcnn.kernel-width="${KERNEL}" \
+  --lcnn.memory-length=96 \
   --lcnn.memory-prob=1 \
   --gen.benchmark-set=ettm-loop \
   --bench.etth-variant=1 \
