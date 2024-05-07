@@ -17,7 +17,6 @@ mkdir -p "${outdir}"
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.sigma-fb-weight \
-  --opt.include-params=lcnn.sigma-memory lcnn.mu-memory \
   --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
@@ -26,10 +25,9 @@ mkdir -p "${outdir}"
   --lcnn.state-width="${WIDTH}" \
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
-  --lcnn.memory-length=96 \
-  --lcnn.memory-prob=1 \
+  --lcnn.memory-length=100 \
   --gen.benchmark-set=etth-loop \
-  --bench.etth-variant=1 \
+  --bench.ett-variant=1 \
   --bench.ett-set-type=train-valid \
   --bench.init-steps=300 \
   --bench.train-steps=8340 \

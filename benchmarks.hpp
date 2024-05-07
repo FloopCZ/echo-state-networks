@@ -637,7 +637,7 @@ protected:
 public:
     etth_loader(po::variables_map config)
       : ett_loader{config}
-      , variant_{config.at("bench.etth-variant").as<int>()}
+      , variant_{config.at("bench.ett-variant").as<int>()}
       , set_type_{config.at("bench.ett-set-type").as<std::string>()}
     {
         load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
@@ -710,7 +710,7 @@ protected:
 public:
     ettm_loader(po::variables_map config)
       : ett_loader{config}
-      , variant_{config.at("bench.etth-variant").as<int>()}
+      , variant_{config.at("bench.ett-variant").as<int>()}
       , set_type_{config.at("bench.ett-set-type").as<std::string>()}
     {
         load_data("ETT-small/ETTm" + std::to_string(variant_) + ".csv");
@@ -1308,7 +1308,7 @@ inline po::options_description benchmark_arg_description()
        "Time when semaphore stops blinking.")                                                    //
       ("bench.ett-data-path", po::value<std::string>()->default_value("third_party/ETDataset"),  //
        "Path to the ETT dataset.")                                                               //
-      ("bench.etth-variant", po::value<int>()->default_value(1),                                 //
+      ("bench.ett-variant", po::value<int>()->default_value(1),                                  //
        "Variant of the ETTh dataset (1 or 2).")                                                  //
       ("bench.ett-set-type", po::value<std::string>()->default_value("train-valid"),             //
        "Part of the ETT dataset (train, valid, train-valid, test).")                             //

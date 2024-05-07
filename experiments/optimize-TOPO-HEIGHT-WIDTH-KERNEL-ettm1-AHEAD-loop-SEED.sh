@@ -30,7 +30,7 @@ mkdir -p "${outdir}"
   --lcnn.kernel-width="${KERNEL}" \
   --lcnn.memory-length=100 \
   --gen.benchmark-set=ettm-loop \
-  --bench.etth-variant=1 \
+  --bench.ett-variant=1 \
   --bench.ett-set-type=train-valid \
   --bench.init-steps=500 \
   --bench.train-steps=34060 \
