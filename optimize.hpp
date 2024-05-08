@@ -852,12 +852,12 @@ public:
         for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
             param_x0_.insert(
-              {"lcnn.sigma-in-weight-" + std::to_string(i), inv_exp_transform(1e-5)});
+              {"lcnn.sigma-in-weight-" + std::to_string(i), inv_exp_transform(5e-6)});
         }
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
             param_x0_.insert(
-              {"lcnn.sigma-fb-weight-" + std::to_string(i), inv_exp_transform(1e-5)});
+              {"lcnn.sigma-fb-weight-" + std::to_string(i), inv_exp_transform(5e-6)});
         }
         prng_t prng_clone{prng_};
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
