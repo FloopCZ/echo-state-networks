@@ -8,7 +8,6 @@
             "program": "${workspaceFolder}/build/optimize_cuda",
             "args": [
                 "--gen.net-type=lcnn",
-                "--lcnn.topology=lcnn",
                 "--lcnn.kernel-height=5",
                 "--lcnn.kernel-width=5",
                 "--lcnn.state-height=10",
@@ -39,15 +38,15 @@
             ]
         },
         {
-            "name": "(gdb) Launch evaluate_cuda for lcnn",
+            "name": "(gdb) Launch evaluate_cuda for lcnn on narma10",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/evaluate_cuda",
             "args": [
                 "--gen.net-type=lcnn",
-                "--lcnn.topology=lcnn",
                 "--lcnn.state-height=20",
                 "--lcnn.state-width=25",
+                "--gen.benchmark-set=narma10",
                 "--bench.init-steps=10",
                 "--bench.train-steps=100",
                 "--bench.valid-steps=100",

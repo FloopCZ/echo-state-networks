@@ -1369,7 +1369,7 @@ inline po::options_description lcnn_arg_description()
       ("lcnn.sigma-in-weight",                                                        //
        po::value<std::vector<double>>()                                               //
          ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0.0}, "0.0"),                            //
+         ->default_value(std::vector<double>{0.1}, "0.1"),                            //
        "See random_lcnn().")                                                          //
       ("lcnn.mu-fb-weight",                                                           //
        po::value<std::vector<double>>()                                               //
