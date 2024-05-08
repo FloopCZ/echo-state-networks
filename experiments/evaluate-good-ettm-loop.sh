@@ -4,7 +4,7 @@ set -e
 export AF_MAX_BUFFERS=100000
 ./build/evaluate_cuda \
 --bench.error-measure=mse \
---bench.ett-set-type=train-valid \
+--bench.set-type=train-valid \
 --bench.ett-variant=1 \
 --bench.init-steps=500 \
 --bench.mackey-glass-delta=0.10000000000000001 \

@@ -28,7 +28,7 @@ mkdir -p "${outdir}"
   --lcnn.memory-length=100 \
   --gen.benchmark-set=etth-loop \
   --bench.ett-variant=1 \
-  --bench.ett-set-type=train-valid \
+  --bench.set-type=train-valid \
   --bench.init-steps=300 \
   --bench.train-steps=8340 \
   --bench.valid-steps=2880 \

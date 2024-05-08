@@ -9,7 +9,7 @@ VALIDATION_STRIDE="${3:-1}"
 export AF_MAX_BUFFERS=100000
 ./build/evaluate_cuda \
 --bench.error-measure=mse \
---bench.ett-set-type=train-valid-test \
+--bench.set-type=train-valid-test \
 --bench.ett-variant=1 \
 --bench.init-steps=500 \
 --bench.mackey-glass-delta=0.10000000000000001 \

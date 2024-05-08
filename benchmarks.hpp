@@ -579,25 +579,8 @@ public:
     }
 };
 
-class ett_loader : public csv_loader {
+class dataset_loader : public csv_loader {
 protected:
-    data_map ett_input_transform(const data_map& xs) const
-    {
-        // ETT datasets are normalized.
-        return xs;
-        // If it was not the case, we could use the following:
-        // if (xs.empty()) return {};
-        // Avoid -1 and 1 to atanh by multiplying by 0.99.
-        // return {xs.keys(), af::tanh((xs.data() / 50. - 0.2)) * 0.99};
-    }
-
-public:
-    ett_loader(const po::variables_map& config) : csv_loader{config} {}
-};
-
-class etth_loader : public ett_loader {
-protected:
-    int variant_;
     std::string set_type_;  // train/valid/test
 
     std::tuple<const data_map&, const data_map&> get_dataset(af::dtype dtype, prng_t& prng) const
@@ -627,117 +610,74 @@ protected:
     data_map train_valid_test_meta_;
 
 public:
-    etth_loader(po::variables_map config)
-      : ett_loader{config}
-      , variant_{config.at("bench.ett-variant").as<int>()}
-      , set_type_{config.at("bench.ett-set-type").as<std::string>()}
+    dataset_loader(po::variables_map config)
+      : csv_loader{config}, set_type_{config.at("bench.set-type").as<std::string>()}
     {
-        load_data("third_party/datasets/ETT-small/ETTh" + std::to_string(variant_) + ".csv", {});
+    }
 
-        af::seq train_selector(0, 12 * 30 * 24 - 1);
+    void load_data(
+      const fs::path& csv_path,
+      const std::vector<std::string>& header,
+      af::seq train_selector,
+      af::seq valid_selector,
+      af::seq test_selector)
+    {
+        csv_loader::load_data(csv_path, header);
+
         train_data_ = data_.select(train_selector);
         train_meta_ = meta_.select(train_selector);
         data_map norm_reference = train_data_;
-        std::cout << "ETT train has " << train_data_.length() << " points.\n";
+        std::cout << "Dataset train has " << train_data_.length() << " points.\n";
         train_data_ = train_data_.normalize_by(norm_reference);
 
-        af::seq valid_selector(12 * 30 * 24, (12 + 4) * 30 * 24 - 1);
         valid_data_ = data_.select(valid_selector);
         valid_meta_ = meta_.select(valid_selector);
-        std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
+        std::cout << "Dataset valid has " << valid_data_.length() << " points.\n";
         valid_data_ = valid_data_.normalize_by(norm_reference);
 
         train_valid_data_ = train_data_.concat(valid_data_);
         train_valid_meta_ = train_meta_.concat(valid_meta_);
-        std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
+        std::cout << "Dataset train-valid has " << train_valid_data_.length() << " points.\n";
 
-        af::seq test_selector((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1);
         test_data_ = data_.select(test_selector);
         test_meta_ = meta_.select(test_selector);
-        std::cout << "ETT test has " << test_data_.length() << " points.\n";
+        std::cout << "Dataset test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
 
         train_valid_test_data_ = train_valid_data_.concat(test_data_);
         train_valid_test_meta_ = train_valid_meta_.concat(test_meta_);
-        std::cout << "ETT train-valid-test has " << train_valid_test_data_.length() << " points.\n";
+        std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
+                  << " points.\n";
 
-        std::cout << "Naive 1-step ahead prediction valid MSE error is "
-                  << af_utils::mse<double>(
-                       valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
-                  << std::endl;
+        if (data_.contains("OT"))
+            std::cout << "Naive 1-step ahead prediction valid MSE error for OT is "
+                      << af_utils::mse<double>(
+                           valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
+                      << std::endl;
     }
 };
 
-class ettm_loader : public ett_loader {
+class loop_dataset_loader : public loop_benchmark_set, public dataset_loader {
 protected:
-    int variant_;
-    std::string set_type_;  // train/valid/test
-
-    std::tuple<const data_map&, const data_map&> get_dataset(af::dtype dtype, prng_t& prng) const
+    std::tuple<data_map, data_map, data_map>
+    generate_data(af::dtype dtype, prng_t& prng) const override
     {
-        if (set_type_ == "train") return {train_data_, train_meta_};
-        if (set_type_ == "valid") return {valid_data_, valid_meta_};
-        if (set_type_ == "train-valid") return {train_valid_data_, train_valid_meta_};
-        if (set_type_ == "test") return {test_data_, test_meta_};
-        if (set_type_ == "train-valid-test")
-            return {train_valid_test_data_, train_valid_test_meta_};
-        throw std::runtime_error{"Unknown dataset."};
+        data_map dataset, meta;
+        std::tie(dataset, meta) = get_dataset(dtype, prng);
+        data_map xs = dataset.filter(input_names());
+        data_map ys = dataset.filter(output_names()).shift(-1);
+        return {std::move(xs), std::move(ys), std::move(meta)};
     }
 
-    data_map train_data_;
-    data_map train_meta_;
-
-    data_map valid_data_;
-    data_map valid_meta_;
-
-    data_map train_valid_data_;
-    data_map train_valid_meta_;
-
-    data_map test_data_;
-    data_map test_meta_;
-
-    data_map train_valid_test_data_;
-    data_map train_valid_test_meta_;
-
 public:
-    ettm_loader(po::variables_map config)
-      : ett_loader{config}
-      , variant_{config.at("bench.ett-variant").as<int>()}
-      , set_type_{config.at("bench.ett-set-type").as<std::string>()}
+    loop_dataset_loader(po::variables_map config)
+      : loop_benchmark_set{config}, dataset_loader{config}
     {
-        load_data("third_party/datasets/ETT-small/ETTm" + std::to_string(variant_) + ".csv", {});
+    }
 
-        af::seq train_selector(0, 12 * 30 * 24 * 4 - 1);
-        train_data_ = data_.select(train_selector);
-        train_meta_ = meta_.select(train_selector);
-        data_map norm_reference = train_data_;
-        std::cout << "ETT train has " << train_data_.length() << " points.\n";
-        train_data_ = train_data_.normalize_by(norm_reference);
-
-        af::seq valid_selector(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1);
-        valid_data_ = data_.select(valid_selector);
-        valid_meta_ = meta_.select(valid_selector);
-        std::cout << "ETT valid has " << valid_data_.length() << " points.\n";
-        valid_data_ = valid_data_.normalize_by(norm_reference);
-
-        train_valid_data_ = train_data_.concat(valid_data_);
-        train_valid_meta_ = train_meta_.concat(valid_meta_);
-        std::cout << "ETT train-valid has " << train_valid_data_.length() << " points.\n";
-
-        af::seq test_selector((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1);
-        test_data_ = data_.select(test_selector);
-        test_meta_ = meta_.select(test_selector);
-        std::cout << "ETT test has " << test_data_.length() << " points.\n";
-        test_data_ = test_data_.normalize_by(norm_reference);
-
-        train_valid_test_data_ = train_valid_data_.concat(test_data_);
-        train_valid_test_meta_ = train_valid_meta_.concat(test_meta_);
-        std::cout << "ETT train-valid-test has " << train_valid_test_data_.length() << " points.\n";
-
-        std::cout << "Naive 1-step ahead prediction valid MSE error is "
-                  << af_utils::mse<double>(
-                       valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
-                  << std::endl;
+    bool constant_data() const override
+    {
+        return true;
     }
 };
 
@@ -766,7 +706,7 @@ protected:
 
 public:
     narma10_loop_benchmark_set(po::variables_map config)
-      : loop_benchmark_set{std::move(config)}, narma10_generator{config_}
+      : loop_benchmark_set{config}, narma10_generator{config}
     {
     }
 
@@ -791,32 +731,26 @@ public:
     }
 };
 
-class etth_loop_benchmark_set : public loop_benchmark_set, public etth_loader {
+class etth_loop_benchmark_set : public loop_dataset_loader {
 protected:
     std::set<std::string> persistent_input_names_{};
     std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
-
-    data_map input_transform(const data_map& xs) const override
-    {
-        return ett_input_transform(xs);
-    }
-
-    std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, prng_t& prng) const override
-    {
-        data_map dataset, meta;
-        std::tie(dataset, meta) = get_dataset(dtype, prng);
-        data_map xs = dataset.filter(input_names());
-        data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys), std::move(meta)};
-    }
+    int variant_;
 
 public:
     etth_loop_benchmark_set(po::variables_map config)
-      : loop_benchmark_set{std::move(config)}, etth_loader{config_}
+      : loop_dataset_loader{config}, variant_{config.at("bench.ett-variant").as<int>()}
     {
+        // The following values comply with the original Informer paper and the iTransformer paper.
+        af::seq train_selector(0, 12 * 30 * 24 - 1);
+        af::seq valid_selector(12 * 30 * 24, (12 + 4) * 30 * 24 - 1);
+        af::seq test_selector((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1);
+
+        load_data(
+          "third_party/datasets/ETT-small/ETTh" + std::to_string(variant_) + ".csv", {},
+          train_selector, valid_selector, test_selector);
     }
 
     const std::set<std::string>& persistent_input_names() const override
@@ -837,11 +771,6 @@ public:
     const std::set<std::string>& target_names() const override
     {
         return target_names_;
-    }
-
-    bool constant_data() const override
-    {
-        return true;
     }
 };
 
@@ -873,32 +802,26 @@ public:
     }
 };
 
-class ettm_loop_benchmark_set : public loop_benchmark_set, public ettm_loader {
+class ettm_loop_benchmark_set : public loop_dataset_loader {
 protected:
     std::set<std::string> persistent_input_names_{};
     std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
-
-    data_map input_transform(const data_map& xs) const override
-    {
-        return ett_input_transform(xs);
-    }
-
-    std::tuple<data_map, data_map, data_map>
-    generate_data(af::dtype dtype, prng_t& prng) const override
-    {
-        data_map dataset, meta;
-        std::tie(dataset, meta) = get_dataset(dtype, prng);
-        data_map xs = dataset.filter(input_names());
-        data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys), std::move(meta)};
-    }
+    int variant_;
 
 public:
     ettm_loop_benchmark_set(po::variables_map config)
-      : loop_benchmark_set{std::move(config)}, ettm_loader{config_}
+      : loop_dataset_loader{config}, variant_{config.at("bench.ett-variant").as<int>()}
     {
+        // The following values comply with the original Informer paper and the iTransformer paper.
+        af::seq train_selector(0, 12 * 30 * 24 * 4 - 1);
+        af::seq valid_selector(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1);
+        af::seq test_selector((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1);
+
+        load_data(
+          "third_party/datasets/ETT-small/ETTm" + std::to_string(variant_) + ".csv", {},
+          train_selector, valid_selector, test_selector);
     }
 
     const std::set<std::string>& persistent_input_names() const override
@@ -920,40 +843,52 @@ public:
     {
         return target_names_;
     }
-
-    bool constant_data() const override
-    {
-        return true;
-    }
 };
 
-class ettm_1ahead_benchmark_set : public benchmark_set, public ettm_loader {
+class weather_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    std::set<std::string> persistent_input_names_{};
+    std::set<std::string> input_names_{
+      "p (mbar)",
+      "T (degC)",
+      "Tpot (K)",
+      "Tdew (degC)",
+      "rh (%)",
+      "VPmax (mbar)",
+      "VPact (mbar)",
+      "VPdef (mbar)",
+      "sh (g/kg)",
+      "H2OC (mmol/mol)",
+      "rho (g/m**3)",
+      "wv (m/s)",
+      "max. wv (m/s)",
+      "wd (deg)",
+      "rain (mm)",
+      "raining (s)",
+      "SWDR (W/m�)",
+      "PAR (�mol/m�/s)",
+      "max. PAR (�mol/m�/s)",
+      "Tlog (degC)",
+      "OT"};
     std::set<std::string> output_names_ = input_names_;
-
-    data_map input_transform(const data_map& xs) const override
-    {
-        return ett_input_transform(xs);
-    }
-
-    std::tuple<data_map, data_map, data_map>
-    generate_data(long length, af::dtype dtype, prng_t& prng) const override
-    {
-        // TODO length shold be used/checked even in basic benchmark_set
-        data_map dataset, meta;
-        std::tie(dataset, meta) = get_dataset(dtype, prng);
-        if (dataset.length() <= length || meta.length() <= length)
-            throw std::runtime_error{"Not enough data for the requested length."};
-        data_map xs = dataset.filter(input_names());
-        data_map ys = dataset.filter(output_names()).shift(-1);
-        return {std::move(xs), std::move(ys), std::move(meta)};
-    }
+    std::set<std::string> target_names_ = output_names_;
 
 public:
-    ettm_1ahead_benchmark_set(po::variables_map config)
-      : benchmark_set{std::move(config)}, ettm_loader{config_}
+    weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
+        long len = 52696;
+        af::seq train_selector(0, len * 0.7 - 1);
+        af::seq valid_selector(len * 0.7, len * 0.9 - 1);
+        af::seq test_selector(len * 0.9, af::end);
+
+        load_data(
+          "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
+          test_selector);
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
     }
 
     const std::set<std::string>& input_names() const override
@@ -966,9 +901,9 @@ public:
         return output_names_;
     }
 
-    bool constant_data() const override
+    const std::set<std::string>& target_names() const override
     {
-        return true;
+        return target_names_;
     }
 };
 
@@ -1193,14 +1128,14 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     if (args.at("gen.benchmark-set").as<std::string>() == "etth-single-loop") {
         return std::make_unique<etth_single_loop_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-1ahead") {
-        return std::make_unique<ettm_1ahead_benchmark_set>(args);
-    }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
         return std::make_unique<ettm_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "ettm-single-loop") {
         return std::make_unique<ettm_single_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "weather-loop") {
+        return std::make_unique<weather_loop_benchmark_set>(args);
     }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
@@ -1241,7 +1176,7 @@ inline po::options_description benchmark_arg_description()
        "Time when semaphore stops blinking.")                                                //
       ("bench.ett-variant", po::value<int>()->default_value(1),                              //
        "Variant of the ETTh dataset (1 or 2).")                                              //
-      ("bench.ett-set-type", po::value<std::string>()->default_value("train-valid"),         //
+      ("bench.set-type", po::value<std::string>()->default_value("train-valid"),             //
        "Part of the ETT dataset (train, valid, train-valid, test).")                         //
       ;
     return benchmark_arg_desc;
