@@ -4,7 +4,6 @@ set -e
 export AF_MAX_BUFFERS=100000
 ./build/evaluate_cuda \
 --bench.error-measure=mse \
---bench.ett-data-path=third_party/ETDataset \
 --bench.ett-set-type=train-valid \
 --bench.ett-variant=1 \
 --bench.init-steps=500 \
