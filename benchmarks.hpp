@@ -938,6 +938,55 @@ public:
     }
 };
 
+class electricity_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    std::set<std::string> persistent_input_names_{};
+    std::set<std::string> input_names_;
+    std::set<std::string> output_names_ = input_names_;
+    std::set<std::string> target_names_ = output_names_;
+
+public:
+    electricity_loop_benchmark_set(po::variables_map config)
+      : loop_dataset_loader{std::move(config)}
+    {
+        for (long i = 0; i <= 319; ++i) input_names_.insert(std::to_string(i));
+        input_names_.insert("OT");
+        output_names_ = input_names_;
+        target_names_ = input_names_;
+
+        long len = 26304;
+        long train_len = std::floor(len * 0.7);
+        long valid_len = std::floor(len * 0.2);
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/electricity/electricity.csv", {}, train_selector, valid_selector,
+          test_selector);
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
 class lyapunov_benchmark_set : public benchmark_set_base {
 protected:
     long init_len_;
@@ -1139,6 +1188,9 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "weather-loop") {
         return std::make_unique<weather_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "electricity-loop") {
+        return std::make_unique<electricity_loop_benchmark_set>(args);
     }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
