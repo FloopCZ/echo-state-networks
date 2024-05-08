@@ -1114,19 +1114,26 @@ lcnn<DType> random_lcnn(
     double mu_res = args.at("lcnn.mu-res").as<double>();
     // The input weight and bias for each input.
     std::vector<double> mu_in_weight = args.at("lcnn.mu-in-weight").as<std::vector<double>>();
+    if ((long)mu_in_weight.size() == 1 && n_ins > 1) mu_in_weight.resize(n_ins, mu_in_weight.at(0));
     if ((long)mu_in_weight.size() < n_ins)
         throw std::invalid_argument{
           fmt::format("mu-in-weight ({}) < n_ins ({})", mu_in_weight.size(), n_ins)};
     std::vector<double> sigma_in_weight = args.at("lcnn.sigma-in-weight").as<std::vector<double>>();
+    if ((long)sigma_in_weight.size() == 1 && n_ins > 1)
+        sigma_in_weight.resize(n_ins, sigma_in_weight.at(0));
     if ((long)sigma_in_weight.size() < n_ins)
         throw std::invalid_argument{
           fmt::format("sigma-in-weight ({}) < n_ins ({})", sigma_in_weight.size(), n_ins)};
     // The feedback weight and bias for each output.
     std::vector<double> mu_fb_weight = args.at("lcnn.mu-fb-weight").as<std::vector<double>>();
+    if ((long)mu_fb_weight.size() == 1 && n_outs > 1)
+        mu_fb_weight.resize(n_outs, mu_fb_weight.at(0));
     if ((long)mu_fb_weight.size() < n_outs)
         throw std::invalid_argument{
           fmt::format("mu-fb-weight ({}) < n_outs ({})", mu_fb_weight.size(), n_outs)};
     std::vector<double> sigma_fb_weight = args.at("lcnn.sigma-fb-weight").as<std::vector<double>>();
+    if ((long)sigma_fb_weight.size() == 1 && n_outs > 1)
+        sigma_fb_weight.resize(n_outs, sigma_fb_weight.at(0));
     if ((long)sigma_fb_weight.size() < n_outs)
         throw std::invalid_argument{
           fmt::format("sigma-fb-weight ({}) < n_outs ({})", sigma_fb_weight.size(), n_outs)};
