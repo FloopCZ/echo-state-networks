@@ -846,6 +846,34 @@ public:
     }
 };
 
+class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
+protected:
+    std::set<std::string> input_names_{"OT"};
+    std::set<std::string> output_names_{"OT"};
+    std::set<std::string> target_names_{"OT"};
+
+public:
+    ettm_single_loop_benchmark_set(po::variables_map config)
+      : ettm_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
 class weather_loop_benchmark_set : public loop_dataset_loader {
 protected:
     std::set<std::string> persistent_input_names_{};
@@ -892,34 +920,6 @@ public:
     const std::set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
-    }
-
-    const std::set<std::string>& input_names() const override
-    {
-        return input_names_;
-    }
-
-    const std::set<std::string>& output_names() const override
-    {
-        return output_names_;
-    }
-
-    const std::set<std::string>& target_names() const override
-    {
-        return target_names_;
-    }
-};
-
-class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
-protected:
-    std::set<std::string> input_names_{"OT"};
-    std::set<std::string> output_names_{"OT"};
-    std::set<std::string> target_names_{"OT"};
-
-public:
-    ettm_single_loop_benchmark_set(po::variables_map config)
-      : ettm_loop_benchmark_set{std::move(config)}
-    {
     }
 
     const std::set<std::string>& input_names() const override
