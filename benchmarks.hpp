@@ -1083,6 +1083,53 @@ public:
     }
 };
 
+class solar_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    std::set<std::string> persistent_input_names_{};
+    std::set<std::string> input_names_;
+    std::set<std::string> output_names_ = input_names_;
+    std::set<std::string> target_names_ = output_names_;
+
+public:
+    solar_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
+    {
+        for (long i = 0; i < 137; ++i) input_names_.insert(fmt::format("{:03d}", i));
+        output_names_ = input_names_;
+        target_names_ = input_names_;
+
+        long len = 52560;
+        long train_len = std::floor(len * 0.7);
+        long valid_len = std::floor(len * 0.2);
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/Solar/solar_AL.txt", input_names_ | rg::to_vector, train_selector,
+          valid_selector, test_selector);
+    }
+
+    const std::set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const std::set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const std::set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const std::set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
 class lyapunov_benchmark_set : public benchmark_set_base {
 protected:
     long init_len_;
@@ -1293,6 +1340,9 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "exchange-loop") {
         return std::make_unique<exchange_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "solar-loop") {
+        return std::make_unique<solar_loop_benchmark_set>(args);
     }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
