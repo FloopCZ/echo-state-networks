@@ -33,7 +33,7 @@ mkdir -p "${outdir}"
   --bench.train-steps=4811 \
   --bench.valid-steps=1517 \
   --bench.n-steps-ahead="${AHEAD}" \
-  --bench.validation-stride=30 \
+  --bench.validation-stride=15 \
   --gen.seed="${SEED}" \
   --gen.n-trials=1 \
   --gen.af-device=0 \
