@@ -27,7 +27,6 @@ mkdir -p "${outdir}"
   --lcnn.kernel-width="${KERNEL}" \
   --lcnn.memory-length=100 \
   --gen.benchmark-set=weather-loop \
-  --bench.ett-variant=1 \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
   --bench.train-steps=36387 \

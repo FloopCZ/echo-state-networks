@@ -13,7 +13,7 @@ TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-exchange-ahead${AHEAD}-loop-seed${SEED}/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-etth2-ahead${AHEAD}-loop-seed${SEED}/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
@@ -26,11 +26,12 @@ mkdir -p "${outdir}"
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
   --lcnn.memory-length=100 \
-  --gen.benchmark-set=exchange-loop \
+  --gen.benchmark-set=etth-loop \
+  --bench.ett-variant=2 \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
-  --bench.train-steps=4811 \
-  --bench.valid-steps=1517 \
+  --bench.train-steps=8140 \
+  --bench.valid-steps=2880 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \

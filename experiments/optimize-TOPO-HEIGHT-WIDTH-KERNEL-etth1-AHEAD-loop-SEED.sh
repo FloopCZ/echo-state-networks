@@ -2,15 +2,18 @@
 set -e
 set -o pipefail
 
-if [ $# != 5 ]; then echo "Invalid usage"; exit 1; fi
+if [ $# -lt 5 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"
 WIDTH="$3"
-AHEAD="$4"
-KERNEL="$5"
+KERNEL="$4"
+AHEAD="$5"
+SEED="${6:-50}"
+TASK_OFFSET=${TASK_OFFSET:-0}
+N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-etth1-ahead${AHEAD}-loop/"
+outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-etth1-ahead${AHEAD}-loop-seed${SEED}/"
 mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
@@ -26,12 +29,15 @@ mkdir -p "${outdir}"
   --gen.benchmark-set=etth-loop \
   --bench.ett-variant=1 \
   --bench.set-type=train-valid \
-  --bench.init-steps=300 \
-  --bench.train-steps=8340 \
+  --bench.init-steps=500 \
+  --bench.train-steps=8140 \
   --bench.valid-steps=2880 \
   --bench.n-steps-ahead="${AHEAD}" \
-  --bench.validation-stride=10 \
+  --bench.validation-stride=30 \
+  --gen.seed="${SEED}" \
   --gen.n-trials=1 \
   --gen.af-device=0 \
   --gen.output-dir="${outdir}" \
-  2>&1 | tee -a "${outdir}/out.txt"
+  --gen.task-offset="${TASK_OFFSET}" \
+  --gen.n-tasks="${N_TASKS}" \
+  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
