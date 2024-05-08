@@ -20,9 +20,6 @@ mkdir -p "${outdir}"
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.sigma-fb-weight \
-  --lcnn.mu-in-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
-  --lcnn.mu-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
-  --lcnn.sigma-fb-weight=0 0 0 0 0 0 0 0 0 0 0 0 0 0 \
   --lcnn.topology="${TOPO}" \
   --lcnn.state-height="${HEIGHT}" \
   --lcnn.state-width="${WIDTH}" \
