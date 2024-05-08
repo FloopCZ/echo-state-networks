@@ -547,6 +547,7 @@ public:
         if (header.empty()) {
             std::getline(in, line);
             boost::split(header_, line, boost::is_any_of(","));
+            for (auto& col : header_) boost::trim(col);
         } else {
             header_ = header;
         }

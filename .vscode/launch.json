@@ -10,8 +10,6 @@
                 "--gen.net-type=lcnn",
                 "--lcnn.state-height=10",
                 "--lcnn.state-width=15",
-                "--lcnn.kernel-height=5",
-                "--lcnn.kernel-width=5",
                 "--gen.benchmark-set=narma10",
                 "--opt.max-fevals=50",
                 "--bench.init-steps=20",
@@ -46,9 +44,36 @@
                 "--gen.net-type=lcnn",
                 "--lcnn.state-height=10",
                 "--lcnn.state-width=15",
-                "--lcnn.kernel-height=5",
-                "--lcnn.kernel-width=5",
                 "--gen.benchmark-set=narma10",
+                "--bench.init-steps=10",
+                "--bench.train-steps=100",
+                "--bench.valid-steps=100",
+                "--gen.n-evals=1",
+                "--gen.af-device=0"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Launch evaluate_cuda for lcnn on weather",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/evaluate_cuda",
+            "args": [
+                "--gen.net-type=lcnn",
+                "--lcnn.state-height=10",
+                "--lcnn.state-width=15",
+                "--gen.benchmark-set=weather-loop",
                 "--bench.init-steps=10",
                 "--bench.train-steps=100",
                 "--bench.valid-steps=100",
