@@ -536,7 +536,7 @@ public:
             } else if (key == "lcnn.memory-prob") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.sigma-memory") {
-                params.emplace(key, inv_exp_transform(std::max(vm.at(key).as<double>(), 1e-40)));
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.mu-memory") {
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.adapt.learning-rate") {
@@ -694,7 +694,7 @@ public:
             params.erase("lcnn.memory-prob");
         }
         if (params.contains("lcnn.sigma-memory")) {
-            cfg.insert_or_assign("lcnn.sigma-memory", expval(params.at("lcnn.sigma-memory")));
+            cfg.insert_or_assign("lcnn.sigma-memory", val(params.at("lcnn.sigma-memory")));
             params.erase("lcnn.sigma-memory");
         }
         if (params.contains("lcnn.mu-memory")) {
@@ -836,30 +836,32 @@ public:
           {"lcnn.n-state-predictors", 0.5},
           {"lcnn.train-valid-ratio", 0.8},
           {"lcnn.l2", 0.2},
-          {"lcnn.enet-lambda", 0.2},
+          {"lcnn.enet-lambda", inv_exp_transform(1e-8)},
           {"lcnn.enet-alpha", 0.5},
           {"lcnn.input-to-n", 0.5},
           {"lcnn.act-steepness", inv_pow_transform(1.0)},
           {"lcnn.memory-prob", 0.1},
-          {"lcnn.sigma-memory", inv_exp_transform(0.1)},
-          {"lcnn.mu-memory", -1.0},
+          {"lcnn.sigma-memory", 0.5},
+          {"lcnn.mu-memory", 1.0},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
         };
         for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.2});
+            param_x0_.insert(
+              {"lcnn.sigma-in-weight-" + std::to_string(i), inv_exp_transform(1e-5)});
         }
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             param_x0_.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.0});
-            param_x0_.insert({"lcnn.sigma-fb-weight-" + std::to_string(i), 0.2});
+            param_x0_.insert(
+              {"lcnn.sigma-fb-weight-" + std::to_string(i), inv_exp_transform(1e-5)});
         }
         prng_t prng_clone{prng_};
         std::unique_ptr<net_base> sample_net = make_net(param_x0_, prng_clone);
         neuron_ins_ = sample_net->neuron_ins();
         // Set initial sigma-res.
-        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / neuron_ins_);
+        param_x0_.at("lcnn.sigma-res") = inv_exp_transform(1. / std::sqrt(2. * neuron_ins_));
         // Sparse nets should be biased towards positive mu_res, e.g. 0.3, negative mu-res
         // provide slightly worse results than positive mu-res.
         if (neuron_ins_ < 5.) param_x0_.at("lcnn.mu-res") = inv_pow_transform(0.3);
@@ -929,12 +931,12 @@ public:
           {"lcnn.n-state-predictors", 0.1},
           {"lcnn.train-valid-ratio", 0.1},
           {"lcnn.l2", 0.05},
-          {"lcnn.enet-lambda", 0.05},
+          {"lcnn.enet-lambda", 0.01},
           {"lcnn.enet-alpha", 0.1},
           {"lcnn.input-to-n", 0.1},
           {"lcnn.act-steepness", 0.05},
           {"lcnn.memory-prob", 0.1},
-          {"lcnn.sigma-memory", 0.01},
+          {"lcnn.sigma-memory", 0.1},
           {"lcnn.mu-memory", 0.05},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
@@ -942,7 +944,7 @@ public:
         };
         for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
             params.insert({"lcnn.mu-in-weight-" + std::to_string(i), 0.05});
-            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.05});
+            params.insert({"lcnn.sigma-in-weight-" + std::to_string(i), 0.01});
         }
         for (int i = 0; i < (int)bench_->output_names().size(); ++i) {
             params.insert({"lcnn.mu-fb-weight-" + std::to_string(i), 0.01});
@@ -971,7 +973,7 @@ public:
           {"lcnn.act-steepness", -1.1},
           {"lcnn.memory-prob", -0.1},
           {"lcnn.sigma-memory", -0.1},
-          {"lcnn.mu-memory", -2.1},
+          {"lcnn.mu-memory", -0.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
           {"lcnn.adapt.abs-target-activation", -0.1},
@@ -1007,7 +1009,7 @@ public:
           {"lcnn.act-steepness", 1.1},
           {"lcnn.memory-prob", 1.1},
           {"lcnn.sigma-memory", 1.1},
-          {"lcnn.mu-memory", 0.1},
+          {"lcnn.mu-memory", 2.1},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
           {"lcnn.adapt.abs-target-activation", 1.1},
@@ -1158,7 +1160,7 @@ inline po::options_description optimizer_arg_description()
        "aggregated evals are considered as one).")                                          //
       ("opt.lambda", po::value<int>()->default_value(25),                                   //
        "The number of offspring sampled in each step. Use -1 for automatic deduction.")     //
-      ("opt.sigma", po::value<double>()->default_value(2),                                  //
+      ("opt.sigma", po::value<double>()->default_value(1),                                  //
        "The initial sigma value, i.e., the level of exploration. Beware that internally, "  //
        "the optimized range is [0, 10].")                                                   //
       ("opt.uncertainty", po::value<bool>()->default_value(false),                          //

@@ -525,14 +525,62 @@ public:
     }
 };
 
-class ett_loader {
+class csv_loader {
 protected:
-    fs::path data_path_;
-    std::vector<std::string> header_ = {"date", "HUFL", "HULL", "MUFL",
-                                        "MULL", "LUFL", "LULL", "OT"};
     data_map data_;
     data_map meta_;
+    std::vector<std::string> header_;
 
+public:
+    csv_loader(const po::variables_map& config) {}
+
+    /// Load the data from the given CSV file.
+    ///
+    /// \param csv_path The path to the CSV file.
+    /// \param header The header of the CSV file. Leave empty to use the first row as the header.
+    void load_data(const fs::path& csv_path, const std::vector<std::string>& header)
+    {
+        if (!fs::exists(csv_path)) throw std::runtime_error{"CSV file does not exist."};
+        std::ifstream in{csv_path};
+        std::string line;
+
+        if (header.empty()) {
+            std::getline(in, line);
+            boost::split(header_, line, boost::is_any_of(","));
+        } else {
+            header_ = header;
+        }
+
+        std::map<std::string, std::vector<double>> data;
+        std::map<std::string, std::vector<double>> meta;
+        while (std::getline(in, line)) {
+            std::vector<std::string> words;
+            boost::split(words, line, boost::is_any_of(","));
+            if (words.empty()) throw std::runtime_error{"Empty row."};
+            if (words.size() != header_.size()) throw std::runtime_error{"Invalid row length."};
+            for (const auto& [col, value] : rgv::zip(header_, words)) {
+                if (col != "date") data[col].push_back(std::stod(value));
+            }
+        };
+
+        long long n_features = header_.size() - 1;
+        long long n_points = data.begin()->second.size();
+
+        std::map<std::string, af::array> array_data, array_meta;
+        for (const auto& [key, values] : data) array_data[key] = af_utils::to_array(values);
+        for (const auto& [key, values] : meta) array_meta[key] = af_utils::to_array(values);
+        data_ = data_map{array_data};
+        meta_ = data_map{array_meta};
+
+        std::cout << "Loaded CSV dataset.\n"
+                  << fmt::format("n_features: {}\n", n_features)
+                  << fmt::format("n_points: {}\n", n_points)
+                  << fmt::format("header: {}\n", boost::join(header_, ","));
+    }
+};
+
+class ett_loader : public csv_loader {
+protected:
     data_map ett_input_transform(const data_map& xs) const
     {
         // ETT datasets are normalized.
@@ -544,63 +592,7 @@ protected:
     }
 
 public:
-    ett_loader(const po::variables_map& config)
-      : data_path_{config.at("bench.ett-data-path").as<std::string>()}
-    {
-    }
-
-    void load_data(const fs::path& csv_path)
-    {
-        if (!fs::exists(data_path_)) throw std::runtime_error{"ETT data path does not exist."};
-        fs::path csv = data_path_ / csv_path;
-        if (!fs::exists(csv)) throw std::runtime_error{"ETT csv file does not exist."};
-        std::ifstream in{csv};
-        std::string line;
-        std::getline(in, line);
-        if (line != boost::join(header_, ",")) throw std::runtime_error{"Invalid header."};
-
-        std::map<std::string, std::vector<double>> data;
-        std::map<std::string, std::vector<double>> meta;
-        while (std::getline(in, line)) {
-            std::vector<std::string> words;
-            boost::split(words, line, boost::is_any_of(","));
-            for (const auto& [col, value] : rgv::zip(header_, words)) {
-                if (col == "date") {
-                    std::tm tm = {};
-                    std::stringstream ss{value};
-                    ss >> std::get_time(&tm, "%Y-%m-%d %H:%M:%S");
-                    int n_month_days = days_in_month(tm);
-                    int leap_day = is_leap_year(tm.tm_year) ? 1 : 0;
-                    data["date-min"].push_back(std::sin(tm.tm_min / 60. * 2. * M_PI));
-                    data["date-hour"].push_back(
-                      std::sin((tm.tm_min + tm.tm_hour * 60.) / 60. / 24. * 2. * M_PI));
-                    data["date-mday"].push_back(std::sin(
-                      (tm.tm_min + tm.tm_hour * 60. + tm.tm_mday * 24. * 60.) / 60. / 24.
-                      / n_month_days * 2. * M_PI));
-                    data["date-wday"].push_back(std::sin(
-                      (tm.tm_min + tm.tm_hour * 60. + tm.tm_wday * 24. * 60.) / 60. / 24. / 7. * 2.
-                      * M_PI));
-                    data["date-mon"].push_back(std::sin(
-                      (tm.tm_min + tm.tm_hour * 60. + tm.tm_yday * 24. * 60.) / 60. / 24.
-                      / (365. + leap_day) * 2. * M_PI));
-                } else {
-                    data[col].push_back(std::stod(value));
-                }
-            }
-        };
-
-        long long n_features = header_.size() - 1;
-        long long n_points = data.at("OT").size();
-
-        std::map<std::string, af::array> array_data, array_meta;
-        for (const auto& [key, values] : data) array_data[key] = af_utils::to_array(values);
-        for (const auto& [key, values] : meta) array_meta[key] = af_utils::to_array(values);
-        data_ = data_map{array_data};
-        meta_ = data_map{array_meta};
-
-        std::cout << "Loaded ETT dataset with " << n_features << " features and " << n_points
-                  << " points.\n";
-    }
+    ett_loader(const po::variables_map& config) : csv_loader{config} {}
 };
 
 class etth_loader : public ett_loader {
@@ -637,10 +629,10 @@ protected:
 public:
     etth_loader(po::variables_map config)
       : ett_loader{config}
-      , variant_{config.at("bench.etth-variant").as<int>()}
+      , variant_{config.at("bench.ett-variant").as<int>()}
       , set_type_{config.at("bench.ett-set-type").as<std::string>()}
     {
-        load_data("ETT-small/ETTh" + std::to_string(variant_) + ".csv");
+        load_data("third_party/datasets/ETT-small/ETTh" + std::to_string(variant_) + ".csv", {});
 
         af::seq train_selector(0, 12 * 30 * 24 - 1);
         train_data_ = data_.select(train_selector);
@@ -710,10 +702,10 @@ protected:
 public:
     ettm_loader(po::variables_map config)
       : ett_loader{config}
-      , variant_{config.at("bench.etth-variant").as<int>()}
+      , variant_{config.at("bench.ett-variant").as<int>()}
       , set_type_{config.at("bench.ett-set-type").as<std::string>()}
     {
-        load_data("ETT-small/ETTm" + std::to_string(variant_) + ".csv");
+        load_data("third_party/datasets/ETT-small/ETTm" + std::to_string(variant_) + ".csv", {});
 
         af::seq train_selector(0, 12 * 30 * 24 * 4 - 1);
         train_data_ = data_.select(train_selector);
@@ -1276,42 +1268,40 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
 inline po::options_description benchmark_arg_description()
 {
     po::options_description benchmark_arg_desc{"Benchmark options"};
-    benchmark_arg_desc.add_options()                                                             //
-      ("bench.memory-history", po::value<long>()->default_value(0),                              //
-       "The length of the memory to be evaluated.")                                              //
-      ("bench.n-steps-ahead", po::value<long>()->default_value(84),                              //
-       "The length of the valid sequence in sequence prediction benchmark.")                     //
-      ("bench.validation-stride", po::value<long>()->default_value(1),                           //
-       "Stride of validation subsequences (of length n-steps-ahead).")                           //
-      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),                           //
-       "The length of the memory to be evaluated.")                                              //
-      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),                      //
-       "The time delta (and subsampling) for mackey glass equations.")                           //
-      ("bench.narma-tau", po::value<long>()->default_value(1),                                   //
-       "The time lag for narma series.")                                                         //
-      ("bench.error-measure", po::value<std::string>()->default_value("mse"),                    //
-       "The error function to be used. One of mse, nmse, nrmse.")                                //
-      ("bench.n-trials", po::value<long>()->default_value(1),                                    //
-       "The number of repeats of the [teacher-force, valid] step in the "                        //
-       "sequence prediction benchmark.")                                                         //
-      ("bench.n-epochs", po::value<long>()->default_value(1),                                    //
-       "The number of retrainings of the network. Only the first epoch is teacher-forced.")      //
-      ("bench.init-steps", po::value<long>()->default_value(1000),                               //
-       "The number of training time steps.")                                                     //
-      ("bench.train-steps", po::value<long>()->default_value(5000),                              //
-       "The number of valid time steps.")                                                        //
-      ("bench.valid-steps", po::value<long>()->default_value(1000),                              //
-       "The number of test time steps.")                                                         //
-      ("bench.semaphore-period", po::value<long>()->default_value(100),                          //
-       "The period of flipping the semaphore sign.")                                             //
-      ("bench.semaphore-stop", po::value<long>()->default_value(100),                            //
-       "Time when semaphore stops blinking.")                                                    //
-      ("bench.ett-data-path", po::value<std::string>()->default_value("third_party/ETDataset"),  //
-       "Path to the ETT dataset.")                                                               //
-      ("bench.etth-variant", po::value<int>()->default_value(1),                                 //
-       "Variant of the ETTh dataset (1 or 2).")                                                  //
-      ("bench.ett-set-type", po::value<std::string>()->default_value("train-valid"),             //
-       "Part of the ETT dataset (train, valid, train-valid, test).")                             //
+    benchmark_arg_desc.add_options()                                                         //
+      ("bench.memory-history", po::value<long>()->default_value(0),                          //
+       "The length of the memory to be evaluated.")                                          //
+      ("bench.n-steps-ahead", po::value<long>()->default_value(84),                          //
+       "The length of the valid sequence in sequence prediction benchmark.")                 //
+      ("bench.validation-stride", po::value<long>()->default_value(1),                       //
+       "Stride of validation subsequences (of length n-steps-ahead).")                       //
+      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),                       //
+       "The length of the memory to be evaluated.")                                          //
+      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),                  //
+       "The time delta (and subsampling) for mackey glass equations.")                       //
+      ("bench.narma-tau", po::value<long>()->default_value(1),                               //
+       "The time lag for narma series.")                                                     //
+      ("bench.error-measure", po::value<std::string>()->default_value("mse"),                //
+       "The error function to be used. One of mse, nmse, nrmse.")                            //
+      ("bench.n-trials", po::value<long>()->default_value(1),                                //
+       "The number of repeats of the [teacher-force, valid] step in the "                    //
+       "sequence prediction benchmark.")                                                     //
+      ("bench.n-epochs", po::value<long>()->default_value(1),                                //
+       "The number of retrainings of the network. Only the first epoch is teacher-forced.")  //
+      ("bench.init-steps", po::value<long>()->default_value(1000),                           //
+       "The number of training time steps.")                                                 //
+      ("bench.train-steps", po::value<long>()->default_value(5000),                          //
+       "The number of valid time steps.")                                                    //
+      ("bench.valid-steps", po::value<long>()->default_value(1000),                          //
+       "The number of test time steps.")                                                     //
+      ("bench.semaphore-period", po::value<long>()->default_value(100),                      //
+       "The period of flipping the semaphore sign.")                                         //
+      ("bench.semaphore-stop", po::value<long>()->default_value(100),                        //
+       "Time when semaphore stops blinking.")                                                //
+      ("bench.ett-variant", po::value<int>()->default_value(1),                              //
+       "Variant of the ETTh dataset (1 or 2).")                                              //
+      ("bench.ett-set-type", po::value<std::string>()->default_value("train-valid"),         //
+       "Part of the ETT dataset (train, valid, train-valid, test).")                         //
       ;
     return benchmark_arg_desc;
 }

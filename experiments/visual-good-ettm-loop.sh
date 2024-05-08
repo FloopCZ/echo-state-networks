@@ -1,8 +1,7 @@
 ./build/visual_cuda \
 --bench.error-measure=mse \
---bench.ett-data-path=third_party/ETDataset \
 --bench.ett-set-type=train-valid \
---bench.etth-variant=1 \
+--bench.ett-variant=1 \
 --bench.init-steps=500 \
 --bench.mackey-glass-delta=0.10000000000000001 \
 --bench.mackey-glass-tau=30 \
@@ -29,7 +28,7 @@
 --lcnn.kernel-width=5 \
 --lcnn.l2=0 \
 --lcnn.leakage=1 \
---lcnn.memory-length=60 \
+--lcnn.memory-length=100 \
 --lcnn.memory-prob=1 \
 --lcnn.mu-b=0.0088743191626162246 \
 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0 --lcnn.mu-fb-weight=0  \

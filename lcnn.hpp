@@ -59,6 +59,8 @@ struct lcnn_config {
     double enet_lambda = 0;
     double enet_alpha = 0;
     bool enet_standardize = false;
+    // Weight the training data points exponentially.
+    bool exp_training_weights = true;
     /// The number of intermediate steps of the network with each input.
     long intermediate_steps = 1;
     /// The number of training trials (select random indices, train, repeat).
@@ -84,6 +86,7 @@ struct lcnn_config {
         enet_lambda = args.at("lcnn.enet-lambda").as<double>();
         enet_alpha = args.at("lcnn.enet-alpha").as<double>();
         enet_standardize = args.at("lcnn.enet-standardize").as<bool>();
+        exp_training_weights = args.at("lcnn.exp-training-weights").as<bool>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         n_train_trials = args.at("lcnn.n-train-trials").as<long>();
         n_state_predictors = std::clamp(args.at("lcnn.n-state-predictors").as<double>(), 0., 1.);
@@ -130,6 +133,7 @@ protected:
     double enet_lambda_;
     double enet_alpha_;
     bool enet_standardize_;
+    bool exp_training_weights_;
     long intermediate_steps_;
     long n_train_trials_;
     double n_state_predictors_;
@@ -307,6 +311,7 @@ public:
       , enet_lambda_{cfg.enet_lambda}
       , enet_alpha_{cfg.enet_alpha}
       , enet_standardize_{cfg.enet_standardize}
+      , exp_training_weights_{cfg.exp_training_weights}
       , intermediate_steps_{cfg.intermediate_steps}
       , n_train_trials_{cfg.n_train_trials}
       , n_state_predictors_{cfg.n_state_predictors}
@@ -798,9 +803,12 @@ public:
             if (predictor_subset)
                 state_predictor_indices = generate_random_state_indices(n_predictors);
             // set exponential training weights
-            long n = train_data.states.dims(2);
-            af::array seq = af::seq(n);
-            af::array training_weights = af::exp(seq.as(DType) / n);
+            af::array training_weights{};
+            if (exp_training_weights_) {
+                long n = train_data.states.dims(2);
+                af::array seq = af::seq(n);
+                training_weights = af::exp(seq.as(DType) / n);
+            }
             // train
             train_result_t train_result =
               train_impl(train_data, state_predictor_indices, training_weights);
@@ -1321,8 +1329,9 @@ lcnn<DType> random_lcnn(
         cfg.memory_w = af::array{};
     } else {
         cfg.memory_map = af::constant(0, {state_height, state_width}, DType);
-        af::array memory_full =
-          af::round(af::randu(cfg.memory_map.dims(), DType, af_prng) * (memory_length - 1));
+        af::array memory_full = af::randu(cfg.memory_map.dims(), DType, af_prng) * memory_length;
+        memory_full = af::min(memory_length - 1, af::floor(memory_full));
+
         af::array memory_mask = af::randu(cfg.memory_map.dims()) < memory_prob;
         cfg.memory_map(memory_mask) = memory_full(memory_mask);
 
@@ -1398,6 +1407,8 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                      //
       ("lcnn.enet-standardize", po::value<bool>()->default_value(false),              //
        "See lcnn_config class.")                                                      //
+      ("lcnn.exp-training-weights", po::value<bool>()->default_value(true),           //
+       "Weight the training data points exponentially.")                              //
       ("lcnn.n-train-trials", po::value<long>()->default_value(1),                    //
        "See random_lcnn().")                                                          //
       ("lcnn.n-state-predictors", po::value<double>()->default_value(1.),             //
@@ -1410,11 +1421,11 @@ inline po::options_description lcnn_arg_description()
        "See lcnn_config class.")                                                      //
       ("lcnn.memory-length", po::value<long>()->default_value(0.0),                   //
        "The maximum reach of the memory. Set to 0 to disable memory.")                //
-      ("lcnn.memory-prob", po::value<double>()->default_value(0.0),                   //
+      ("lcnn.memory-prob", po::value<double>()->default_value(1.0),                   //
        "The probability that a neuron is a memory neuron.")                           //
-      ("lcnn.sigma-memory", po::value<double>()->default_value(0.0),                  //
+      ("lcnn.sigma-memory", po::value<double>()->default_value(1.0),                  //
        "See random_lcnn().")                                                          //
-      ("lcnn.mu-memory", po::value<double>()->default_value(-1.0),                    //
+      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                     //
        "See random_lcnn().")                                                          //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //

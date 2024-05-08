@@ -2,7 +2,7 @@
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
-matplotlib.rcParams['figure.figsize'] = 4, 3
+matplotlib.rcParams['figure.figsize'] = 6, 4
 import matplotlib.pyplot as plt
 from matplotlib import ticker as pltticker
 import numpy as np
@@ -31,7 +31,7 @@ def best_run(df, param):
 def set_log_y(ax):
     ax.yaxis.set_major_formatter(pltticker.StrMethodFormatter("$10^{{{x:.0f}}}$"))
     ymin, ymax = ax.get_ylim()
-    major_ticks = np.arange(np.floor(ymin), ymax)
+    major_ticks = np.arange(np.ceil(ymin), ymax)
     ax.yaxis.set_ticks(major_ticks)
     minor_ticks = [np.log10(y) for t in major_ticks for y in np.linspace(10 ** t, 10 ** (t + 1), 10)]
     minor_ticks = [y for y in minor_ticks if y < ymax]
