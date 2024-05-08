@@ -877,9 +877,11 @@ public:
     weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
         long len = 52696;
-        af::seq train_selector(0, len * 0.7 - 1);
-        af::seq valid_selector(len * 0.7, len * 0.9 - 1);
-        af::seq test_selector(len * 0.9, af::end);
+        long train_len = std::floor(len * 0.7);
+        long valid_len = std::floor(len * 0.2);
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
 
         load_data(
           "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
