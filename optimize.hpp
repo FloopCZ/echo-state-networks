@@ -443,6 +443,7 @@ protected:
     int af_device_;
     nlohmann::json param_stages_;
     double weight_cutoff_;
+    bool in_fb_group_;
 
     virtual std::string arg_prefix_() const = 0;
 
@@ -773,6 +774,7 @@ public:
       , bench_factory_{std::move(bench_factory)}
       , af_device_{config_.at("gen.af-device").as<int>()}
       , weight_cutoff_{config_.at("opt.weight-cutoff").as<double>()}
+      , in_fb_group_(config_.at("opt.in-fb-group").as<bool>())
     {
         if (config_.contains("opt.param-stages-json")) {
             std::ifstream param_stages_fin{config_.at("opt.param-stages-json").as<std::string>()};
@@ -1027,7 +1029,8 @@ public:
 
     std::vector<std::set<std::string>> param_groups() const override
     {
-        // TODO only as a config option
+        if (!in_fb_group_) return {};
+
         std::set<std::string> mu_in_group;
         std::set<std::string> sigma_in_group;
         for (int i = 0; i < (int)bench_->input_names().size(); ++i) {
@@ -1143,7 +1146,8 @@ public:
 
     std::vector<std::set<std::string>> param_groups() const override
     {
-        // TODO only as a config option
+        if (!in_fb_group_) return {};
+
         std::set<std::string> fb_group;
         for (int i = 0; i < (int)bench_->output_names().size(); ++i)
             fb_group.insert("esn.fb-weight-" + std::to_string(i));
@@ -1198,7 +1202,9 @@ inline po::options_description optimizer_arg_description()
        po::value<std::vector<std::string>>()->multitoken(),                                 //
        "The list of parameters that should be included even if they have been excluded.")   //
       ("opt.x0-from-params", po::bool_switch(),                                             //
-       "Start optimization from input arguments.");                                         //
+       "Start optimization from input arguments.")                                          //
+      ("opt.in-fb-group", po::bool_switch(),                                                //
+       "Optimize all input weights as a single parameter. The same for feedback.");         //
     return optimizer_arg_desc;
 }
 
