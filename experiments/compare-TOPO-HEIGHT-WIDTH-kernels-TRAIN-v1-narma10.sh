@@ -18,6 +18,7 @@ mkdir -p "${outdir}"
   --gen.net-type=lcnn \
   --gen.kernel-sizes=${KERNELS} \
   --lcnn.topology="${TOPO}" \
+  --lcnn.exp-training-weights=false \
   --gen.state-heights="${HEIGHT}" \
   --gen.state-widths="${WIDTH}" \
   --gen.benchmark-set=narma10 \

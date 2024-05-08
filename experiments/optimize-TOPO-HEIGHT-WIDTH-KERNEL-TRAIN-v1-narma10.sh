@@ -14,6 +14,7 @@ mkdir -p "${outdir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --lcnn.topology="${TOPO}" \
+  --lcnn.exp-training-weights=false \
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
   --lcnn.state-height="${HEIGHT}" \
