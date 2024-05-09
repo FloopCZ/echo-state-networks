@@ -672,7 +672,7 @@ public:
     train_result_t train_impl(
       const feed_result_t& data,
       const af::array& state_predictor_indices,
-      const af::array& training_weights) const
+      const std::optional<af::array>& training_weights) const
     {
         assert(data.states.type() == DType);
         assert(
@@ -803,7 +803,7 @@ public:
             if (predictor_subset)
                 state_predictor_indices = generate_random_state_indices(n_predictors);
             // set exponential training weights
-            af::array training_weights{};
+            std::optional<af::array> training_weights;
             if (exp_training_weights_) {
                 long n = train_data.states.dims(2);
                 af::array seq = af::seq(n);
