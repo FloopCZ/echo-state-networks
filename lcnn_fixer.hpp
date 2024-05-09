@@ -28,12 +28,11 @@ public:
       const data_map& step_input,
       const data_map& step_feedback,
       const data_map& step_desired,
-      const data_map& step_meta,
       input_transform_fn_t input_transform) override
     {
-        predict_net_->step(step_input, step_feedback, step_desired, step_meta, input_transform);
+        predict_net_->step(step_input, step_feedback, step_desired, input_transform);
         data_map fixer_in = predict_net_->last_output().extend(step_input);
-        fixer_net_->step(fixer_in, step_feedback, step_desired, step_meta, input_transform);
+        fixer_net_->step(fixer_in, step_feedback, step_desired, input_transform);
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
@@ -43,7 +42,6 @@ public:
                 {.input = step_input,
                  .feedback = step_feedback,
                  .desired = step_desired,
-                 .meta = step_meta,
                  .input_transform = input_transform},
               .output = fixer_net_->last_output(),
               .event = event_};
@@ -65,7 +63,6 @@ public:
           {.input = std::move(fixer_input),
            .feedback = input.feedback,
            .desired = input.desired,
-           .meta = input.meta,
            .input_transform = input.input_transform});
         */
 
@@ -94,8 +91,7 @@ public:
             data_map step_input = input.input.select(i);
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
-            data_map step_meta = input.meta.select(i);
-            step(step_input, step_feedback, step_desired, step_meta, input.input_transform);
+            step(step_input, step_feedback, step_desired, input.input_transform);
             if (!fixer_net_->last_output().empty())
                 result.outputs(af::span, i) = fixer_net_->last_output().data();
         }
@@ -116,7 +112,6 @@ public:
           {.input = input.input,
            .feedback = {},
            .desired = input.desired,
-           .meta = input.meta,
            .input_transform = input.input_transform});
         data_map predict_output{predict_net_->output_names(), predict_result.outputs};
         data_map fixer_input = predict_output.extend(input.input);
@@ -127,7 +122,6 @@ public:
           {.input = std::move(fixer_input),
            .feedback = input.desired,
            .desired = input.desired,
-           .meta = input.meta,
            .input_transform = input.input_transform});
     }
 

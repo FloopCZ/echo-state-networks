@@ -41,11 +41,10 @@ public:
       const data_map& step_input,
       const data_map& step_feedback,
       const data_map& step_desired,
-      const data_map& step_meta,
       input_transform_fn_t input_transform) override
     {
         for (std::unique_ptr<lcnn<DType>>& net : nets_)
-            net->step(step_input, step_feedback, step_desired, step_meta, input_transform);
+            net->step(step_input, step_feedback, step_desired, input_transform);
         update_last_output();
 
         // Call the registered callback functions.
@@ -56,7 +55,6 @@ public:
                 {.input = step_input,
                  .feedback = step_feedback,
                  .desired = step_desired,
-                 .meta = step_meta,
                  .input_transform = input_transform},
               .output = last_output_,
               .event = event_};
@@ -91,8 +89,7 @@ public:
             data_map step_input = input.input.select(i);
             data_map step_feedback = input.feedback.select(i);
             data_map step_desired = input.desired.select(i);
-            data_map step_meta = input.meta.select(i);
-            step(step_input, step_feedback, step_desired, step_meta, input.input_transform);
+            step(step_input, step_feedback, step_desired, input.input_transform);
             if (!last_output_.empty()) result.outputs(af::span, i) = last_output_.data();
         }
         return result;

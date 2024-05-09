@@ -28,7 +28,6 @@ struct input_t {
     data_map input;
     data_map feedback;
     data_map desired;
-    data_map meta;
     input_transform_fn_t input_transform;
 };
 
@@ -107,7 +106,6 @@ public:
       const data_map& step_input,
       const data_map& step_feedback,
       const data_map& step_desired,
-      const data_map& step_meta,
       input_transform_fn_t input_transform) = 0;
 
     virtual void event(const std::string& event)

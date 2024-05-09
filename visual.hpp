@@ -209,7 +209,6 @@ private:
             for (const std::string& h : net.output_names()) header.push_back("output-" + h);
             for (const std::string& h : net.output_names()) header.push_back("feedback-" + h);
             for (const std::string& h : net.output_names()) header.push_back("desired-" + h);
-            for (const std::string& h : data.input.meta.keys()) header.push_back("meta-" + h);
             header.push_back("event");
             csv_out_ << boost::join(header, ",") << "\n";
         }
@@ -239,13 +238,6 @@ private:
         for (const std::string& h : net.output_names()) {
             if (data.input.desired.keys().contains(h))
                 values.push_back(std::to_string(data.input.desired.at(h).scalar<double>()));
-            else
-                values.push_back("");
-        }
-        assert(data.input.meta.length() == 1);
-        for (const std::string& h : data.input.meta.keys()) {
-            if (data.input.meta.keys().contains(h))
-                values.push_back(std::to_string(data.input.meta.at(h).scalar<double>()));
             else
                 values.push_back("");
         }
