@@ -74,6 +74,8 @@ struct lcnn_config {
     double train_valid_ratio = 0.8;
     // The steepness of the activation function.
     double act_steepness = 1.0;
+    // Autoretrain options.
+    long autoretrain_every = 0;
     // Configuration for the lcnn weight adaptation.
     lcnn_adaptation_config adaptation_cfg;
 
@@ -93,6 +95,7 @@ struct lcnn_config {
         train_aggregation = args.at("lcnn.train-aggregation").as<std::string>();
         train_valid_ratio = args.at("lcnn.train-valid-ratio").as<double>();
         act_steepness = args.at("lcnn.act-steepness").as<double>();
+        autoretrain_every = args.at("lcnn.autoretrain-every").as<long>();
         adaptation_cfg.learning_rate = args.at("lcnn.adapt.learning-rate").as<double>();
         adaptation_cfg.weight_leakage = args.at("lcnn.adapt.weight-leakage").as<double>();
         adaptation_cfg.abs_target_activation =
@@ -141,6 +144,10 @@ protected:
     double train_valid_ratio_;
     double act_steepness_;
     bool learning_enabled_;
+    long autoretrain_every_;
+    long autoretrain_n_;
+    feed_result_t autoretrain_buffer_;
+    std::optional<feed_result_t> autoretrain_last_train_feed_;
     lcnn_adaptation_config adaptation_cfg;
 
     /// Return whether the step should be performed by matmul or by the lcnn step function.
@@ -292,6 +299,19 @@ protected:
         return af::sort(std::move(idxs));
     }
 
+    void init_autoretrain()
+    {
+        if (autoretrain_every_ <= 0) return;
+        autoretrain_n_ = 0;
+        autoretrain_last_train_feed_ = std::nullopt;
+        autoretrain_buffer_.states =
+          af::array(state_.dims(0), state_.dims(1), autoretrain_every_, DType);
+        autoretrain_buffer_.outputs =
+          af::constant(af::NaN, output_names_.size(), autoretrain_every_, DType);
+        autoretrain_buffer_.outputs =
+          af::constant(af::NaN, output_names_.size(), autoretrain_every_, DType);
+    }
+
 public:
     lcnn() = default;
 
@@ -319,6 +339,7 @@ public:
       , train_valid_ratio_{cfg.train_valid_ratio}
       , act_steepness_(cfg.act_steepness)
       , learning_enabled_{true}
+      , autoretrain_every_{cfg.autoretrain_every}
       , adaptation_cfg(cfg.adaptation_cfg)
     {
         state(std::move(cfg.init_state));
@@ -331,6 +352,7 @@ public:
         reservoir_biases(std::move(cfg.reservoir_b));
         input_weights(std::move(cfg.input_w));
         feedback_weights(std::move(cfg.feedback_w));
+        init_autoretrain();
     }
 
     void save(const fs::path& dir) override
@@ -359,11 +381,22 @@ public:
         data["train_valid_ratio"] = train_valid_ratio_;
         data["act_steepness"] = act_steepness_;
         data["learning_enabled"] = learning_enabled_;
+
+        data["autoretrain_every"] = autoretrain_every_;
+        data["autoretrain_n"] = autoretrain_n_;
+        if (autoretrain_every_ > 0) {
+            last_output_.save(dir / "autoretrain_buffer/");
+        }
+        if (autoretrain_last_train_feed_.has_value()) {
+            autoretrain_last_train_feed_->save(dir / "autoretrain_last_train_feed/");
+        }
+
         data["adaptation_cfg"] = {
           {"learning_rate", adaptation_cfg.learning_rate},
           {"abs_target_activation", adaptation_cfg.abs_target_activation},
           {"weight_leakage", adaptation_cfg.weight_leakage},
         };
+
         std::ofstream{dir / "params.json"} << data.dump(2);
 
         {
@@ -453,6 +486,16 @@ public:
         net.adaptation_cfg.learning_rate = data["adaptation_cfg"]["learning_rate"];
         net.adaptation_cfg.abs_target_activation = data["adaptation_cfg"]["abs_target_activation"];
         net.adaptation_cfg.weight_leakage = data["adaptation_cfg"]["weight_leakage"];
+
+        net.autoretrain_every_ = data.value("autoretrain_every", 0);
+        net.autoretrain_n_ = data.value("autoretrain_n", 0);
+        if (net.autoretrain_every_ > 0) {
+            net.autoretrain_buffer_.load(dir / "autoretrain_buffer/");
+        }
+        {
+            std::string p = dir / "autoretrain_last_train_feed";
+            if (fs::exists(p)) net.autoretrain_last_train_feed_->load(p);
+        }
 
         {
             std::string p = dir / "state_delta.bin";
@@ -594,6 +637,22 @@ public:
             fnc(*this, std::move(data));
         }
         event_ = std::nullopt;
+
+        // Retrain if appropriate.
+        if (
+          autoretrain_every_ > 0 && autoretrain_last_train_feed_.has_value()
+          && !step_feedback.empty()) {
+            autoretrain_buffer_.states(af::span, af::span, autoretrain_n_) = state_;
+            autoretrain_buffer_.outputs(af::span, autoretrain_n_) = last_output_.data();
+            (*autoretrain_buffer_.desired)(af::span, autoretrain_n_) = step_desired.data();
+            ++autoretrain_n_;
+            if (autoretrain_n_ == autoretrain_every_) {
+                autoretrain_n_ = 0;
+                autoretrain_last_train_feed_ =
+                  concatenate(*autoretrain_last_train_feed_, autoretrain_buffer_);
+                train(*autoretrain_last_train_feed_);
+            }
+        }
     }
 
     const data_map& last_output() const
@@ -730,6 +789,10 @@ public:
     train_result_t train(feed_result_t data) override
     {
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
+        if (autoretrain_every_ > 0) {
+            autoretrain_last_train_feed_ = data;
+            autoretrain_n_ = 0;
+        }
 
         if (!output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
@@ -1431,6 +1494,8 @@ inline po::options_description lcnn_arg_description()
        "See random_lcnn().")                                                          //
       ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                     //
        "See random_lcnn().")                                                          //
+      ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                 //
+       "Autoretrain the lcnn after every n steps with feedback.")                     //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
       ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //

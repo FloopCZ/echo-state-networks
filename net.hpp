@@ -39,6 +39,33 @@ struct feed_result_t {
     af::array outputs;
     /// The array of intermediate desired values.
     std::optional<af::array> desired;
+
+    void save(const fs::path& dir)
+    {
+        fs::create_directories(dir);
+        std::string states_file = dir / "states.bin";
+        if (!states.isempty()) af::saveArray("data", states, states_file.c_str());
+        std::string outputs_file = dir / "outputs.bin";
+        if (!outputs.isempty()) af::saveArray("data", outputs, outputs_file.c_str());
+        std::string desired_file = dir / "desired.bin";
+        if (desired.has_value() && !desired->isempty())
+            af::saveArray("data", *desired, desired_file.c_str());
+    }
+
+    void load(const fs::path& dir)
+    {
+        if (!fs::exists(dir))
+            throw std::runtime_error{"Data map dir " + dir.string() + " does not exist."};
+        std::string states_file = dir / "states.bin";
+        states = af::array{};
+        if (fs::exists(states_file)) states = af::readArray(states_file.c_str(), "data");
+        std::string outputs_file = dir / "outputs.bin";
+        outputs = af::array{};
+        if (fs::exists(outputs_file)) outputs = af::readArray(outputs_file.c_str(), "data");
+        std::string desired_file = dir / "desired.bin";
+        desired = std::nullopt;
+        if (fs::exists(desired_file)) desired = af::readArray(desired_file.c_str(), "data");
+    }
 };
 
 /// The information returned by the esn train().
