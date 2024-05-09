@@ -240,12 +240,12 @@ public:
     ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
-        return train(feed(input), input);
+        return train(feed(input));
     }
 
     /// Train the network on already processed feed data.
     /// \param data Training data.
-    train_result_t train(feed_result_t data, const input_t&) override
+    train_result_t train(feed_result_t data) override
     {
         assert(data.states.type() == DType);
         assert((data.states.dims() == af::dim4{state_.dims(0), data.outputs.dims(1)}));

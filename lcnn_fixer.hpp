@@ -131,7 +131,7 @@ public:
         fixer_net_.reset();
     }
 
-    train_result_t train(const feed_result_t data, const input_t& input) override
+    train_result_t train(const feed_result_t data) override
     {
         throw std::runtime_error{"Not implemented."};
     }

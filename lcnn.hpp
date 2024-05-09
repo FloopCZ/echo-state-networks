@@ -655,7 +655,7 @@ public:
     ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
-        return train(feed(input), input);
+        return train(feed(input));
     }
 
     /// Clear the network output weights and reset prng to the initial state.
@@ -727,7 +727,7 @@ public:
 
     /// Train the network on already processed feed result.
     /// \param data Training data.
-    train_result_t train(feed_result_t data, const input_t& input) override
+    train_result_t train(feed_result_t data) override
     {
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
 

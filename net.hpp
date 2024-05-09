@@ -117,7 +117,7 @@ public:
 
     virtual train_result_t train(const input_t& input) = 0;
 
-    virtual train_result_t train(feed_result_t data, const input_t& input) = 0;
+    virtual train_result_t train(feed_result_t data) = 0;
 
     virtual void clear_feedback() = 0;
 
