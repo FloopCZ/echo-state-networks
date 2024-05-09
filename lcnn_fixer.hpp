@@ -191,13 +191,14 @@ public:
         fixer_net_->save(dir / "fixer");
     }
 
-    static lcnn_fixer<DType> load(const fs::path& dir)
+    static lcnn_fixer<DType>
+    load(const fs::path& dir, const std::optional<po::variables_map>& args = {})
     {
         if (!fs::exists(dir))
             throw std::runtime_error{
               "LCNN fixer snapshot dir `" + dir.string() + "` does not exist."};
-        auto predict_net = std::make_unique<lcnn<DType>>(lcnn<DType>::load(dir / "predict"));
-        auto fixer_net = std::make_unique<lcnn<DType>>(lcnn<DType>::load(dir / "fixer"));
+        auto predict_net = std::make_unique<lcnn<DType>>(lcnn<DType>::load(dir / "predict", args));
+        auto fixer_net = std::make_unique<lcnn<DType>>(lcnn<DType>::load(dir / "fixer", args));
         return lcnn_fixer<DType>{std::move(predict_net), std::move(fixer_net)};
     }
 };
@@ -235,7 +236,7 @@ inline std::unique_ptr<net_base> make_net(
     if (args.at("gen.net-type").as<std::string>() == "lcnn") {
         if (args.contains("lcnn.load")) {
             fs::path net_dir = args.at("lcnn.load").as<std::string>();
-            return std::make_unique<lcnn<>>(lcnn<>::load(net_dir));
+            return std::make_unique<lcnn<>>(lcnn<>::load(net_dir, args));
         }
         return std::make_unique<lcnn<>>(random_lcnn(input_names, output_names, args, prng));
     }
@@ -246,7 +247,7 @@ inline std::unique_ptr<net_base> make_net(
     if (args.at("gen.net-type").as<std::string>() == "lcnn-fixer") {
         if (args.contains("lcnn-fixer.load")) {
             fs::path net_dir = args.at("lcnn-fixer.load").as<std::string>();
-            return std::make_unique<lcnn_fixer<>>(lcnn_fixer<>::load(net_dir));
+            return std::make_unique<lcnn_fixer<>>(lcnn_fixer<>::load(net_dir, args));
         }
         return std::make_unique<lcnn_fixer<>>(
           random_lcnn_fixer(input_names, output_names, args, prng));

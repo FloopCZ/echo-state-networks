@@ -308,7 +308,7 @@ protected:
           af::array(state_.dims(0), state_.dims(1), autoretrain_every_, DType);
         autoretrain_buffer_.outputs =
           af::constant(af::NaN, output_names_.size(), autoretrain_every_, DType);
-        autoretrain_buffer_.outputs =
+        autoretrain_buffer_.desired =
           af::constant(af::NaN, output_names_.size(), autoretrain_every_, DType);
     }
 
@@ -451,7 +451,7 @@ public:
         std::ofstream{dir / "prng.bin"} << prng_;
     }
 
-    static lcnn<DType> load(const fs::path& dir)
+    static lcnn<DType> load(const fs::path& dir, std::optional<po::variables_map> args = {})
     {
         if (!fs::exists(dir))
             throw std::runtime_error{"LCNN snapshot dir `" + dir.string() + "` does not exist."};
@@ -549,6 +549,15 @@ public:
 
         std::ifstream{dir / "prng_init.bin"} >> net.prng_init_;
         std::ifstream{dir / "prng.bin"} >> net.prng_;
+
+        // Override options from args.
+        if (args) {
+            if (args->contains("lcnn.autoretrain-every")) {
+                net.autoretrain_every_ = args->at("lcnn.autoretrain-every").as<long>();
+                net.init_autoretrain();
+            }
+        }
+
         return net;
     }
 
@@ -642,6 +651,7 @@ public:
         if (
           autoretrain_every_ > 0 && autoretrain_last_train_feed_.has_value()
           && !step_feedback.empty()) {
+            assert(autoretrain_buffer_.desired.has_value());
             autoretrain_buffer_.states(af::span, af::span, autoretrain_n_) = state_;
             autoretrain_buffer_.outputs(af::span, autoretrain_n_) = last_output_.data();
             (*autoretrain_buffer_.desired)(af::span, autoretrain_n_) = step_desired.data();
