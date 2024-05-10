@@ -68,6 +68,8 @@ struct lcnn_config {
     bool verbose = false;
     // Autoretrain options.
     long autoretrain_every = 0;
+    // Least mean squares coefficient.
+    double lms_mu = 0;
     // Configuration for the lcnn weight adaptation.
     lcnn_adaptation_config adaptation_cfg;
 
@@ -85,6 +87,7 @@ struct lcnn_config {
         act_steepness = args.at("lcnn.act-steepness").as<double>();
         verbose = args.at("lcnn.verbose").as<bool>();
         autoretrain_every = args.at("lcnn.autoretrain-every").as<long>();
+        lms_mu = args.at("lcnn.lms-mu").as<double>();
         adaptation_cfg.learning_rate = args.at("lcnn.adapt.learning-rate").as<double>();
         adaptation_cfg.weight_leakage = args.at("lcnn.adapt.weight-leakage").as<double>();
         adaptation_cfg.abs_target_activation =
@@ -133,6 +136,7 @@ protected:
     long autoretrain_every_;
     long autoretrain_n_;
     feed_result_t autoretrain_buffer_;
+    double lms_mu_;
     std::optional<feed_result_t> autoretrain_last_train_feed_;
     lcnn_adaptation_config adaptation_cfg;
 
@@ -299,6 +303,7 @@ public:
       , verbose_{cfg.verbose}
       , learning_enabled_{true}
       , autoretrain_every_{cfg.autoretrain_every}
+      , lms_mu_{cfg.lms_mu}
       , adaptation_cfg(cfg.adaptation_cfg)
     {
         state(std::move(cfg.init_state));
@@ -346,6 +351,7 @@ public:
             autoretrain_last_train_feed_->save(dir / "autoretrain_last_train_feed/");
         }
 
+        data["lms_mu"] = lms_mu_;
         data["adaptation_cfg"] = {
           {"learning_rate", adaptation_cfg.learning_rate},
           {"abs_target_activation", adaptation_cfg.abs_target_activation},
@@ -434,6 +440,7 @@ public:
         net.act_steepness_ = data["act_steepness"];
         net.verbose_ = data.value("verbose", true);
         net.learning_enabled_ = data["learning_enabled"];
+        net.lms_mu_ = data.value("lms_mu", 0.);
         net.adaptation_cfg.learning_rate = data["adaptation_cfg"]["learning_rate"];
         net.adaptation_cfg.abs_target_activation = data["adaptation_cfg"]["abs_target_activation"];
         net.adaptation_cfg.weight_leakage = data["adaptation_cfg"]["weight_leakage"];
@@ -509,6 +516,13 @@ public:
 
         return net;
     }
+
+    /*
+    struct RLSData {
+        af::array P;
+        double lambda;
+    } RLS_data;
+    */
 
     /// TODO fix docs
     /// Perform a single step with a single input.
@@ -595,6 +609,42 @@ public:
             fnc(*this, std::move(data));
         }
         event_ = std::nullopt;
+
+        if (
+          autoretrain_every_ == -1 && autoretrain_last_train_feed_.has_value()
+          && !step_feedback.empty() && lms_mu_ > 0.) {
+            /*
+            if (RLS_data.P.isempty()) {
+                // RLS_data.P = af::identity(state_.elements() + 1, state_.elements() + 1, DType);
+                af::array states = autoretrain_last_train_feed_->states;
+                states = af::moddims(states, states.dims(0) * states.dims(1), states.dims(2));
+                states = af_utils::add_ones(states, 0);
+                af::array norm_states = states - af::mean(states, 1);
+                RLS_data.P = af::pinverse(af::matmulNT(norm_states, norm_states) / (states.dims(0) -
+            1)); RLS_data.lambda = 1.00;
+            }
+
+            // Compute the Kalman gain vector (g)
+            af::array x = af_utils::add_ones(af::flat(state_), 0);
+            af::array y = step_feedback.data();
+            af::array y_hat = last_output_.data();
+
+            af::array alpha = y - y_hat;
+            af::array Px = af::matmul(RLS_data.P, x);
+            af::array xTPx = af::matmulTN(x, Px);
+            af::array g = Px / (RLS_data.lambda + xTPx);
+
+            RLS_data.P = (RLS_data.P - af::matmul(g, x.T(), RLS_data.P)) / RLS_data.lambda;
+            output_w_ += af::matmulNT(g, alpha).T();
+            */
+
+            af::array x = af_utils::add_ones(af::flat(state_), 0);
+            af::array y = step_feedback.data();
+            af::array y_hat = last_output_.data();
+
+            af::array e = y - y_hat;
+            output_w_ += (lms_mu_ * af::matmulNT(x, e)).T();
+        }
 
         // Retrain if appropriate.
         if (
@@ -733,7 +783,7 @@ public:
     train_result_t train(feed_result_t data) override
     {
         if (!data.desired) throw std::runtime_error{"No desired data to train to."};
-        if (autoretrain_every_ > 0) {
+        if (autoretrain_every_ != 0) {
             autoretrain_last_train_feed_ = data;
             autoretrain_n_ = 0;
         }
@@ -1352,6 +1402,8 @@ inline po::options_description lcnn_arg_description()
        "Increase verbosity level.")                                                  //
       ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                //
        "Autoretrain the lcnn after every n steps with feedback.")                    //
+      ("lcnn.lms-mu", po::value<double>()->default_value(0),                         //
+       "Least mean squares mu coefficient.")                                         //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),          //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")         //
       ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),         //
