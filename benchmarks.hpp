@@ -161,7 +161,8 @@ public:
         if (verbose_) {
             const std::string& measure = error.name_at(0);
             stats first = error.at(0);
-            std::cout << fmt::format("{} (+- {})", measure, first.mean(), first.std()) << std::endl;
+            std::cout << fmt::format("{} {} (+- {})", measure, first.mean(), first.std())
+                      << std::endl;
         }
         return error;
     }
@@ -285,7 +286,8 @@ public:
         if (verbose_) {
             const std::string& measure = error.name_at(0);
             stats first = error.at(0);
-            std::cout << fmt::format("{} (+- {})", measure, first.mean(), first.std()) << std::endl;
+            std::cout << fmt::format("{} {} (+- {})", measure, first.mean(), first.std())
+                      << std::endl;
         }
         return error;
     }
