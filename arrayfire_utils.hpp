@@ -77,7 +77,7 @@ af::array cov(af::array xs, af::array ys, long dim = 0)
 af::array mae(const af::array& ys_predict, const af::array& ys_truth, long dim = -1)
 {
     assert(ys_predict.dims() == ys_truth.dims());
-    return af::mean(af_utils::abs(ys_predict - ys_truth), dim);
+    return af::mean(af::abs(ys_predict - ys_truth), dim);
 }
 
 template <typename T>
