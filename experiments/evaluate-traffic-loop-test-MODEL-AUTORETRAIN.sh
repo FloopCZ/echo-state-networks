@@ -4,11 +4,12 @@ set -e
 if [ $# -lt 1 ]; then echo "Invalid usage"; exit 1; fi
 MODEL_DIR="$1"
 AUTORETRAIN_EVERY="${2:-0}"
-N_STEPS_AHEAD="${3:-96}"
+N_STEPS_AHEAD="${3:-192}"
 VALIDATION_STRIDE="${4:-1}"
+LOGDIR=${LOGDIR:-"./log/"}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/evaluate-traffic-loop-test-autoretrain${AUTORETRAIN_EVERY}-nahead${N_STEPS_AHEAD}-stride${VALIDATION_STRIDE}/"
+outdir="${LOGDIR}/evaluate-traffic-loop-test-retrain${AUTORETRAIN_EVERY}-ahead${N_STEPS_AHEAD}-stride${VALIDATION_STRIDE}/"
 mkdir -p "${outdir}"
 echo "Model dir: ${MODEL_DIR}" >> ${outdir}/out.txt
 ./build/evaluate_cuda \
