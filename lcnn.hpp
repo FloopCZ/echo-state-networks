@@ -431,7 +431,7 @@ public:
         net.enet_lambda_ = data.value("enet_lambda", 0.);
         net.enet_alpha_ = data.value("enet_alpha", 0.);
         net.enet_standardize_ = data.value("enet_standardize", false);
-        net.exp_training_weights_ = data.value("exp_training_weights", true);
+        net.exp_training_weights_ = data.value("exp_training_weights", std::exp(1.));
         net.intermediate_steps_ = data["intermediate_steps"];
         net.act_steepness_ = data["act_steepness"];
         net.verbose_ = data.value("verbose", true);
