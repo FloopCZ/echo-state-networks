@@ -73,6 +73,22 @@ af::array cov(af::array xs, af::array ys, long dim = 0)
       / (af::stdev(xs, AF_VARIANCE_DEFAULT, dim) * af::stdev(ys, AF_VARIANCE_DEFAULT, dim));
 }
 
+/// Mean absolute error of two arrays.
+af::array mae(const af::array& ys_predict, const af::array& ys_truth, long dim = -1)
+{
+    assert(ys_predict.dims() == ys_truth.dims());
+    return af::mean(af_utils::abs(ys_predict - ys_truth), dim);
+}
+
+template <typename T>
+T mae(const af::array& ys_predict, const af::array& ys_truth)
+{
+    assert(ys_predict.dims() == ys_truth.dims());
+    return (mae(af::flat(ys_predict), af::flat(ys_truth)) /* scalar */)
+      .as(af::dtype::f64)
+      .scalar<double>();
+}
+
 /// Mean squared error of two arrays.
 af::array mse(const af::array& ys_predict, const af::array& ys_truth, long dim = -1)
 {

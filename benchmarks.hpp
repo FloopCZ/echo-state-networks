@@ -50,8 +50,7 @@ protected:
         const af::array& desired_arr = desired.data();
         assert(predicted_arr.dims() == desired_arr.dims());
         assert(desired_arr.numdims() <= 2);
-        // TODO if (error_measure == "mae") return af_utils::mae<double>(predicted_arr,
-        // desired_arr);
+        if (error_measure == "mae") return af_utils::mae<double>(predicted_arr, desired_arr);
         if (error_measure == "mse") return af_utils::mse<double>(predicted_arr, desired_arr);
         if (error_measure == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
         if (error_measure == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
