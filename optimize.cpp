@@ -159,7 +159,10 @@ int main(int argc, char* argv[])
                     fout << trial;
                 } else if (param == "f-value") {
                     best_evaluation.net->reset();
-                    double f_value = opt->benchmark().evaluate(*best_evaluation.net, global_prng);
+                    double f_value = opt->benchmark()
+                                       .evaluate(*best_evaluation.net, global_prng)
+                                       .at(opt->error_measure())
+                                       .mean();
                     fout << std::setprecision(std::numeric_limits<double>::max_digits10) << f_value;
                 } else if (typeid(int) == params.at(param).value().type()) {
                     fout << params.at(param).as<int>();

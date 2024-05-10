@@ -4,9 +4,9 @@
 
 #include "analysis.hpp"
 #include "arrayfire_utils.hpp"
+#include "benchmark_results.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
-#include "misc.hpp"
 #include "net.hpp"
 
 #include <af/data.h>
@@ -29,7 +29,7 @@ class benchmark_set_base {
 protected:
     po::variables_map config_;
     std::vector<long> split_sizes_;
-    std::string error_measure_;
+    std::vector<std::string> error_measures_;
     long n_epochs_;
 
     virtual data_map input_transform(const data_map& xs) const
@@ -42,27 +42,33 @@ protected:
         return [this](const data_map& dm) -> data_map { return this->input_transform(dm); };
     }
 
-    virtual double error_fnc(const data_map& predicted, const data_map& desired) const
+    virtual double error_fnc(
+      const data_map& predicted, const data_map& desired, const std::string& error_measure) const
     {
         assert(predicted.keys() == desired.keys());
         const af::array& predicted_arr = predicted.data();
         const af::array& desired_arr = desired.data();
         assert(predicted_arr.dims() == desired_arr.dims());
         assert(desired_arr.numdims() <= 2);
-        if (error_measure_ == "mse") return af_utils::mse<double>(predicted_arr, desired_arr);
-        if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
-        if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
-        throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
+        // TODO if (error_measure == "mae") return af_utils::mae<double>(predicted_arr,
+        // desired_arr);
+        if (error_measure == "mse") return af_utils::mse<double>(predicted_arr, desired_arr);
+        if (error_measure == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
+        if (error_measure == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
+        throw std::invalid_argument("Unknown error measure `" + error_measure + "`.");
     }
 
-    double multi_error_fnc(
+    benchmark_results multi_error_fnc(
       const std::vector<data_map>& predicted, const std::vector<data_map>& desired) const
     {
         assert(predicted.size() == desired.size());
-        double error_sum = 0;
-        for (const auto& [dmp, dmd] : rgv::zip(predicted, desired))
-            error_sum += error_fnc(dmp, dmd);
-        return error_sum / predicted.size();
+        benchmark_results results;
+        for (const std::string& error_measure : error_measures_) {
+            for (const auto& [dmp, dmd] : rgv::zip(predicted, desired)) {
+                results.insert(error_measure, error_fnc(dmp, dmd, error_measure));
+            }
+        }
+        return results;
     }
 
 public:
@@ -72,12 +78,12 @@ public:
             config_.at("bench.init-steps").as<long>()
           , config_.at("bench.train-steps").as<long>()
           , config_.at("bench.valid-steps").as<long>()}
-      , error_measure_{config_.at("bench.error-measure").as<std::string>()}
+      , error_measures_{config_.at("bench.error-measures").as<std::vector<std::string>>()}
       , n_epochs_{config_.at("bench.n-epochs").as<long>()}
     {
     }
 
-    virtual double evaluate(
+    virtual benchmark_results evaluate(
       net_base& net,
       prng_t& prng,
       std::optional<optimization_status_t> opt_status = std::nullopt) const = 0;
@@ -103,7 +109,7 @@ protected:
 public:
     using benchmark_set_base::benchmark_set_base;
 
-    double evaluate(
+    benchmark_results evaluate(
       net_base& net, prng_t& prng, std::optional<optimization_status_t> opt_status) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
@@ -119,7 +125,7 @@ public:
         // split both input and output to init, train, test
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
-        double error = std::numeric_limits<double>::quiet_NaN();
+        benchmark_results error;
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.random_noise(true);
@@ -154,8 +160,14 @@ public:
                .desired = ys_groups.at(2),
                .input_transform = input_transform_fn()});
             data_map predicted{net.output_names(), feed_result.outputs};
-            error = error_fnc(predicted, ys_groups.at(2));
-            std::cout << "Epoch " << epoch << " " << error << std::endl;
+            error = multi_error_fnc({predicted}, {ys_groups.at(2)});
+
+            // Print stats for each evaluation.
+            const std::string& measure = error.name_at(0);
+            stats first = error.at(0);
+            std::cout << fmt::format(
+              "Epoch {} {} {} (+- {})", epoch, measure, first.mean(), first.std())
+                      << std::endl;
         }
         return error;
     }
@@ -190,7 +202,7 @@ public:
         assert(n_steps_ahead_ <= split_sizes_.at(2));
     }
 
-    double evaluate(
+    benchmark_results evaluate(
       net_base& net, prng_t& prng, std::optional<optimization_status_t> opt_status) const override
     {
         assert((long)split_sizes_.size() == 3);
@@ -208,7 +220,7 @@ public:
         // split the sequences into groups
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
-        double error = std::numeric_limits<double>::quiet_NaN();
+        benchmark_results error;
         for (long epoch = 0; epoch < n_epochs_; ++epoch) {
             // initialize the network using the initial sequence
             net.random_noise(true);
@@ -279,7 +291,13 @@ public:
             }
             assert(i / validation_stride_ == n_validations);
             error = multi_error_fnc(all_predicted, all_desired);
-            std::cout << fmt::format("Epoch {} error {}", epoch, error) << std::endl;
+
+            // Print stats for each evaluation.
+            const std::string& measure = error.name_at(0);
+            stats first = error.at(0);
+            std::cout << fmt::format(
+              "Epoch {} {} {} (+- {})", epoch, measure, first.mean(), first.std())
+                      << std::endl;
         }
         return error;
     }
@@ -404,10 +422,13 @@ protected:
           af_utils::square(af_utils::cov(predicted.data(), desired.data(), 1)));
     }
 
-    double error_fnc(const data_map& predicted, const data_map& desired) const override
+    double error_fnc(
+      const data_map& predicted,
+      const data_map& desired,
+      const std::string& error_measure) const override
     {
-        if (error_measure_ == "memory-capacity") return memory_capacity(predicted, desired);
-        return benchmark_set::error_fnc(predicted, desired);
+        if (error_measure == "memory-capacity") return memory_capacity(predicted, desired);
+        return benchmark_set::error_fnc(predicted, desired, error_measure);
     }
 
 public:
@@ -1180,7 +1201,7 @@ public:
     {
     }
 
-    double evaluate(
+    benchmark_results evaluate(
       net_base& net, prng_t& prng, std::optional<optimization_status_t> opt_status) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
@@ -1188,10 +1209,10 @@ public:
         // if the lyapunov exponent is NaN, increase d0 and try over
         for (int retry = 0; retry < n_retries_; ++retry) {
             double lyap = lyapunov_trial_(net, d0, af_prng);
-            if (!std::isnan(lyap)) return lyap;
+            if (!std::isnan(lyap)) return {"lyap", lyap};
             d0 *= 1e2;
         }
-        return std::numeric_limits<double>::quiet_NaN();
+        return {"lyap", std::numeric_limits<double>::quiet_NaN()};
     }
 
     const std::set<std::string>& input_names() const override
@@ -1227,7 +1248,7 @@ public:
     {
     }
 
-    double
+    benchmark_results
     evaluate(net_base& net, prng_t&, std::optional<optimization_status_t> opt_status) const override
     {
         assert(net.input_names() == input_names_ && net.output_names() == output_names_);
@@ -1240,6 +1261,7 @@ public:
             }
             net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, input_transform_fn());
         }
+        return {"semaphore", std::numeric_limits<double>::quiet_NaN()};
     }
 
     const std::set<std::string>& input_names() const override
@@ -1326,7 +1348,10 @@ inline po::options_description benchmark_arg_description()
        "The time delta (and subsampling) for mackey glass equations.")                       //
       ("bench.narma-tau", po::value<long>()->default_value(1),                               //
        "The time lag for narma series.")                                                     //
-      ("bench.error-measure", po::value<std::string>()->default_value("mse"),                //
+      ("bench.error-measures",                                                               //
+       po::value<std::vector<std::string>>()                                                 //
+         ->multitoken()                                                                      //
+         ->default_value({"mse"}, "mse"),                                                    //
        "The error function to be used. One of mse, nmse, nrmse.")                            //
       ("bench.n-trials", po::value<long>()->default_value(1),                                //
        "The number of repeats of the [teacher-force, valid] step in the "                    //

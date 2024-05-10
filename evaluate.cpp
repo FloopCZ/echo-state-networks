@@ -16,19 +16,17 @@ namespace po = boost::program_options;
 /// \param net_factory The network to be tested.
 /// \param n_evals The number of complete reevaluations of the provided net.
 template <typename NetFactory>
-std::vector<double>
+esn::benchmark_results
 evaluate(NetFactory net_factory, std::unique_ptr<esn::benchmark_set_base> bench, long n_evals)
 {
-    int af_device = af::getDevice();
-    // Evaluate the individual repeats in parallel.
-    std::vector<double> results(n_evals);
-    std::for_each(std::execution::seq, results.begin(), results.end(), [&](double& r) {
-        // We need to make sure the device is set properly, otherwise
-        // it sometimes fails on XID errors.
-        af::setDevice(af_device);
+    // Prepare benchmark result structure.
+    esn::benchmark_results results;
+    // Evaluate the individual repeats.
+    std::vector<std::vector<double>> raw_results(n_evals);
+    for (long i = 0; i < n_evals; ++i) {
         auto net = net_factory(bench->input_names(), bench->output_names());
-        r = bench->evaluate(*net, esn::global_prng);
-    });
+        results.insert(bench->evaluate(*net, esn::global_prng));
+    }
     return results;
 }
 
@@ -66,13 +64,11 @@ int main(int argc, char* argv[])
 
     std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
     auto net_factory = [&](auto... fwd) { return esn::make_net(fwd..., args, esn::global_prng); };
-    std::string name = args.at("gen.benchmark-set").as<std::string>() + " "
-      + args.at("bench.error-measure").as<std::string>();
+    long n_evals = args.at("gen.n-evals").as<long>();
+
     af::timer::start();
-    esn::benchmark_results results;
-    results.insert(
-      name, evaluate(net_factory, std::move(bench), args.at("gen.n-evals").as<long>()));
-    std::cout << results << std::endl;
+    esn::benchmark_results results = evaluate(net_factory, std::move(bench), n_evals);
+    std::cout << "Aggregated results\n" << results << std::endl;
     std::cout << "elapsed time: " << af::timer::stop() << std::endl;
 
     return 0;

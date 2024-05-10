@@ -1,4 +1,5 @@
 #include "argument_utils.hpp"
+#include "benchmark_results.hpp"
 #include "benchmarks.hpp"
 #include "lcnn.hpp"
 #include "lcnn_fixer.hpp"
@@ -56,6 +57,7 @@ int param_sensitivity(int argc, char* argv[])
     fs::create_directories(output_dir);
     std::ofstream fout{output_dir / "sensitivity_grid.csv"};
     std::string net_type = args.at("gen.net-type").as<std::string>();
+    std::string opt_error_measure = args.at("opt.error-measure").as<std::string>();
     T param_orig = args.at(args.at("gen.param").as<std::string>()).as<T>();
     T grid_start = args.at("gen.grid-start").as<T>();
     T grid_step = args.at("gen.grid-step").as<T>();
@@ -69,8 +71,8 @@ int param_sensitivity(int argc, char* argv[])
         auto bench = esn::make_benchmark(args);
         auto net =
           esn::make_net(bench->input_names(), bench->output_names(), args, esn::global_prng);
-        double f_value = bench->evaluate(*net, esn::global_prng);
-        fout << param << "," << f_value << std::endl;
+        esn::benchmark_results results = bench->evaluate(*net, esn::global_prng);
+        fout << param << "," << results.at(opt_error_measure).mean() << std::endl;
     }
 
     return 0;

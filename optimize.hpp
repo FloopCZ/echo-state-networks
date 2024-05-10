@@ -444,6 +444,7 @@ protected:
     nlohmann::json param_stages_;
     double weight_cutoff_;
     bool in_fb_group_;
+    std::string error_measure_;
 
     virtual std::string arg_prefix_() const = 0;
 
@@ -468,6 +469,11 @@ protected:
     }
 
 public:
+    const std::string& error_measure() const
+    {
+        return error_measure_;
+    }
+
     po::variables_map to_variables_map(const std::vector<double>& params) const
     {
         return to_variables_map(name_and_filter_params(params));
@@ -774,7 +780,8 @@ public:
       , bench_factory_{std::move(bench_factory)}
       , af_device_{config_.at("gen.af-device").as<int>()}
       , weight_cutoff_{config_.at("opt.weight-cutoff").as<double>()}
-      , in_fb_group_(config_.at("opt.in-fb-group").as<bool>())
+      , in_fb_group_{config_.at("opt.in-fb-group").as<bool>()}
+      , error_measure_{config_.at("opt.error-measure").as<std::string>()}
     {
         if (config_.contains("opt.param-stages-json")) {
             std::ifstream param_stages_fin{config_.at("opt.param-stages-json").as<std::string>()};
@@ -799,7 +806,12 @@ public:
 
     virtual double evaluate_net(net_base& net, prng_t& prng, optimization_status_t status) const
     {
-        return bench_->evaluate(net, prng, status);
+        benchmark_results results = bench_->evaluate(net, prng, status);
+        if (!results.contains(error_measure_))
+            throw std::invalid_argument{fmt::format(
+              "Optimizer error measure `{}` not contained in the computed error measures.",
+              error_measure_)};
+        return results.at(error_measure_).mean();
     }
 };
 
@@ -1175,6 +1187,8 @@ inline po::options_description optimizer_arg_description()
        "Use noisy settings for CMA.")                                                       //
       ("opt.n-evals", po::value<int>()->default_value(1),                                   //
        "Run the evaluation function multiple times and aggregate those by f-value-agg.")    //
+      ("opt.error-measure", po::value<std::string>()->default_value("mse"),                 //
+       "The error measure used as f-value.")                                                //
       ("opt.f-value-agg", po::value<std::string>()->default_value("median"),                //
        "The aggregate function for the multiple evaluations (see n-evals).")                //
       ("opt.algorithm", po::value<std::string>()->default_value("acmaes"),                  //
