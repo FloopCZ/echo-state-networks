@@ -21,6 +21,7 @@ echo "Model dir: ${MODEL_DIR}" >> ${outdir}/out.txt
 --bench.validation-stride="${VALIDATION_STRIDE}" \
 --gen.benchmark-set=ettm-loop \
 --bench.ett-variant=1 \
+--bench.error-measures=mse mae \
 --gen.n-evals=1 \
 --gen.net-type=lcnn \
 --lcnn.autoretrain-every="${AUTORETRAIN_EVERY}" \
