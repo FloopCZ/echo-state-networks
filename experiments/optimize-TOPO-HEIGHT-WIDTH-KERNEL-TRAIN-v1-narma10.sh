@@ -9,8 +9,8 @@ WIDTH="$3"
 KERNEL="$4"
 TRAIN="$5"
 
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-narma10"
-mkdir -p "${outdir}"
+out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-narma10"
+mkdir -p "${out_dir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --lcnn.topology="${TOPO}" \
@@ -24,6 +24,6 @@ mkdir -p "${outdir}"
   --bench.train-steps="${TRAIN}" \
   --bench.valid-steps=1000 \
   --gen.af-device=0 \
-  --gen.output-dir="${outdir}" \
+  --gen.output-dir="${out_dir}" \
   --opt.max-fevals=2500 \
-  2>&1 | tee -a "${outdir}/out.txt"
+  2>&1 | tee -a "${out_dir}/out.txt"

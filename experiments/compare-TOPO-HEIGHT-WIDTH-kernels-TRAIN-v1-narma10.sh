@@ -12,8 +12,8 @@ TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 kernels_str="k$(echo "${KERNELS}" | sed -e 's/ \+/k/g')"
-outdir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-${kernels_str}-train${TRAIN}-v1-narma10/"
-mkdir -p "${outdir}"
+out_dir="./log/compare-${TOPO}-${HEIGHT}-${WIDTH}-${kernels_str}-train${TRAIN}-v1-narma10/"
+mkdir -p "${out_dir}"
 ./build/compare_lcnn_kernels_cuda \
   --gen.net-type=lcnn \
   --gen.kernel-sizes=${KERNELS} \
@@ -26,8 +26,8 @@ mkdir -p "${outdir}"
   --bench.train-steps="${TRAIN}" \
   --bench.valid-steps=1000 \
   --gen.af-device=0 \
-  --gen.output-dir="${outdir}" \
+  --gen.output-dir="${out_dir}" \
   --gen.task-offset="${TASK_OFFSET}" \
   --gen.n-tasks="${N_TASKS}" \
   --opt.max-fevals=2500 \
-  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
+  2>&1 | tee -a "${out_dir}/out_${TASK_OFFSET}_${N_TASKS}.txt"

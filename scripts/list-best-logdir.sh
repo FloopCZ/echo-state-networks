@@ -1,8 +1,8 @@
 #!/bin/bash
 
-logdir=${1:-"./log"}
+log_dir=${1:-"./log"}
 
-for d in ${logdir}/optimize-*; do
+for d in ${log_dir}/optimize-*; do
     echo "$d"
     ./scripts/list-best.sh "$d"
 done

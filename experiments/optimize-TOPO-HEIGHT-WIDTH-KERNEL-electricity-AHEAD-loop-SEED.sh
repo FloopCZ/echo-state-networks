@@ -13,8 +13,8 @@ TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 
 export AF_MAX_BUFFERS=100000
-outdir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-electricity-ahead${AHEAD}-loop-seed${SEED}/"
-mkdir -p "${outdir}"
+out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-electricity-ahead${AHEAD}-loop-seed${SEED}/"
+mkdir -p "${out_dir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
@@ -36,7 +36,7 @@ mkdir -p "${outdir}"
   --gen.seed="${SEED}" \
   --gen.n-trials=1 \
   --gen.af-device=0 \
-  --gen.output-dir="${outdir}" \
+  --gen.output-dir="${out_dir}" \
   --gen.task-offset="${TASK_OFFSET}" \
   --gen.n-tasks="${N_TASKS}" \
-  2>&1 | tee -a "${outdir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
+  2>&1 | tee -a "${out_dir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
