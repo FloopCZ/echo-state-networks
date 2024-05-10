@@ -25,5 +25,5 @@ echo "Model dir: ${MODEL_DIR}" >> ${outdir}/out.txt
 --gen.n-evals=1 \
 --gen.net-type=lcnn \
 --lcnn.autoretrain-every="${AUTORETRAIN_EVERY}" \
---lcnn.load="${MODEL_DIR}"
+--lcnn.load="${MODEL_DIR}" \
   2>&1 | tee -a "${outdir}/out.txt"
