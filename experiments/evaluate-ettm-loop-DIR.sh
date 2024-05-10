@@ -15,7 +15,6 @@ export AF_MAX_BUFFERS=100000
 --bench.mackey-glass-delta=0.10000000000000001 \
 --bench.mackey-glass-tau=30 \
 --bench.memory-history=0 \
---bench.n-epochs=1 \
 --bench.n-steps-ahead="${N_STEPS_AHEAD}" \
 --bench.n-trials=1 \
 --bench.narma-tau=1 \

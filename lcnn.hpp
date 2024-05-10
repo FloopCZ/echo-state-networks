@@ -111,7 +111,7 @@ protected:
     af::array reservoir_b_;
     af::array input_w_;
     af::array feedback_w_;
-    std::vector<af::array> output_w_;
+    af::array output_w_;
     bool force_matmul_;
 
     // Random engines.
@@ -203,20 +203,13 @@ protected:
     /// Update the last output of the network after having a new state.
     virtual void update_last_output()
     {
-        if (output_w_.empty()) {
+        if (output_w_.isempty()) {
             last_output_.clear();
             return;
         }
-        af::array output =
-          af::constant(af::NaN, output_names_.size(), output_w_.size(), state_.type());
-        // Evaluate every output_w and aggregate them to the final output.
-        assert(output_w_.size() == 1);
-        for (int i = 0; i < (long)output_w_.size(); ++i) {
-            const af::array& ow = output_w_.at(i);
-            af::array predictors = af_utils::add_ones(af::flat(state_), 0);
-            output(af::span, i) = af::matmul(ow, predictors);
-        }
-        last_output_ = {output_names_, output};
+        af::array predictors = af_utils::add_ones(af::flat(state_), 0);
+        af::array output = af::matmul(output_w_, predictors);
+        last_output_ = {output_names_, std::move(output)};
         assert(last_output_.data().dims() == (af::dim4{(long)output_names_.size()}));
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
     }
@@ -331,7 +324,6 @@ public:
         data["input_names"] = input_names_;
         data["output_names"] = output_names_;
         data["memory_length"] = memory_length_;
-        data["output_w_size"] = output_w_.size();
         data["force_matmul"] = force_matmul_;
         data["noise_enabled"] = noise_enabled_;
         data["noise"] = noise_;
@@ -404,10 +396,9 @@ public:
             std::string p = dir / "feedback_w.bin";
             af::saveArray("data", feedback_w_, p.c_str());
         }
-        fs::create_directories(dir / "output_w/");
-        for (std::size_t i = 0; i < output_w_.size(); ++i) {
-            std::string p = dir / "output_w" / (std::to_string(i) + ".bin");
-            af::saveArray("data", output_w_.at(i), p.c_str());
+        if (!output_w_.isempty()) {
+            std::string p = dir / "output_w.bin";
+            af::saveArray("data", output_w_, p.c_str());
         }
 
         std::ofstream{dir / "prng_init.bin"} << prng_init_;
@@ -499,12 +490,9 @@ public:
             std::string p = dir / "feedback_w.bin";
             net.feedback_w_ = af::readArray(p.c_str(), "data");
         }
-
-        std::size_t output_w_size = data["output_w_size"];
-        net.output_w_.clear();
-        for (std::size_t i = 0; i < output_w_size; ++i) {
-            std::string p = dir / "output_w" / (std::to_string(i) + ".bin");
-            net.output_w_.push_back(af::readArray(p.c_str(), "data"));
+        {
+            std::string p = dir / "output_w.bin";
+            if (fs::exists(p)) net.output_w_ = af::readArray(p.c_str(), "data");
         }
 
         std::ifstream{dir / "prng_init.bin"} >> net.prng_init_;
@@ -692,7 +680,7 @@ public:
     void reset() override
     {
         prng_ = prng_init_;
-        output_w_.clear();
+        output_w_ = af::array{};
     }
 
     /// Train the network on already processed feed result.
@@ -750,7 +738,7 @@ public:
             autoretrain_n_ = 0;
         }
 
-        if (verbose_ && !output_w_.empty()) {
+        if (verbose_ && !output_w_.isempty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
             std::cout << fmt::format("Before train MSE error: {}", feed_err) << std::endl;
         }
@@ -774,7 +762,7 @@ public:
             std::cout << fmt::format("After train MSE error: {}", train_err) << std::endl;
         }
 
-        output_w_ = {train_result.output_w};
+        output_w_ = train_result.output_w;
         update_last_output();
         return train_result;
     }
@@ -786,13 +774,13 @@ public:
     }
 
     /// Get the current output weights.
-    const std::vector<af::array>& output_w() const
+    const af::array& output_w() const
     {
         return output_w_;
     }
 
     /// Set the output weights.
-    void output_w(std::vector<af::array> output_w)
+    void output_w(af::array output_w)
     {
         output_w_ = std::move(output_w);
     }
