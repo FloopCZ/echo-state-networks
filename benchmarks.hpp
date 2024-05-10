@@ -30,7 +30,7 @@ protected:
     po::variables_map config_;
     std::vector<long> split_sizes_;
     std::vector<std::string> error_measures_;
-    long n_epochs_;
+    bool verbose_;
 
     virtual data_map input_transform(const data_map& xs) const
     {
@@ -78,7 +78,7 @@ public:
           , config_.at("bench.train-steps").as<long>()
           , config_.at("bench.valid-steps").as<long>()}
       , error_measures_{config_.at("bench.error-measures").as<std::vector<std::string>>()}
-      , n_epochs_{config_.at("bench.n-epochs").as<long>()}
+      , verbose_{config_.at("bench.verbose").as<bool>()}
     {
     }
 
@@ -124,49 +124,44 @@ public:
         // split both input and output to init, train, test
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
-        benchmark_results error;
-        for (long epoch = 0; epoch < n_epochs_; ++epoch) {
-            // initialize the network using the initial sequence
-            net.random_noise(true);
-            if (!xs_groups.at(0).empty()) {
-                net.event("init-start");
-                net.feed(
-                  {.input = xs_groups.at(0),
-                   .feedback = ys_groups.at(0),
-                   .desired = ys_groups.at(0),
-                   .input_transform = input_transform_fn()});
-            }
-            net.learning(false);
-            // train the network on the training sequence
-            // teacher-force the first epoch, but not the others
-            if (!xs_groups.at(1).empty()) {
-                net.event("train-start");
-                net.train(
-                  {.input = xs_groups.at(1),
-                   .feedback = ys_groups.at(1),
-                   .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()});
-            }
-            net.random_noise(false);
-            net.clear_feedback();
-            // evaluate the performance of the network on the validation sequence
-            // note no teacher forcing
-            assert(!xs_groups.at(2).empty());
-            net.event("validation-start");
-            feed_result_t feed_result = net.feed(
-              {.input = xs_groups.at(2),
-               .feedback = {},
-               .desired = ys_groups.at(2),
+        // initialize the network using the initial sequence
+        net.random_noise(true);
+        if (!xs_groups.at(0).empty()) {
+            net.event("init-start");
+            net.feed(
+              {.input = xs_groups.at(0),
+               .feedback = ys_groups.at(0),
+               .desired = ys_groups.at(0),
                .input_transform = input_transform_fn()});
-            data_map predicted{net.output_names(), feed_result.outputs};
-            error = multi_error_fnc({predicted}, {ys_groups.at(2)});
-
-            // Print stats for each evaluation.
+        }
+        net.learning(false);
+        // train the network on the training sequence
+        if (!xs_groups.at(1).empty()) {
+            net.event("train-start");
+            net.train(
+              {.input = xs_groups.at(1),
+               .feedback = ys_groups.at(1),
+               .desired = ys_groups.at(1),
+               .input_transform = input_transform_fn()});
+        }
+        net.random_noise(false);
+        net.clear_feedback();
+        // evaluate the performance of the network on the validation sequence
+        // note no teacher forcing
+        assert(!xs_groups.at(2).empty());
+        net.event("validation-start");
+        feed_result_t feed_result = net.feed(
+          {.input = xs_groups.at(2),
+           .feedback = {},
+           .desired = ys_groups.at(2),
+           .input_transform = input_transform_fn()});
+        data_map predicted{net.output_names(), feed_result.outputs};
+        benchmark_results error = multi_error_fnc({predicted}, {ys_groups.at(2)});
+        // print statistics
+        if (verbose_) {
             const std::string& measure = error.name_at(0);
             stats first = error.at(0);
-            std::cout << fmt::format(
-              "Epoch {} {} {} (+- {})", epoch, measure, first.mean(), first.std())
-                      << std::endl;
+            std::cout << fmt::format("{} (+- {})", measure, first.mean(), first.std()) << std::endl;
         }
         return error;
     }
@@ -219,84 +214,78 @@ public:
         // split the sequences into groups
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
-        benchmark_results error;
-        for (long epoch = 0; epoch < n_epochs_; ++epoch) {
-            // initialize the network using the initial sequence
-            net.random_noise(true);
-            if (!xs_groups.at(0).empty()) {
-                net.event("init-start");
+        // initialize the network using the initial sequence
+        net.random_noise(true);
+        if (!xs_groups.at(0).empty()) {
+            net.event("init-start");
+            net.feed(
+              {.input = xs_groups.at(0),
+               .feedback = ys_groups.at(0),
+               .desired = ys_groups.at(0),
+               .input_transform = input_transform_fn()});
+        }
+        net.learning(false);
+        // train the network on the training sequence with teacher forcing
+        if (!xs_groups.at(1).empty()) {
+            net.event("train-start");
+            net.train(
+              {.input = xs_groups.at(1),
+               .feedback = ys_groups.at(1),
+               .desired = ys_groups.at(1),
+               .input_transform = input_transform_fn()});
+        }
+        net.random_noise(false);
+        net.clear_feedback();
+        // evaluate the performance of the network on all continuous intervals of the validation
+        // sequence of length n_steps_ahead_ (except the last such interval)
+        const long n_validations =
+          (xs_groups.at(2).length() - n_steps_ahead_ + validation_stride_ - 1) / validation_stride_;
+        std::vector<data_map> all_predicted(n_validations);
+        std::vector<data_map> all_desired(n_validations);
+        // the last step in the sequence has an unknown desired value, so we skip the
+        // last sequence of n_steps_ahead_ (i.e., < instead of <=)
+        long i;
+        for (i = 0; i < xs_groups.at(2).length() - n_steps_ahead_; i += validation_stride_) {
+            assert(i / validation_stride_ < n_validations);
+            // feed the network with the validation data before the validation subsequence
+            if (i > 0) {
+                data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                data_map desired = ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                net.event("feed-extra");
                 net.feed(
-                  {.input = xs_groups.at(0),
-                   .feedback = ys_groups.at(0),
-                   .desired = ys_groups.at(0),
+                  {.input = input,
+                   .feedback = desired,
+                   .desired = desired,
                    .input_transform = input_transform_fn()});
             }
-            net.learning(false);
-            // train the network on the training sequence with teacher forcing
-            if (!xs_groups.at(1).empty()) {
-                net.event("train-start");
-                net.train(
-                  {.input = xs_groups.at(1),
-                   .feedback = ys_groups.at(1),
-                   .desired = ys_groups.at(1),
-                   .input_transform = input_transform_fn()});
-            }
-            net.random_noise(false);
-            net.clear_feedback();
-            // evaluate the performance of the network on all continuous intervals of the validation
-            // sequence of length n_steps_ahead_ (except the last such interval)
-            const long n_validations =
-              (xs_groups.at(2).length() - n_steps_ahead_ + validation_stride_ - 1)
-              / validation_stride_;
-            std::vector<data_map> all_predicted(n_validations);
-            std::vector<data_map> all_desired(n_validations);
-            // the last step in the sequence has an unknown desired value, so we skip the
-            // last sequence of n_steps_ahead_ (i.e., < instead of <=)
-            long i;
-            for (i = 0; i < xs_groups.at(2).length() - n_steps_ahead_; i += validation_stride_) {
-                assert(i / validation_stride_ < n_validations);
-                // feed the network with the validation data before the validation subsequence
-                if (i > 0) {
-                    data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
-                    data_map desired =
-                      ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
-                    net.event("feed-extra");
-                    net.feed(
-                      {.input = input,
-                       .feedback = desired,
-                       .desired = desired,
-                       .input_transform = input_transform_fn()});
-                }
-                // create a copy of the network before the validation so that we can simply
-                // continue feeding of the original net in the next iteration
-                std::unique_ptr<net_base> net_copy = net.clone();
-                // evaluate the performance of the network on the validation subsequence
-                data_map loop_input = xs_groups.at(2)
-                                        .select(af::seq(i, i + n_steps_ahead_ - 1))
-                                        .filter(persistent_input_names());
-                data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
-                net_copy->event("validation-start");
-                af::array raw_predicted = net_copy
-                                            ->feed(
-                                              {.input = loop_input,
-                                               .feedback = {},
-                                               .desired = desired,
-                                               .input_transform = input_transform_fn()})
-                                            .outputs;
-                data_map predicted{output_names(), std::move(raw_predicted)};
-                // extract the targets
-                all_predicted.at(i / validation_stride_) = predicted.filter(target_names());
-                all_desired.at(i / validation_stride_) = desired.filter(target_names());
-            }
-            assert(i / validation_stride_ == n_validations);
-            error = multi_error_fnc(all_predicted, all_desired);
-
-            // Print stats for each evaluation.
+            // create a copy of the network before the validation so that we can simply
+            // continue feeding of the original net in the next iteration
+            std::unique_ptr<net_base> net_copy = net.clone();
+            // evaluate the performance of the network on the validation subsequence
+            data_map loop_input = xs_groups.at(2)
+                                    .select(af::seq(i, i + n_steps_ahead_ - 1))
+                                    .filter(persistent_input_names());
+            data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
+            net_copy->event("validation-start");
+            af::array raw_predicted = net_copy
+                                        ->feed(
+                                          {.input = loop_input,
+                                           .feedback = {},
+                                           .desired = desired,
+                                           .input_transform = input_transform_fn()})
+                                        .outputs;
+            data_map predicted{output_names(), std::move(raw_predicted)};
+            // extract the targets
+            all_predicted.at(i / validation_stride_) = predicted.filter(target_names());
+            all_desired.at(i / validation_stride_) = desired.filter(target_names());
+        }
+        assert(i / validation_stride_ == n_validations);
+        benchmark_results error = multi_error_fnc(all_predicted, all_desired);
+        // print statistics
+        if (verbose_) {
             const std::string& measure = error.name_at(0);
             stats first = error.at(0);
-            std::cout << fmt::format(
-              "Epoch {} {} {} (+- {})", epoch, measure, first.mean(), first.std())
-                      << std::endl;
+            std::cout << fmt::format("{} (+- {})", measure, first.mean(), first.std()) << std::endl;
         }
         return error;
     }
@@ -1335,43 +1324,43 @@ inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_ma
 inline po::options_description benchmark_arg_description()
 {
     po::options_description benchmark_arg_desc{"Benchmark options"};
-    benchmark_arg_desc.add_options()                                                         //
-      ("bench.memory-history", po::value<long>()->default_value(0),                          //
-       "The length of the memory to be evaluated.")                                          //
-      ("bench.n-steps-ahead", po::value<long>()->default_value(84),                          //
-       "The length of the valid sequence in sequence prediction benchmark.")                 //
-      ("bench.validation-stride", po::value<long>()->default_value(1),                       //
-       "Stride of validation subsequences (of length n-steps-ahead).")                       //
-      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),                       //
-       "The length of the memory to be evaluated.")                                          //
-      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),                  //
-       "The time delta (and subsampling) for mackey glass equations.")                       //
-      ("bench.narma-tau", po::value<long>()->default_value(1),                               //
-       "The time lag for narma series.")                                                     //
-      ("bench.error-measures",                                                               //
-       po::value<std::vector<std::string>>()                                                 //
-         ->multitoken()                                                                      //
-         ->default_value({"mse"}, "mse"),                                                    //
-       "The error function to be used. One of mse, nmse, nrmse.")                            //
-      ("bench.n-trials", po::value<long>()->default_value(1),                                //
-       "The number of repeats of the [teacher-force, valid] step in the "                    //
-       "sequence prediction benchmark.")                                                     //
-      ("bench.n-epochs", po::value<long>()->default_value(1),                                //
-       "The number of retrainings of the network. Only the first epoch is teacher-forced.")  //
-      ("bench.init-steps", po::value<long>()->default_value(1000),                           //
-       "The number of training time steps.")                                                 //
-      ("bench.train-steps", po::value<long>()->default_value(5000),                          //
-       "The number of valid time steps.")                                                    //
-      ("bench.valid-steps", po::value<long>()->default_value(1000),                          //
-       "The number of test time steps.")                                                     //
-      ("bench.semaphore-period", po::value<long>()->default_value(100),                      //
-       "The period of flipping the semaphore sign.")                                         //
-      ("bench.semaphore-stop", po::value<long>()->default_value(100),                        //
-       "Time when semaphore stops blinking.")                                                //
-      ("bench.ett-variant", po::value<int>()->default_value(1),                              //
-       "Variant of the ETTh dataset (1 or 2).")                                              //
-      ("bench.set-type", po::value<std::string>()->default_value("train-valid"),             //
-       "Part of the ETT dataset (train, valid, train-valid, test).")                         //
+    benchmark_arg_desc.add_options()                                              //
+      ("bench.memory-history", po::value<long>()->default_value(0),               //
+       "The length of the memory to be evaluated.")                               //
+      ("bench.n-steps-ahead", po::value<long>()->default_value(84),               //
+       "The length of the valid sequence in sequence prediction benchmark.")      //
+      ("bench.validation-stride", po::value<long>()->default_value(1),            //
+       "Stride of validation subsequences (of length n-steps-ahead).")            //
+      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),            //
+       "The length of the memory to be evaluated.")                               //
+      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),       //
+       "The time delta (and subsampling) for mackey glass equations.")            //
+      ("bench.narma-tau", po::value<long>()->default_value(1),                    //
+       "The time lag for narma series.")                                          //
+      ("bench.error-measures",                                                    //
+       po::value<std::vector<std::string>>()                                      //
+         ->multitoken()                                                           //
+         ->default_value({"mse"}, "mse"),                                         //
+       "The error function to be used. One of mse, nmse, nrmse.")                 //
+      ("bench.n-trials", po::value<long>()->default_value(1),                     //
+       "The number of repeats of the [teacher-force, valid] step in the "         //
+       "sequence prediction benchmark.")                                          //
+      ("bench.init-steps", po::value<long>()->default_value(1000),                //
+       "The number of training time steps.")                                      //
+      ("bench.train-steps", po::value<long>()->default_value(5000),               //
+       "The number of valid time steps.")                                         //
+      ("bench.valid-steps", po::value<long>()->default_value(1000),               //
+       "The number of test time steps.")                                          //
+      ("bench.semaphore-period", po::value<long>()->default_value(100),           //
+       "The period of flipping the semaphore sign.")                              //
+      ("bench.semaphore-stop", po::value<long>()->default_value(100),             //
+       "Time when semaphore stops blinking.")                                     //
+      ("bench.ett-variant", po::value<int>()->default_value(1),                   //
+       "Variant of the ETTh dataset (1 or 2).")                                   //
+      ("bench.set-type", po::value<std::string>()->default_value("train-valid"),  //
+       "Part of the ETT dataset (train, valid, train-valid, test).")              //
+      ("bench.verbose", po::value<bool>()->default_value(false),                  //
+       "Increase verbosity level.")                                               //
       ;
     return benchmark_arg_desc;
 }

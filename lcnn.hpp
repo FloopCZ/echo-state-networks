@@ -18,7 +18,6 @@
 #include <filesystem>
 #include <fmt/format.h>
 #include <fstream>
-#include <limits>
 #include <nlohmann/json.hpp>
 #include <range/v3/all.hpp>
 #include <stdexcept>
@@ -63,17 +62,10 @@ struct lcnn_config {
     bool exp_training_weights = true;
     /// The number of intermediate steps of the network with each input.
     long intermediate_steps = 1;
-    /// The number of training trials (select random indices, train, repeat).
-    long n_train_trials = 1;
-    /// Indices of neurons used as predictors during training.
-    /// Set to 1 to use all neurons.
-    double n_state_predictors = 1.;
-    // How should the result of multiple calls to train() be aggregated.
-    std::string train_aggregation = "ensemble";
-    // The probability that a single data point belongs to the valid set during train trial.
-    double train_valid_ratio = 0.8;
     // The steepness of the activation function.
     double act_steepness = 1.0;
+    // Verbosity.
+    bool verbose = false;
     // Autoretrain options.
     long autoretrain_every = 0;
     // Configuration for the lcnn weight adaptation.
@@ -90,11 +82,8 @@ struct lcnn_config {
         enet_standardize = args.at("lcnn.enet-standardize").as<bool>();
         exp_training_weights = args.at("lcnn.exp-training-weights").as<bool>();
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
-        n_train_trials = args.at("lcnn.n-train-trials").as<long>();
-        n_state_predictors = std::clamp(args.at("lcnn.n-state-predictors").as<double>(), 0., 1.);
-        train_aggregation = args.at("lcnn.train-aggregation").as<std::string>();
-        train_valid_ratio = args.at("lcnn.train-valid-ratio").as<double>();
         act_steepness = args.at("lcnn.act-steepness").as<double>();
+        verbose = args.at("lcnn.verbose").as<bool>();
         autoretrain_every = args.at("lcnn.autoretrain-every").as<long>();
         adaptation_cfg.learning_rate = args.at("lcnn.adapt.learning-rate").as<double>();
         adaptation_cfg.weight_leakage = args.at("lcnn.adapt.weight-leakage").as<double>();
@@ -138,11 +127,8 @@ protected:
     bool enet_standardize_;
     bool exp_training_weights_;
     long intermediate_steps_;
-    long n_train_trials_;
-    double n_state_predictors_;
-    std::string train_aggregation_;
-    double train_valid_ratio_;
     double act_steepness_;
+    bool verbose_;
     bool learning_enabled_;
     long autoretrain_every_;
     long autoretrain_n_;
@@ -221,32 +207,15 @@ protected:
             last_output_.clear();
             return;
         }
-        assert(
-          train_aggregation_ == "replace" || train_aggregation_ == "ensemble"
-          || train_aggregation_ == "delta" || train_aggregation_ == "funagg");
         af::array output =
           af::constant(af::NaN, output_names_.size(), output_w_.size(), state_.type());
         // Evaluate every output_w and aggregate them to the final output.
+        assert(output_w_.size() == 1);
         for (int i = 0; i < (long)output_w_.size(); ++i) {
             const af::array& ow = output_w_.at(i);
             af::array predictors = af_utils::add_ones(af::flat(state_), 0);
             output(af::span, i) = af::matmul(ow, predictors);
-            if (train_aggregation_ == "funagg") {
-                if (i == 1)
-                    output(af::span, i) =
-                      af::atanh(af::clamp(output(af::span, i), -1, 1) * 0.99) * 30.;
-                else if (i == 2)
-                    output(af::span, i) =
-                      af::atanh(af::clamp(output(af::span, i), -1, 1) * 0.99) * 30. - 3.;
-                else if (i == 3)
-                    output(af::span, i) =
-                      af::atanh(af::clamp(output(af::span, i), -1, 1) * 0.99) * 30. + 3.;
-            }
         }
-        if (train_aggregation_ == "replace") assert(output_w_.size() == 1);
-        if (train_aggregation_ == "ensemble") output = af::median(output, 1);
-        if (train_aggregation_ == "delta") output = af::sum(output, 1);
-        if (train_aggregation_ == "funagg") output = af::mean(output, 1);
         last_output_ = {output_names_, output};
         assert(last_output_.data().dims() == (af::dim4{(long)output_names_.size()}));
         assert(af::allTrue<bool>(!af::isNaN(af::flat(last_output_.data()))));
@@ -333,11 +302,8 @@ public:
       , enet_standardize_{cfg.enet_standardize}
       , exp_training_weights_{cfg.exp_training_weights}
       , intermediate_steps_{cfg.intermediate_steps}
-      , n_train_trials_{cfg.n_train_trials}
-      , n_state_predictors_{cfg.n_state_predictors}
-      , train_aggregation_{cfg.train_aggregation}
-      , train_valid_ratio_{cfg.train_valid_ratio}
       , act_steepness_(cfg.act_steepness)
+      , verbose_{cfg.verbose}
       , learning_enabled_{true}
       , autoretrain_every_{cfg.autoretrain_every}
       , adaptation_cfg(cfg.adaptation_cfg)
@@ -375,11 +341,8 @@ public:
         data["enet_alpha"] = enet_alpha_;
         data["enet_standardize"] = enet_standardize_;
         data["intermediate_steps"] = intermediate_steps_;
-        data["n_train_trials"] = n_train_trials_;
-        data["n_state_predictors"] = n_state_predictors_;
-        data["train_aggregation"] = train_aggregation_;
-        data["train_valid_ratio"] = train_valid_ratio_;
         data["act_steepness"] = act_steepness_;
+        data["verbose"] = verbose_;
         data["learning_enabled"] = learning_enabled_;
 
         data["autoretrain_every"] = autoretrain_every_;
@@ -477,11 +440,8 @@ public:
         net.enet_alpha_ = data.value("enet_alpha", 0.);
         net.enet_standardize_ = data.value("enet_standardize", false);
         net.intermediate_steps_ = data["intermediate_steps"];
-        net.n_train_trials_ = data["n_train_trials"];
-        net.n_state_predictors_ = data["n_state_predictors"];
-        net.train_aggregation_ = data["train_aggregation"];
-        net.train_valid_ratio_ = data["train_valid_ratio"];
         net.act_steepness_ = data["act_steepness"];
+        net.verbose_ = data.value("verbose", true);
         net.learning_enabled_ = data["learning_enabled"];
         net.adaptation_cfg.learning_rate = data["adaptation_cfg"]["learning_rate"];
         net.adaptation_cfg.abs_target_activation = data["adaptation_cfg"]["abs_target_activation"];
@@ -556,6 +516,7 @@ public:
                 net.autoretrain_every_ = args->at("lcnn.autoretrain-every").as<long>();
                 net.init_autoretrain();
             }
+            if (args->contains("lcnn.verbose")) net.verbose_ = args->at("lcnn.verbose").as<bool>();
         }
 
         return net;
@@ -735,10 +696,8 @@ public:
     }
 
     /// Train the network on already processed feed result.
-    train_result_t train_impl(
-      const feed_result_t& data,
-      const af::array& state_predictor_indices,
-      const std::optional<af::array>& training_weights) const
+    train_result_t
+    train_impl(const feed_result_t& data, const std::optional<af::array>& training_weights) const
     {
         assert(data.states.type() == DType);
         assert(
@@ -753,11 +712,8 @@ public:
         assert(data.desired->dims(0) == (long)output_names_.size());
         assert(!af::anyTrue<bool>(af::isNaN(data.states)));
         assert(!af::anyTrue<bool>(af::isNaN(*data.desired)));
-        af::array flat_predictors =
+        af::array predictors =
           af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
-        af::array predictors = flat_predictors;
-        if (!state_predictor_indices.isempty())
-            predictors = flat_predictors(af::span, state_predictor_indices);
         // Find the regression coefficients.
         af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
         if (enet_lambda_ == 0.) {
@@ -772,26 +728,16 @@ public:
                .standardize_var = enet_standardize_,
                .warm_start = true}};
             try {
-                enet.fit(
-                  predictors, data.desired->T(), training_weights);  // Ignore failed convergence.
+                // Fit and ignore failed convergence.
+                enet.fit(predictors, data.desired->T(), training_weights);
                 beta = enet.coefficients(true).T();
             } catch (const std::invalid_argument& e) {
                 std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
             }
         }
         // Distribute the coefficients along the state_predictor_indices, leave the other empty.
-        af::array output_w = [&]() {
-            if (state_predictor_indices.isempty()) return beta;
-            af::array w =
-              af::constant(0., output_names_.size(), state_.elements() + 1, flat_predictors.type());
-            af::array output_w_indices = af_utils::add_zeros(state_predictor_indices + 1, 0);
-            w(af::span, output_w_indices) = beta;
-            w(af::isNaN(w) || af::isInf(w)) = 0.;
-            return w;
-        }();
-        assert(
-          output_w.dims() == (af::dim4{(long)output_names_.size(), (long)state_.elements() + 1}));
-        return {.predictors = std::move(flat_predictors), .output_w = std::move(output_w)};
+        assert(beta.dims() == (af::dim4{(long)output_names_.size(), (long)state_.elements() + 1}));
+        return {.predictors = std::move(predictors), .output_w = std::move(beta)};
     }
 
     /// Train the network on already processed feed result.
@@ -804,115 +750,33 @@ public:
             autoretrain_n_ = 0;
         }
 
-        if (!output_w_.empty()) {
+        if (verbose_ && !output_w_.empty()) {
             double feed_err = af_utils::mse<double>(data.outputs, *data.desired);
-            std::cout << fmt::format(
-              "Before train {} MSE error (all): {}", output_w_.size(), feed_err)
-                      << std::endl;
+            std::cout << fmt::format("Before train MSE error: {}", feed_err) << std::endl;
         }
 
-        assert(
-          train_aggregation_ == "replace" || train_aggregation_ == "ensemble"
-          || train_aggregation_ == "delta" || train_aggregation_ == "funagg");
-        // Prepare for delta training (epoch 1 and later).
-        // In the second and later epochs, we only train the difference.
-        if (train_aggregation_ == "delta" && !output_w_.empty())
-            data.desired = *data.desired - data.outputs;
-        if (train_aggregation_ == "funagg") {
-            if (output_w_.size() == 1)
-                data.desired = af::tanh(*data.desired / 30.) / 0.99;
-            else if (output_w_.size() == 2)
-                data.desired = af::tanh((*data.desired + 3.) / 30.) / 0.99;
-            else if (output_w_.size() == 3)
-                data.desired = af::tanh((*data.desired - 3.) / 30.) / 0.99;
+        // set exponential training weights
+        std::optional<af::array> training_weights;
+        if (exp_training_weights_) {
+            long n = data.states.dims(2);
+            af::array seq = af::seq(n);
+            training_weights = af::exp(seq.as(DType) / n);
         }
 
-        struct train_trial_result_t {
-            train_result_t result;
-            double valid_err;
-        } best_train{.result = {}, .valid_err = std::numeric_limits<double>::max()};
+        // train
+        train_result_t train_result = train_impl(data, training_weights);
 
-        long n_predictors = std::clamp(
-          std::lround(n_state_predictors_ * state_.elements()), 1L, (long)state_.elements());
-        bool predictor_subset = n_predictors < state_.elements();
-        bool cross_validate = predictor_subset && n_train_trials_ > 1;
-
-        // split the data to train/valid if not using all state neurons or there is just a single
-        // train trial
-        feed_result_t train_data = data;
-        feed_result_t valid_data = data;
-        if (cross_validate) {
-            if (train_valid_ratio_ <= 0. || train_valid_ratio_ >= 1.)
-                throw std::invalid_argument{
-                  fmt::format("Invalid lcnn.train-valid-ratio {}", train_valid_ratio_)};
-            af::array train_set_idx;
-            af::array valid_set_idx;
-            long train_count = 0;
-            af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng_()};
-            while (train_count < 2 || train_count > train_set_idx.elements() - 2) {
-                train_set_idx =
-                  af::randu(data.states.dims(2), af::dtype::f32, af_prng) < train_valid_ratio_;
-                valid_set_idx = !train_set_idx;
-                train_count = af::count<long>(train_set_idx);
-            }
-            train_data = {
-              .states = data.states(af::span, af::span, train_set_idx),
-              .outputs = data.outputs(af::span, train_set_idx),
-              .desired = (*data.desired)(af::span, train_set_idx)};
-            valid_data = {
-              .states = data.states(af::span, af::span, valid_set_idx),
-              .outputs = data.outputs(af::span, valid_set_idx),
-              .desired = (*data.desired)(af::span, valid_set_idx)};
-            data = {};  // free memory
-        }
-
-        assert(n_train_trials_ > 0);
-        for (long i = 0; i < n_train_trials_; ++i) {
-            // select random state predictor indices
-            af::array state_predictor_indices;
-            if (predictor_subset)
-                state_predictor_indices = generate_random_state_indices(n_predictors);
-            // set exponential training weights
-            std::optional<af::array> training_weights;
-            if (exp_training_weights_) {
-                long n = train_data.states.dims(2);
-                af::array seq = af::seq(n);
-                training_weights = af::exp(seq.as(DType) / n);
-            }
-            // train
-            train_result_t train_result =
-              train_impl(train_data, state_predictor_indices, training_weights);
+        // print statistics
+        if (verbose_) {
             af::array train_prediction =
               af_utils::lstsq_predict(train_result.predictors, train_result.output_w.T());
-            double train_err = af_utils::mse<double>(train_prediction.T(), *train_data.desired);
-            double valid_err = std::numeric_limits<double>::quiet_NaN();
-            // predict out of sample
-            if (cross_validate) {
-                af::array valid_predictors =
-                  af::moddims(valid_data.states, state_.elements(), valid_data.states.dims(2));
-                af::array valid_prediction =
-                  af_utils::lstsq_predict(valid_predictors.T(), train_result.output_w.T());
-                valid_err = af_utils::mse<double>(valid_prediction.T(), *valid_data.desired);
-            }
-            // print statistics
-            std::cout << fmt::format(
-              "Train {} trial {} MSE error (train): {}", output_w_.size(), i, train_err)
-                      << std::endl;
-            if (cross_validate)
-                std::cout << fmt::format(
-                  "Train {} trial {} MSE error (valid): {}", output_w_.size(), i, valid_err)
-                          << std::endl;
-            // select the best train trial
-            if (std::isnan(valid_err) || valid_err < best_train.valid_err)
-                best_train = {.result = std::move(train_result), .valid_err = valid_err};
-            // no need to keep on trying if use all state predictors (the result will be the same)
-            if (!cross_validate) break;
+            double train_err = af_utils::mse<double>(train_prediction.T(), *data.desired);
+            std::cout << fmt::format("After train MSE error: {}", train_err) << std::endl;
         }
 
-        if (train_aggregation_ == "replace") output_w_.clear();
-        output_w_.push_back(best_train.result.output_w);
+        output_w_ = {train_result.output_w};
         update_last_output();
-        return best_train.result;
+        return train_result;
     }
 
     /// Clear the stored feedback which would otherwise be used in the next step.
@@ -1425,95 +1289,89 @@ lcnn<DType> random_lcnn(
 inline po::options_description lcnn_arg_description()
 {
     po::options_description lcnn_arg_desc{"Locally connected network options"};
-    lcnn_arg_desc.add_options()                                                       //
-      ("lcnn.state-height", po::value<long>()->default_value(11),                     //
-       "The fixed height of the kernel.")                                             //
-      ("lcnn.state-width", po::value<long>()->default_value(11),                      //
-       "The width of the state matrix.")                                              //
-      ("lcnn.kernel-height", po::value<long>()->default_value(5),                     //
-       "The height of the kernel.")                                                   //
-      ("lcnn.kernel-width", po::value<long>()->default_value(5),                      //
-       "The width of the kernel.")                                                    //
-      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),                     //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-res", po::value<double>()->default_value(0),                          //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-in-weight",                                                           //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0.0}, "0.0"),                            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sigma-in-weight",                                                        //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0.1}, "0.1"),                            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-fb-weight",                                                           //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0}, "0"),                                //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sigma-fb-weight",                                                        //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0}, "0.0"),                              //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sigma-b", po::value<double>()->default_value(0),                         //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-b", po::value<double>()->default_value(0),                            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sparsity", po::value<double>()->default_value(0),                        //
-       "See random_lcnn().")                                                          //
-      ("lcnn.in-fb-sparsity", po::value<double>()->default_value(0),                  //
-       "See random_lcnn().")                                                          //
-      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.input-to-n", po::value<double>()->default_value(1.),                     //
-       "See random_lcnn().")                                                          //
-      ("lcnn.noise", po::value<double>()->default_value(0),                           //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.leakage", po::value<double>()->default_value(1),                         //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),                //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.l2", po::value<double>()->default_value(0),                              //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.enet-lambda", po::value<double>()->default_value(0),                     //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.enet-alpha", po::value<double>()->default_value(0),                      //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.enet-standardize", po::value<bool>()->default_value(false),              //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.exp-training-weights", po::value<bool>()->default_value(true),           //
-       "Weight the training data points exponentially.")                              //
-      ("lcnn.n-train-trials", po::value<long>()->default_value(1),                    //
-       "See random_lcnn().")                                                          //
-      ("lcnn.n-state-predictors", po::value<double>()->default_value(1.),             //
-       "What fraction of neurons is used for regression training.")                   //
-      ("lcnn.train-aggregation", po::value<std::string>()->default_value("replace"),  //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.train-valid-ratio", po::value<double>()->default_value(0.8),             //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.act-steepness", po::value<double>()->default_value(1.0),                 //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.memory-length", po::value<long>()->default_value(0.0),                   //
-       "The maximum reach of the memory. Set to 0 to disable memory.")                //
-      ("lcnn.memory-prob", po::value<double>()->default_value(1.0),                   //
-       "The probability that a neuron is a memory neuron.")                           //
-      ("lcnn.sigma-memory", po::value<double>()->default_value(1.0),                  //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                     //
-       "See random_lcnn().")                                                          //
-      ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                 //
-       "Autoretrain the lcnn after every n steps with feedback.")                     //
-      ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
-       "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
-      ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //
-       "Decay rate for weight adaptation.")                                           //
-      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(1.0),   //
-       "Target value of neuron activation during adaptation.")                        //
-      ("lcnn.load", po::value<std::string>(),                                         //
-       "Directory from which to load the network.")                                   //
+    lcnn_arg_desc.add_options()                                                      //
+      ("lcnn.state-height", po::value<long>()->default_value(11),                    //
+       "The fixed height of the kernel.")                                            //
+      ("lcnn.state-width", po::value<long>()->default_value(11),                     //
+       "The width of the state matrix.")                                             //
+      ("lcnn.kernel-height", po::value<long>()->default_value(5),                    //
+       "The height of the kernel.")                                                  //
+      ("lcnn.kernel-width", po::value<long>()->default_value(5),                     //
+       "The width of the kernel.")                                                   //
+      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),                    //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-res", po::value<double>()->default_value(0),                         //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-in-weight",                                                          //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0.0}, "0.0"),                           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sigma-in-weight",                                                       //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0.1}, "0.1"),                           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-fb-weight",                                                          //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0}, "0"),                               //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sigma-fb-weight",                                                       //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0}, "0.0"),                             //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sigma-b", po::value<double>()->default_value(0),                        //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-b", po::value<double>()->default_value(0),                           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sparsity", po::value<double>()->default_value(0),                       //
+       "See random_lcnn().")                                                         //
+      ("lcnn.in-fb-sparsity", po::value<double>()->default_value(0),                 //
+       "See random_lcnn().")                                                         //
+      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.input-to-n", po::value<double>()->default_value(1.),                    //
+       "See random_lcnn().")                                                         //
+      ("lcnn.noise", po::value<double>()->default_value(0),                          //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.leakage", po::value<double>()->default_value(1),                        //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),               //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.l2", po::value<double>()->default_value(0),                             //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.enet-lambda", po::value<double>()->default_value(0),                    //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.enet-alpha", po::value<double>()->default_value(0),                     //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.enet-standardize", po::value<bool>()->default_value(false),             //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.exp-training-weights", po::value<bool>()->default_value(true),          //
+       "Weight the training data points exponentially.")                             //
+      ("lcnn.act-steepness", po::value<double>()->default_value(1.0),                //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.memory-length", po::value<long>()->default_value(0.0),                  //
+       "The maximum reach of the memory. Set to 0 to disable memory.")               //
+      ("lcnn.memory-prob", po::value<double>()->default_value(1.0),                  //
+       "The probability that a neuron is a memory neuron.")                          //
+      ("lcnn.sigma-memory", po::value<double>()->default_value(1.0),                 //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                    //
+       "See random_lcnn().")                                                         //
+      ("lcnn.verbose", po::value<bool>()->default_value(false),                      //
+       "Increase verbosity level.")                                                  //
+      ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                //
+       "Autoretrain the lcnn after every n steps with feedback.")                    //
+      ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),          //
+       "Learning rate for weight adaptation. Set to 0 to disable learning.")         //
+      ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),         //
+       "Decay rate for weight adaptation.")                                          //
+      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(1.0),  //
+       "Target value of neuron activation during adaptation.")                       //
+      ("lcnn.load", po::value<std::string>(),                                        //
+       "Directory from which to load the network.")                                  //
       ;
     return lcnn_arg_desc;
 }
