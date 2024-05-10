@@ -635,6 +635,7 @@ public:
         train_valid_test_data_ = train_valid_data_.concat(test_data_);
         std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
                   << " points.\n";
+        std::cout << std::flush;
 
         if (data_.contains("OT"))
             std::cout << "Naive 1-step ahead prediction valid MSE error for OT is "
