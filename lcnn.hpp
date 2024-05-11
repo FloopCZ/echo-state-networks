@@ -337,6 +337,7 @@ public:
         data["enet_lambda"] = enet_lambda_;
         data["enet_alpha"] = enet_alpha_;
         data["enet_standardize"] = enet_standardize_;
+        data["exp_training_weights"] = exp_training_weights_;
         data["intermediate_steps"] = intermediate_steps_;
         data["act_steepness"] = act_steepness_;
         data["verbose"] = verbose_;
@@ -436,6 +437,7 @@ public:
         net.enet_lambda_ = data.value("enet_lambda", 0.);
         net.enet_alpha_ = data.value("enet_alpha", 0.);
         net.enet_standardize_ = data.value("enet_standardize", false);
+        net.exp_training_weights_ = data.value("exp_training_weights", true);
         net.intermediate_steps_ = data["intermediate_steps"];
         net.act_steepness_ = data["act_steepness"];
         net.verbose_ = data.value("verbose", true);
