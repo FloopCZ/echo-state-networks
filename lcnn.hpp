@@ -734,26 +734,21 @@ public:
           af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
         // Find the regression coefficients.
         af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
-        if (enet_lambda_ == 0.) {
-            beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_, training_weights).T();
-        } else {
-            elasticnet_af::ElasticNet enet{
-              {.lambda = enet_lambda_,
-               .alpha = enet_alpha_,
-               .tol = 1e-12,
-               .path_len = 1,
-               .max_grad_steps = 100,
-               .standardize_var = enet_standardize_,
-               .warm_start = true}};
-            try {
-                // Fit and ignore failed convergence.
-                enet.fit(predictors, data.desired->T(), training_weights);
-                beta = enet.coefficients(true).T();
-            } catch (const std::invalid_argument& e) {
-                std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
-            }
+        elasticnet_af::ElasticNet enet{
+          {.lambda = enet_lambda_,
+           .alpha = enet_alpha_,
+           .tol = 1e-12,
+           .path_len = 1,
+           .max_grad_steps = 100,
+           .standardize_var = enet_standardize_,
+           .warm_start = true}};
+        try {
+            // Fit and ignore failed convergence.
+            enet.fit(predictors, data.desired->T(), training_weights);
+            beta = enet.coefficients(true).T();
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
         }
-        // Distribute the coefficients along the state_predictor_indices, leave the other empty.
         assert(beta.dims() == (af::dim4{(long)output_names_.size(), (long)state_.elements() + 1}));
         return {.predictors = std::move(predictors), .output_w = std::move(beta)};
     }
