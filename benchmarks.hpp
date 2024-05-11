@@ -9,7 +9,6 @@
 #include "data_map.hpp"
 #include "net.hpp"
 
-#include <af/data.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <filesystem>
@@ -616,23 +615,29 @@ public:
         std::cout << "Dataset valid has " << valid_data_.length() << " points.\n";
         valid_data_ = valid_data_.normalize_by(norm_reference);
 
-        train_valid_data_ = train_data_.concat(valid_data_);
-        std::cout << "Dataset train-valid has " << train_valid_data_.length() << " points.\n";
-
         test_data_ = data_.select(test_selector);
         std::cout << "Dataset test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
-
-        train_valid_test_data_ = train_valid_data_.concat(test_data_);
-        std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
-                  << " points.\n";
         std::cout << std::flush;
+
+        refresh_concatenated();
 
         if (data_.contains("OT"))
             std::cout << "Naive 1-step ahead prediction valid MSE error for OT is "
                       << af_utils::mse<double>(
                            valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
                       << std::endl;
+    }
+
+    void refresh_concatenated()
+    {
+        train_valid_data_ = train_data_.concat(valid_data_);
+        std::cout << "Dataset train-valid has " << train_valid_data_.length() << " points.\n";
+
+        train_valid_test_data_ = train_valid_data_.concat(test_data_);
+        std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
+                  << " points.\n";
+        std::cout << std::flush;
     }
 };
 
@@ -895,6 +900,7 @@ public:
         af::array new_train = train_data_.data();
         new_train(new_train < -10.) = 0.;
         train_data_ = {train_data_.keys(), new_train};
+        refresh_concatenated();
     }
 
     const std::set<std::string>& persistent_input_names() const override
