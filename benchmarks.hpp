@@ -902,10 +902,9 @@ public:
           test_selector);
 
         // Remove the outliers from train data.
-        // af::array new_train = train_data_.data();
-        // new_train(af::abs(new_train) >= 10.) = 0.;
-        // train_data_ = {train_data_.keys(), new_train};
-        // refresh_concatenated();
+        af::array new_train = af::clamp(train_data_.data(), -10., 10.);
+        train_data_ = {train_data_.keys(), std::move(new_train)};
+        refresh_concatenated();
     }
 
     const std::set<std::string>& persistent_input_names() const override
