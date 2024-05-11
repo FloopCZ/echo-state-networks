@@ -898,7 +898,7 @@ public:
 
         // Remove the outliers from train data.
         af::array new_train = train_data_.data();
-        new_train(new_train < -10.) = 0.;
+        new_train(af::abs(new_train) >= 10.) = 0.;
         train_data_ = {train_data_.keys(), new_train};
         refresh_concatenated();
     }
