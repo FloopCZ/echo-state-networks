@@ -538,7 +538,7 @@ public:
 
     void autoretrain(const data_map& step_feedback, const data_map& step_desired)
     {
-        if (autoretrain_every_ <= 0 || autoretrain_last_train_feed_.has_value()) return;
+        if (autoretrain_every_ <= 0 || !autoretrain_last_train_feed_.has_value()) return;
         if (step_feedback.empty() || step_desired.empty()) return;
         assert(autoretrain_buffer_.desired.has_value());
         autoretrain_buffer_.states(af::span, af::span, autoretrain_n_) = state_;
@@ -705,6 +705,7 @@ public:
     ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
+        init_autoretrain();
         return train(feed(input));
     }
 
