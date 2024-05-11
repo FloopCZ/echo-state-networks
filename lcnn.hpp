@@ -612,7 +612,7 @@ public:
 
         if (
           autoretrain_every_ == -1 && autoretrain_last_train_feed_.has_value()
-          && !step_feedback.empty() && lms_mu_ > 0.) {
+          && !step_feedback.empty() && !last_output_.empty() && lms_mu_ > 0.) {
             /*
             if (RLS_data.P.isempty()) {
                 // RLS_data.P = af::identity(state_.elements() + 1, state_.elements() + 1, DType);
