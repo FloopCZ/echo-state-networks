@@ -5,6 +5,7 @@
 #include <arrayfire.h>
 #include <cassert>
 #include <memory>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -159,42 +160,50 @@ af::array add_ones(const af::array& A, long dim = 1)
 
 /// Linear regression solver
 ///
-/// Assume A = [1 | A0], where [1 | A0] is a matrix A0 with an extra column of ones.
-/// Then trains X, such that A * X == B, optionally regularizing the coefficients (not the
+/// Assume X = [1 | X0], where [1 | X0] is a matrix X0 with an extra column of ones.
+/// Then trains B, such that X * B == Y, optionally regularizing the coefficients (not the
 /// intercept).
-af::array solve(af::array A, af::array B, double l2 = 0., af::array training_weights = {})
+af::array solve(
+  af::array X,
+  af::array Y,
+  double l2 = 0.,
+  const std::optional<af::array>& training_weights = std::nullopt)
 {
-    assert(B.numdims() <= 2);
-    assert(A.dims(0) == B.dims(0));
-    assert(A.dims(1) > 1);
-    if (!training_weights.isempty()) {
-        assert((training_weights.dims() == af::dim4{A.dims(0)}));
-        training_weights = af::sqrt(training_weights);
-        A *= af::tile(training_weights, 1, A.dims(1));
-        B *= af::tile(training_weights, 1, B.dims(1));
+    assert(Y.numdims() <= 2);
+    assert(X.dims(0) == Y.dims(0));
+    assert(X.dims(1) > 1);
+    if (training_weights.has_value()) {
+        assert((training_weights->dims() == af::dim4{X.dims(0)}));
+        af::array sqrt_training_weights = af::sqrt(*training_weights);
+        X *= af::tile(sqrt_training_weights, 1, X.dims(1));
+        Y *= af::tile(sqrt_training_weights, 1, Y.dims(1));
     }
     if (l2 != 0.) {
-        af::array reg = std::sqrt(l2) * af::identity(A.dims(1), A.dims(1), A.type());
+        af::array reg = std::sqrt(l2) * af::identity(X.dims(1), X.dims(1), X.type());
         reg(0, 0) = 0.;  // do not regularize intercept
-        A = af::join(0, A, std::move(reg));
-        B = af::join(0, B, af::constant(0, {A.dims(1), B.dims(1)}, B.type()));
+        X = af::join(0, X, std::move(reg));
+        Y = af::join(0, Y, af::constant(0, {X.dims(1), Y.dims(1)}, Y.type()));
     }
-    return af::solve(std::move(A), std::move(B));
+    af::deviceGC();  // Call garbage collector before solve() to avoid OOM.
+    return af::solve(std::move(X), std::move(Y));
 }
 
 /// Linear regression training.
 ///
-/// Train X, such as [1 | A] * X == B, where [1 | A] is the
-/// matrix A with an extra column of ones.
+/// Train B, such as [1 | X] * B == Y, where [1 | X] is the
+/// matrix X with an extra column of ones.
 af::array lstsq_train(
-  const af::array& A, const af::array& B, double l2 = 0.0, const af::array& training_weights = {})
+  const af::array& X,
+  const af::array& Y,
+  double l2 = 0.0,
+  const std::optional<af::array>& training_weights = std::nullopt)
 {
-    assert(B.numdims() <= 2);
-    assert(A.dims(0) == B.dims(0));
+    assert(Y.numdims() <= 2);
+    assert(X.dims(0) == Y.dims(0));
     // add biases (i.e., 1's) as the first column of the coefficient matrix
-    af::array X = solve(add_ones(A, 1), B, l2, training_weights);
-    assert((X.dims() == af::dim4{A.dims(1) + 1, B.dims(1)}));  // + 1 for biases
-    return X;
+    af::array B = solve(add_ones(X, 1), Y, l2, training_weights);
+    assert((B.dims() == af::dim4{X.dims(1) + 1, Y.dims(1)}));  // + 1 for biases
+    return B;
 }
 
 /// Linear regression prediction.

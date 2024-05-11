@@ -735,7 +735,7 @@ public:
         // Find the regression coefficients.
         af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
         if (enet_lambda_ == 0.) {
-            beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_).T();
+            beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_, training_weights).T();
         } else {
             elasticnet_af::ElasticNet enet{
               {.lambda = enet_lambda_,
