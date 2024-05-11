@@ -93,12 +93,12 @@ int main(int argc, char* argv[])
       "lcnn.kernel-width",
       "lcnn.topology",
       "lcnn.sigma-res",
-      "lcnn.n-state-predictors",
-      "lcnn.train-valid-ratio",
+      "lcnn.lms",
+      "lcnn.lms-mu",
+      "lcnn.exp-training-weights",
       "lcnn.act-steepness",
       "lcnn.input-to-n",
       "lcnn.intermediate-steps",
-      "lcnn.train-aggregation",
       "lcnn.l2",
       "lcnn.enet-lambda",
       "lcnn.enet-alpha",
@@ -184,6 +184,8 @@ int main(int argc, char* argv[])
                             fout << params.at(param).as<int>();
                         } else if (typeid(long) == params.at(param).value().type()) {
                             fout << params.at(param).as<long>();
+                        } else if (typeid(bool) == params.at(param).value().type()) {
+                            fout << params.at(param).as<bool>();
                         } else if (typeid(std::string) == params.at(param).value().type()) {
                             fout << params.at(param).as<std::string>();
                         } else if (typeid(std::vector<long>) == params.at(param).value().type()) {

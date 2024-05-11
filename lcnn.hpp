@@ -388,7 +388,7 @@ public:
         }
         last_output_.save(dir / "last_output/");
         prev_step_feedback_.save(dir / "prev_step_feedback/");
-        {
+        if (!reservoir_w_.isempty()) {
             std::string p = dir / "reservoir_w.bin";
             af::saveArray("data", reservoir_w_, p.c_str());
         }
