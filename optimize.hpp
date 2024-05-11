@@ -36,7 +36,6 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.in-fb-sparsity",
   "lcnn.leakage",
   "lcnn.l2",
-  "lcnn.enet-lambda",
   "lcnn.enet-alpha",
   "lcnn.n-state-predictors",
   "lcnn.train-valid-ratio",
