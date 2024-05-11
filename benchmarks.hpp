@@ -890,6 +890,11 @@ public:
         load_data(
           "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
           test_selector);
+
+        // Remove the outliers from train data.
+        af::array new_train = train_data_.data();
+        new_train(new_train < -10) = 0.;
+        train_data_ = {train_data_.keys(), new_train};
     }
 
     const std::set<std::string>& persistent_input_names() const override
