@@ -882,6 +882,11 @@ protected:
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
+    data_map input_transform(const data_map& xs) const override
+    {
+        return {xs.keys(), af::clamp(xs.data(), -10., 10.)};
+    }
+
 public:
     weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
@@ -897,10 +902,10 @@ public:
           test_selector);
 
         // Remove the outliers from train data.
-        af::array new_train = train_data_.data();
-        new_train(af::abs(new_train) >= 10.) = 0.;
-        train_data_ = {train_data_.keys(), new_train};
-        refresh_concatenated();
+        // af::array new_train = train_data_.data();
+        // new_train(af::abs(new_train) >= 10.) = 0.;
+        // train_data_ = {train_data_.keys(), new_train};
+        // refresh_concatenated();
     }
 
     const std::set<std::string>& persistent_input_names() const override
