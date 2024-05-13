@@ -51,10 +51,10 @@ Solar         , 720     , 0.249            , 0.275            , 0.397       , 0.
 DATASETS=("ETTm1", "ETTm2", "ETTh1", "ETTh2", "Weather", "Electricity", "Traffic", "Exchange", "Solar")
 PRED_LENS=(96, 192, 336, 720)
 OUR_MODELS={
-    "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead{ahead}-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
-    "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead{ahead}-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
-    "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead{ahead}-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
-    "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead{ahead}-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
+    "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
+    "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
+    "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
+    "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
 
 if __name__ == "__main__":
     df = pd.read_csv(StringIO(RESULTS.replace(" ", "")))
@@ -68,16 +68,18 @@ if __name__ == "__main__":
         for pred_len in PRED_LENS:
             df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
             for model in models:
-                mse_order = np.unique(df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten())
-                mae_order = np.unique(df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten())
+                mse_order = df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
+                mse_order = np.unique(np.round(mse_order, 3))
+                mae_order = df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
+                mae_order = np.unique(np.round(mae_order, 3))
 
-                mse_result = df_ds[model+'-mse'].iloc[0]
+                mse_result = np.round(df_ds[model+'-mse'].iloc[0], 3)
                 if mse_result == mse_order[0]:
                     num_first[model+'-mse'] += 1
                 if not math.isnan(mse_result):
                     num_compete[model+'-mse'] += 1
 
-                mae_result = df_ds[model+'-mae'].iloc[0]
+                mae_result = np.round(df_ds[model+'-mae'].iloc[0], 3)
                 if mae_result == mae_order[0]:
                     num_first[model+'-mae'] += 1
                 if not math.isnan(mae_result):
@@ -144,10 +146,12 @@ if __name__ == "__main__":
             df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
             print(f"& \\scalebox{{\\resultscale}}{{{pred_len}}} ", end="")
             for model in models:
-                mse_order = np.unique(df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten())
-                mae_order = np.unique(df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten())
+                mse_order = df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
+                mse_order = np.unique(np.round(mse_order, 3))
+                mae_order = df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
+                mae_order = np.unique(np.round(mae_order, 3))
 
-                mse_result = df_ds[model+'-mse'].iloc[0]
+                mse_result = np.round(df_ds[model+'-mse'].iloc[0], 3)
                 if math.isnan(mse_result):
                     mse_result = f"N/A"
                 elif mse_result == mse_order[0]:
@@ -157,7 +161,7 @@ if __name__ == "__main__":
                 else:
                     mse_result = f"{mse_result:.3f}"
 
-                mae_result = df_ds[model+'-mae'].iloc[0]
+                mae_result = np.round(df_ds[model+'-mae'].iloc[0], 3)
                 if math.isnan(mae_result):
                     mae_result = f"N/A"
                 elif mae_result == mae_order[0]:
@@ -234,18 +238,20 @@ if __name__ == "__main__":
             df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
             our_df_ds = our_df[(our_df["Dataset"] == ds) & (our_df["Horizon"] == pred_len)]
             for model in our_models:
-                mse_order = np.unique(np.hstack([df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
-                                      our_df_ds[our_mse_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()]))
+                mse_order = np.hstack([df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
+                                      our_df_ds[our_mse_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()])
+                mse_order = np.unique(np.round(mse_order, 3))
                 mae_order = np.unique(np.hstack([df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
                                       our_df_ds[our_mae_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()]))
+                mae_order = np.unique(np.round(mae_order, 3))
 
-                mse_result = our_df_ds[model+'-mse'].iloc[0]
+                mse_result = np.round(our_df_ds[model+'-mse'].iloc[0], 3)
                 if mse_result == mse_order[0]:
                     our_num_first[model+'-mse'] += 1
                 if not math.isnan(mse_result):
                     our_num_compete[model+'-mse'] += 1
 
-                mae_result = our_df_ds[model+'-mae'].iloc[0]
+                mae_result = np.round(our_df_ds[model+'-mae'].iloc[0], 3)
                 if mae_result == mae_order[0]:
                     our_num_first[model+'-mae'] += 1
                 if not math.isnan(mae_result):
@@ -312,12 +318,14 @@ if __name__ == "__main__":
             our_df_ds = our_df[(our_df["Dataset"] == ds) & (our_df["Horizon"] == pred_len)]
             print(f"& \\scalebox{{\\resultscale}}{{{pred_len}}} ", end="")
             for model in our_models:
-                mse_order = np.unique(np.hstack([df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
-                                      our_df_ds[our_mse_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()]))
+                mse_order = np.hstack([df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
+                                      our_df_ds[our_mse_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()])
+                mse_order = np.unique(np.round(mse_order, 3))
                 mae_order = np.unique(np.hstack([df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
                                       our_df_ds[our_mae_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()]))
+                mae_order = np.unique(np.round(mae_order, 3))
 
-                mse_result = our_df_ds[model+'-mse'].iloc[0]
+                mse_result = np.round(our_df_ds[model+'-mse'].iloc[0], 3)
                 if math.isnan(mse_result):
                     mse_result = f"N/A"
                 elif mse_result == mse_order[0]:
@@ -327,7 +335,7 @@ if __name__ == "__main__":
                 else:
                     mse_result = f"{mse_result:.3f}"
 
-                mae_result = our_df_ds[model+'-mae'].iloc[0]
+                mae_result = np.round(our_df_ds[model+'-mae'].iloc[0], 3)
                 if math.isnan(mae_result):
                     mae_result = f"N/A"
                 elif mae_result == mae_order[0]:
