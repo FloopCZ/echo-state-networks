@@ -892,7 +892,8 @@ public:
     {
         long len = 52696;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -946,7 +947,8 @@ public:
 
         long len = 26304;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -994,7 +996,8 @@ public:
 
         long len = 17544;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -1042,7 +1045,8 @@ public:
 
         long len = 7588;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -1089,7 +1093,8 @@ public:
 
         long len = 52560;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
