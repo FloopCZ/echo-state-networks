@@ -29,4 +29,5 @@ echo "Model dir: ${MODEL_DIR}" >> ${out_dir}/out.txt
 --lcnn.lms="${LMS}" \
 --lcnn.autoretrain-every="${AUTORETRAIN_EVERY}" \
 --lcnn.load="${MODEL_DIR}" \
+--gen.output-dir="${out_dir}" \
   2>&1 | tee -a "${out_dir}/out.txt"
