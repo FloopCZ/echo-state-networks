@@ -5,6 +5,9 @@
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
+#include <boost/algorithm/string/join.hpp>
+#include <filesystem>
+#include <fstream>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -16,6 +19,7 @@ namespace esn {
 
 namespace bacc = boost::accumulators;
 namespace rgv = ranges::views;
+namespace fs = std::filesystem;
 
 /// A storage class for the result of a single benchmark.
 class stats {
@@ -194,6 +198,16 @@ public:
             values.push_back(s.name() + " (std)");
         }
         return values;
+    }
+
+    /// Write the results to a csv file.
+    void to_csv(const fs::path& p, const std::string& model_name) const
+    {
+        fs::create_directories(p.parent_path());
+        std::ofstream fout{p};
+        if (!fout) throw std::runtime_error{"Cannot open file for writing."};
+        fout << "model," << boost::join(csv_header(), ",") << "\n";
+        fout << model_name << "," << boost::join(csv_values(), ",") << "\n";
     }
 };
 
