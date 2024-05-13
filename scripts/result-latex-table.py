@@ -56,6 +56,38 @@ OUR_MODELS={
     "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
     "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
 
+MODEL_TO_TITLE = {
+    "SotA": r"SotA",
+    "LCESN": r"\textbf{LCESN}",
+    "LCESN-LMS": r"\textbf{LCESN-LMS}",
+    "LCESN-LR100": r"\textbf{LCESN-LR100}",
+    "LCESN-LR1": r"\textbf{LCESN-LR1}",
+    "TSMixer": "TSMixer",
+    "iTransformer": "iTransformer",
+    "PatchTST": "PatchTST",
+    "DLinear": "DLinear",
+    "FEDformer": "FEDformer",
+    "RLinear": "RLinear",
+    "Autoformer": "Autoformer",
+    "TimesNet": "TimesNet"
+}
+
+MODEL_TO_CITE = {
+    "SotA": r"",
+    "LCESN": r"{\textbf{Ours}}",
+    "LCESN-LMS": r"{\textbf{Ours}}",
+    "LCESN-LR100": r"{\textbf{Ours}}",
+    "LCESN-LR1": r"{\textbf{Ours}}",
+    "TSMixer": r"{\citeyearpar{chen2023tsmixer}}",
+    "iTransformer": r"{\citeyearpar{liu2024itransformer}}",
+    "PatchTST": r"{\citeyearpar{nie2023patchtst}}",
+    "DLinear": r"{\citeyearpar{zeng2022dlinear}}",
+    "FEDformer": r"{\citeyearpar{zhou2022fedformer}}",
+    "RLinear": r"{\citeyearpar{li2023rlinear}}",
+    "Autoformer": r"{\citeyearpar{wu2021autoformer}}",
+    "TimesNet": r"{\citeyearpar{wu2023timesnet}}"
+}
+
 if __name__ == "__main__":
     df = pd.read_csv(StringIO(RESULTS.replace(" ", "")))
     models=list(set(c.removesuffix("-mse").removesuffix("-mae") for c in df.columns if c not in ("Dataset", "Horizon")))
@@ -124,12 +156,12 @@ if __name__ == "__main__":
         \multicolumn{2}{c}{\multirow{2}{*}{Models}}
         """))
     for model in models:
-        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{model}}}}} ")
+        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_TITLE[model]}}}}} ")
     print(r"""\\""")
 
     print(r"""\multicolumn{2}{c}{} """)
     for model in models:
-        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{\\citeyearpar{{{model}}}}}}} ")
+        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_CITE[model]}}}}} ")
     print(r"""\\""")
 
     for i, model in enumerate(models):
@@ -295,13 +327,13 @@ if __name__ == "__main__":
         \multicolumn{2}{c}{\multirow{2}{*}{Models}}
         """))
     for model in our_models:
-        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{model}}}}} ")
+        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_TITLE[model]}}}}} ")
     print(r"""\\""")
 
-    print(r"""\multicolumn{2}{c}{} """)
-    for model in our_models:
-        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{\\citeyearpar{{{model}}}}}}} ")
-    print(r"""\\""")
+    # print(r"""\multicolumn{2}{c}{} """)
+    # for model in our_models:
+    #     print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_CITE[model]}}}}} ")
+    # print(r"""\\""")
 
     for i, model in enumerate(our_models):
         print(f"\\cmidrule(lr){{{2*i+3}-{2*i+4}}}")
