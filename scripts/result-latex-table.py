@@ -357,19 +357,19 @@ if __name__ == "__main__":
         if our_num_compete[model+'-mse'] == 0:
             print(r"& \scalebox{\resultscale}{N/A} & \scalebox{\resultscale}{N/A}")
             continue
-        model_1st_mse = our_num_first[model+'-mse']/our_num_compete[model+'-mse']
+        # model_1st_mse = our_num_first[model+'-mse']/our_num_compete[model+'-mse']
         model_1st_mse_str = f"{our_num_first[model+'-mse']}/{our_num_compete[model+'-mse']}"
-        if model_1st_mse == our_models_1st_mse[0]:
-            model_1st_mse_str = f"\\firstres{{{model_1st_mse_str}}}"
-        elif model_1st_mse == our_models_1st_mse[1]:
-            model_1st_mse_str = f"\\secondres{{{model_1st_mse_str}}}"
+        # if model_1st_mse == our_models_1st_mse[0]:
+        #     model_1st_mse_str = f"\\firstres{{{model_1st_mse_str}}}"
+        # elif model_1st_mse == our_models_1st_mse[1]:
+        #     model_1st_mse_str = f"\\secondres{{{model_1st_mse_str}}}"
         print(f"& \\scalebox{{\\resultscale}}{{{model_1st_mse_str}}}", end="")
-        model_1st_mae = our_num_first[model+'-mae']/our_num_compete[model+'-mae']
+        # model_1st_mae = our_num_first[model+'-mae']/our_num_compete[model+'-mae']
         model_1st_mae_str = f"{our_num_first[model+'-mae']}/{our_num_compete[model+'-mae']}"
-        if model_1st_mae == our_models_1st_mae[0]:
-            model_1st_mae_str = f"\\firstres{{{model_1st_mae_str}}}"
-        elif model_1st_mae == our_models_1st_mae[1]:
-            model_1st_mae_str = f"\\secondres{{{model_1st_mae_str}}}"
+        # if model_1st_mae == our_models_1st_mae[0]:
+        #     model_1st_mae_str = f"\\firstres{{{model_1st_mae_str}}}"
+        # elif model_1st_mae == our_models_1st_mae[1]:
+        #     model_1st_mae_str = f"\\secondres{{{model_1st_mae_str}}}"
         print(f"& \\scalebox{{\\resultscale}}{{{model_1st_mae_str}}}")
     print(r"""\\""")
     print(r"""\bottomrule""")
