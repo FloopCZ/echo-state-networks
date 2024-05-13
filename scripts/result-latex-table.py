@@ -1,3 +1,4 @@
+#!/usr/bin/env/python
 # This is a dirty script that generates the result LaTex tables.
 
 import pandas as pd
