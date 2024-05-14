@@ -261,6 +261,7 @@ public:
             // create a copy of the network before the validation so that we can simply
             // continue feeding of the original net in the next iteration
             std::unique_ptr<net_base> net_copy = net.clone();
+            net_copy->clear_feedback();
             // evaluate the performance of the network on the validation subsequence
             data_map loop_input = xs_groups.at(2)
                                     .select(af::seq(i, i + n_steps_ahead_ - 1))
