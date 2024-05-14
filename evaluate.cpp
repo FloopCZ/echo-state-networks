@@ -8,6 +8,7 @@
 #include "simple_esn.hpp"
 
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 
 namespace po = boost::program_options;
@@ -74,6 +75,9 @@ int main(int argc, char* argv[])
         std::cout << "Output file `" << output_csv << "` exists, will not overwrite." << std::endl;
         return 1;
     }
+    fs::create_directories(output_dir);
+    std::ofstream output_csv_stream(output_csv);
+    if (!output_csv_stream) throw std::runtime_error("Could not open output csv file for writing.");
 
     std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
     auto net_factory = [&](auto... fwd) { return esn::make_net(fwd..., args, esn::global_prng); };
@@ -84,7 +88,7 @@ int main(int argc, char* argv[])
     std::cout << "Aggregated results\n" << results << std::endl;
     std::cout << "elapsed time: " << af::timer::stop() << std::endl;
 
-    results.to_csv(output_csv, "model");
+    results.to_csv(output_csv_stream, "model");
 
     return 0;
 }
