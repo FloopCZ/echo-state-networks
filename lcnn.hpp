@@ -536,14 +536,14 @@ public:
         output_w_ += (lms_mu_ * af::matmulNT(x, e)).T();
     }
 
-    void autoretrain(const data_map& step_feedback, const data_map& step_desired)
+    void autoretrain(const data_map& step_feedback)
     {
         if (autoretrain_every_ <= 0 || !autoretrain_last_train_feed_.has_value()) return;
-        if (step_feedback.empty() || step_desired.empty()) return;
+        if (step_feedback.empty()) return;
         assert(autoretrain_buffer_.desired.has_value());
         autoretrain_buffer_.states(af::span, af::span, autoretrain_n_) = state_;
         autoretrain_buffer_.outputs(af::span, autoretrain_n_) = last_output_.data();
-        (*autoretrain_buffer_.desired)(af::span, autoretrain_n_) = step_desired.data();
+        (*autoretrain_buffer_.desired)(af::span, autoretrain_n_) = step_feedback.data();
         ++autoretrain_n_;
         if (autoretrain_n_ == autoretrain_every_) {
             autoretrain_n_ = 0;
@@ -568,7 +568,18 @@ public:
     {
         // TODO desired and feedback is the same, only one should be provided and there should
         // be teacher-force bool param
+
+        // Update the output weights using LMS filter.
+        // Note: for partial step feedback, it should be sufficient to
+        // extend it by last_output_.
+        update_lms(prev_step_feedback_);
+
+        // Retrain if appropriate.
+        autoretrain(prev_step_feedback_);
+
         update_last_output_via_teacher_force(prev_step_feedback_);
+
+        // Store the previous feedback to be used in the next step.
         prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
@@ -638,12 +649,6 @@ public:
             fnc(*this, std::move(data));
         }
         event_ = std::nullopt;
-
-        // Update the output weights using LMS filter.
-        update_lms(step_feedback);
-
-        // Retrain if appropriate.
-        autoretrain(step_feedback, step_desired);
     }
 
     const data_map& last_output() const

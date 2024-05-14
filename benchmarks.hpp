@@ -235,7 +235,6 @@ public:
                .input_transform = input_transform_fn()});
         }
         net.random_noise(false);
-        net.clear_feedback();
         // evaluate the performance of the network on all continuous intervals of the validation
         // sequence of length n_steps_ahead_ (except the last such interval)
         const long n_validations =
@@ -261,6 +260,7 @@ public:
             // create a copy of the network before the validation so that we can simply
             // continue feeding of the original net in the next iteration
             std::unique_ptr<net_base> net_copy = net.clone();
+            net_copy->clear_feedback();
             // evaluate the performance of the network on the validation subsequence
             data_map loop_input = xs_groups.at(2)
                                     .select(af::seq(i, i + n_steps_ahead_ - 1))
@@ -892,7 +892,8 @@ public:
     {
         long len = 52696;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -946,7 +947,8 @@ public:
 
         long len = 26304;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -994,7 +996,8 @@ public:
 
         long len = 17544;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -1042,7 +1045,8 @@ public:
 
         long len = 7588;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -1089,7 +1093,8 @@ public:
 
         long len = 52560;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
