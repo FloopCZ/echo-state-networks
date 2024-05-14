@@ -9,7 +9,6 @@
 #include "data_map.hpp"
 #include "net.hpp"
 
-#include <af/data.h>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options.hpp>
 #include <filesystem>
@@ -262,6 +261,7 @@ public:
             // create a copy of the network before the validation so that we can simply
             // continue feeding of the original net in the next iteration
             std::unique_ptr<net_base> net_copy = net.clone();
+            net_copy->clear_feedback();
             // evaluate the performance of the network on the validation subsequence
             data_map loop_input = xs_groups.at(2)
                                     .select(af::seq(i, i + n_steps_ahead_ - 1))
@@ -616,23 +616,29 @@ public:
         std::cout << "Dataset valid has " << valid_data_.length() << " points.\n";
         valid_data_ = valid_data_.normalize_by(norm_reference);
 
-        train_valid_data_ = train_data_.concat(valid_data_);
-        std::cout << "Dataset train-valid has " << train_valid_data_.length() << " points.\n";
-
         test_data_ = data_.select(test_selector);
         std::cout << "Dataset test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
-
-        train_valid_test_data_ = train_valid_data_.concat(test_data_);
-        std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
-                  << " points.\n";
         std::cout << std::flush;
+
+        refresh_concatenated();
 
         if (data_.contains("OT"))
             std::cout << "Naive 1-step ahead prediction valid MSE error for OT is "
                       << af_utils::mse<double>(
                            valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
                       << std::endl;
+    }
+
+    void refresh_concatenated()
+    {
+        train_valid_data_ = train_data_.concat(valid_data_);
+        std::cout << "Dataset train-valid has " << train_valid_data_.length() << " points.\n";
+
+        train_valid_test_data_ = train_valid_data_.concat(test_data_);
+        std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
+                  << " points.\n";
+        std::cout << std::flush;
     }
 };
 
@@ -877,12 +883,18 @@ protected:
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
+    data_map input_transform(const data_map& xs) const override
+    {
+        return {xs.keys(), af::clamp(xs.data(), -10., 10.)};
+    }
+
 public:
     weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
         long len = 52696;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -890,6 +902,11 @@ public:
         load_data(
           "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
           test_selector);
+
+        // Remove the outliers from train data.
+        af::array new_train = af::clamp(train_data_.data(), -10., 10.);
+        train_data_ = {train_data_.keys(), std::move(new_train)};
+        refresh_concatenated();
     }
 
     const std::set<std::string>& persistent_input_names() const override
@@ -931,7 +948,8 @@ public:
 
         long len = 26304;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -979,7 +997,8 @@ public:
 
         long len = 17544;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -1027,7 +1046,8 @@ public:
 
         long len = 7588;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);
@@ -1074,7 +1094,8 @@ public:
 
         long len = 52560;
         long train_len = std::floor(len * 0.7);
-        long valid_len = std::floor(len * 0.2);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
         af::seq train_selector(0, train_len - 1);
         af::seq valid_selector(train_len, train_len + valid_len - 1);
         af::seq test_selector(train_len + valid_len, af::end);

@@ -5,6 +5,7 @@
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -194,6 +195,14 @@ public:
             values.push_back(s.name() + " (std)");
         }
         return values;
+    }
+
+    /// Write the results to a csv file.
+    std::ostream& to_csv(std::ostream& out, const std::string& model_name) const
+    {
+        out << "model," << boost::join(csv_header(), ",") << "\n";
+        out << model_name << "," << boost::join(csv_values(), ",") << "\n";
+        return out;
     }
 };
 

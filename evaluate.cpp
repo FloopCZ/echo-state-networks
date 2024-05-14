@@ -7,9 +7,12 @@
 #include "lcnn_fixer.hpp"
 #include "simple_esn.hpp"
 
+#include <filesystem>
+#include <fstream>
 #include <iostream>
 
 namespace po = boost::program_options;
+namespace fs = std::filesystem;
 
 /// Evaluate the net on the given benchmark.
 ///
@@ -33,19 +36,23 @@ evaluate(NetFactory net_factory, std::unique_ptr<esn::benchmark_set_base> bench,
 int main(int argc, char* argv[])
 {
     po::options_description arg_desc{"Generic options"};
-    arg_desc.add_options()                                                         //
-      ("help",                                                                     //
-       "Produce help message.")                                                    //
-      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),            //
-       "Network type, one of {simple-esn, lcnn}.")                                 //
-      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),    //
-       "Benchmark set to be evaluated.")                                           //
-      ("gen.n-evals", po::value<long>()->default_value(3),                         //
-       "The number of complete reevaluations of the provided set of parameters.")  //
-      ("gen.af-device", po::value<int>()->default_value(0),                        //
-       "ArrayFire device to be used.")                                             //
-      ("gen.seed", po::value<long>()->default_value(esn::DEFAULT_SEED),            //
-       "Seed value for random generator. Use 0 for random_device().");             //
+    arg_desc.add_options()                                                          //
+      ("help",                                                                      //
+       "Produce help message.")                                                     //
+      ("gen.net-type", po::value<std::string>()->default_value("lcnn"),             //
+       "Network type, one of {simple-esn, lcnn}.")                                  //
+      ("gen.benchmark-set", po::value<std::string>()->default_value("narma10"),     //
+       "Benchmark set to be evaluated.")                                            //
+      ("gen.n-evals", po::value<long>()->default_value(3),                          //
+       "The number of complete reevaluations of the provided set of parameters.")   //
+      ("gen.output-dir", po::value<std::string>()->default_value("log/evaluate/"),  //
+       "Directory where to save the evaluation results.")                           //
+      ("gen.overwrite", po::bool_switch(),                                          //
+       "Overwrite existing files.")                                                 //
+      ("gen.af-device", po::value<int>()->default_value(0),                         //
+       "ArrayFire device to be used.")                                              //
+      ("gen.seed", po::value<long>()->default_value(esn::DEFAULT_SEED),             //
+       "Seed value for random generator. Use 0 for random_device().");              //
     arg_desc.add(esn::benchmark_arg_description());
     po::variables_map args = esn::parse_conditional(
       argc, argv, arg_desc,
@@ -62,6 +69,16 @@ int main(int argc, char* argv[])
     af::info();
     std::cout << std::endl;
 
+    fs::path output_dir = args.at("gen.output-dir").as<std::string>();
+    fs::path output_csv = output_dir / "results.csv";
+    if (!args.at("gen.overwrite").as<bool>() && fs::exists(output_csv)) {
+        std::cout << "Output file `" << output_csv << "` exists, will not overwrite." << std::endl;
+        return 1;
+    }
+    fs::create_directories(output_dir);
+    std::ofstream output_csv_stream(output_csv);
+    if (!output_csv_stream) throw std::runtime_error("Could not open output csv file for writing.");
+
     std::unique_ptr<esn::benchmark_set_base> bench = esn::make_benchmark(args);
     auto net_factory = [&](auto... fwd) { return esn::make_net(fwd..., args, esn::global_prng); };
     long n_evals = args.at("gen.n-evals").as<long>();
@@ -70,6 +87,8 @@ int main(int argc, char* argv[])
     esn::benchmark_results results = evaluate(net_factory, std::move(bench), n_evals);
     std::cout << "Aggregated results\n" << results << std::endl;
     std::cout << "elapsed time: " << af::timer::stop() << std::endl;
+
+    results.to_csv(output_csv_stream, "model");
 
     return 0;
 }

@@ -66,6 +66,9 @@ struct lcnn_config {
     double act_steepness = 1.0;
     // Verbosity.
     bool verbose = false;
+    // Least mean squares coefficient.
+    bool lms = false;
+    double lms_mu = 0;
     // Autoretrain options.
     long autoretrain_every = 0;
     // Configuration for the lcnn weight adaptation.
@@ -84,6 +87,8 @@ struct lcnn_config {
         intermediate_steps = args.at("lcnn.intermediate-steps").as<long>();
         act_steepness = args.at("lcnn.act-steepness").as<double>();
         verbose = args.at("lcnn.verbose").as<bool>();
+        lms = args.at("lcnn.lms").as<bool>();
+        lms_mu = args.at("lcnn.lms-mu").as<double>();
         autoretrain_every = args.at("lcnn.autoretrain-every").as<long>();
         adaptation_cfg.learning_rate = args.at("lcnn.adapt.learning-rate").as<double>();
         adaptation_cfg.weight_leakage = args.at("lcnn.adapt.weight-leakage").as<double>();
@@ -130,6 +135,8 @@ protected:
     double act_steepness_;
     bool verbose_;
     bool learning_enabled_;
+    bool lms_;
+    double lms_mu_;
     long autoretrain_every_;
     long autoretrain_n_;
     feed_result_t autoretrain_buffer_;
@@ -298,6 +305,8 @@ public:
       , act_steepness_(cfg.act_steepness)
       , verbose_{cfg.verbose}
       , learning_enabled_{true}
+      , lms_{cfg.lms}
+      , lms_mu_{cfg.lms_mu}
       , autoretrain_every_{cfg.autoretrain_every}
       , adaptation_cfg(cfg.adaptation_cfg)
     {
@@ -337,6 +346,8 @@ public:
         data["act_steepness"] = act_steepness_;
         data["verbose"] = verbose_;
         data["learning_enabled"] = learning_enabled_;
+        data["lms"] = lms_;
+        data["lms_mu"] = lms_mu_;
 
         data["autoretrain_every"] = autoretrain_every_;
         data["autoretrain_n"] = autoretrain_n_;
@@ -377,7 +388,7 @@ public:
         }
         last_output_.save(dir / "last_output/");
         prev_step_feedback_.save(dir / "prev_step_feedback/");
-        {
+        if (!reservoir_w_.isempty()) {
             std::string p = dir / "reservoir_w.bin";
             af::saveArray("data", reservoir_w_, p.c_str());
         }
@@ -436,6 +447,8 @@ public:
         net.act_steepness_ = data["act_steepness"];
         net.verbose_ = data.value("verbose", true);
         net.learning_enabled_ = data["learning_enabled"];
+        net.lms_ = data.value("lms", true);
+        net.lms_mu_ = data.value("lms_mu", 0.);
         net.adaptation_cfg.learning_rate = data["adaptation_cfg"]["learning_rate"];
         net.adaptation_cfg.abs_target_activation = data["adaptation_cfg"]["abs_target_activation"];
         net.adaptation_cfg.weight_leakage = data["adaptation_cfg"]["weight_leakage"];
@@ -502,6 +515,7 @@ public:
 
         // Override options from args.
         if (args) {
+            if (args->contains("lcnn.lms")) net.lms_ = args->at("lcnn.lms").as<bool>();
             if (args->contains("lcnn.autoretrain-every")) {
                 net.autoretrain_every_ = args->at("lcnn.autoretrain-every").as<long>();
                 net.init_autoretrain();
@@ -510,6 +524,33 @@ public:
         }
 
         return net;
+    }
+
+    /// Least Mean Squares filter update.
+    void update_lms(const data_map& step_feedback)
+    {
+        if (!lms_ || lms_mu_ == 0.) return;
+        if (output_w_.isempty() || step_feedback.empty() || last_output_.empty()) return;
+        af::array x = af_utils::add_ones(af::flat(state_), 0);
+        af::array e = step_feedback.data() - last_output_.data();
+        output_w_ += (lms_mu_ * af::matmulNT(x, e)).T();
+    }
+
+    void autoretrain(const data_map& step_feedback)
+    {
+        if (autoretrain_every_ <= 0 || !autoretrain_last_train_feed_.has_value()) return;
+        if (step_feedback.empty()) return;
+        assert(autoretrain_buffer_.desired.has_value());
+        autoretrain_buffer_.states(af::span, af::span, autoretrain_n_) = state_;
+        autoretrain_buffer_.outputs(af::span, autoretrain_n_) = last_output_.data();
+        (*autoretrain_buffer_.desired)(af::span, autoretrain_n_) = step_feedback.data();
+        ++autoretrain_n_;
+        if (autoretrain_n_ == autoretrain_every_) {
+            autoretrain_n_ = 0;
+            autoretrain_last_train_feed_ =
+              concatenate(*autoretrain_last_train_feed_, autoretrain_buffer_);
+            train(*autoretrain_last_train_feed_);
+        }
     }
 
     /// TODO fix docs
@@ -528,6 +569,16 @@ public:
         // TODO desired and feedback is the same, only one should be provided and there should
         // be teacher-force bool param
         update_last_output_via_teacher_force(prev_step_feedback_);
+
+        // Update the output weights using LMS filter.
+        // Note: for partial step feedback, it should be sufficient to
+        // extend it by last_output_.
+        update_lms(prev_step_feedback_);
+
+        // Retrain if appropriate.
+        autoretrain(prev_step_feedback_);
+
+        // Store the previous feedback to be used in the next step.
         prev_step_feedback_ = step_feedback;
 
         // prepare the inputs for this step
@@ -597,23 +648,6 @@ public:
             fnc(*this, std::move(data));
         }
         event_ = std::nullopt;
-
-        // Retrain if appropriate.
-        if (
-          autoretrain_every_ > 0 && autoretrain_last_train_feed_.has_value()
-          && !step_feedback.empty()) {
-            assert(autoretrain_buffer_.desired.has_value());
-            autoretrain_buffer_.states(af::span, af::span, autoretrain_n_) = state_;
-            autoretrain_buffer_.outputs(af::span, autoretrain_n_) = last_output_.data();
-            (*autoretrain_buffer_.desired)(af::span, autoretrain_n_) = step_desired.data();
-            ++autoretrain_n_;
-            if (autoretrain_n_ == autoretrain_every_) {
-                autoretrain_n_ = 0;
-                autoretrain_last_train_feed_ =
-                  concatenate(*autoretrain_last_train_feed_, autoretrain_buffer_);
-                train(*autoretrain_last_train_feed_);
-            }
-        }
     }
 
     const data_map& last_output() const
@@ -675,6 +709,7 @@ public:
     ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
+        init_autoretrain();
         return train(feed(input));
     }
 
@@ -706,26 +741,21 @@ public:
           af::moddims(data.states, state_.elements(), data.desired->dims(1)).T();
         // Find the regression coefficients.
         af::array beta = af::constant(0., output_names_.size(), state_.elements() + 1, DType);
-        if (enet_lambda_ == 0.) {
-            beta = af_utils::lstsq_train(predictors, data.desired->T(), l2_).T();
-        } else {
-            elasticnet_af::ElasticNet enet{
-              {.lambda = enet_lambda_,
-               .alpha = enet_alpha_,
-               .tol = 1e-12,
-               .path_len = 1,
-               .max_grad_steps = 100,
-               .standardize_var = enet_standardize_,
-               .warm_start = true}};
-            try {
-                // Fit and ignore failed convergence.
-                enet.fit(predictors, data.desired->T(), training_weights);
-                beta = enet.coefficients(true).T();
-            } catch (const std::invalid_argument& e) {
-                std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
-            }
+        elasticnet_af::ElasticNet enet{
+          {.lambda = enet_lambda_,
+           .alpha = enet_alpha_,
+           .tol = 1e-12,
+           .path_len = 1,
+           .max_grad_steps = 100,
+           .standardize_var = enet_standardize_,
+           .warm_start = true}};
+        try {
+            // Fit and ignore failed convergence.
+            enet.fit(predictors, data.desired->T(), training_weights);
+            beta = enet.coefficients(true).T();
+        } catch (const std::invalid_argument& e) {
+            std::cerr << "Invalid input to ElasticNet: " << e.what() << std::endl;
         }
-        // Distribute the coefficients along the state_predictor_indices, leave the other empty.
         assert(beta.dims() == (af::dim4{(long)output_names_.size(), (long)state_.elements() + 1}));
         return {.predictors = std::move(predictors), .output_w = std::move(beta)};
     }
@@ -1279,89 +1309,93 @@ lcnn<DType> random_lcnn(
 inline po::options_description lcnn_arg_description()
 {
     po::options_description lcnn_arg_desc{"Locally connected network options"};
-    lcnn_arg_desc.add_options()                                                       //
-      ("lcnn.state-height", po::value<long>()->default_value(11),                     //
-       "The fixed height of the kernel.")                                             //
-      ("lcnn.state-width", po::value<long>()->default_value(11),                      //
-       "The width of the state matrix.")                                              //
-      ("lcnn.kernel-height", po::value<long>()->default_value(5),                     //
-       "The height of the kernel.")                                                   //
-      ("lcnn.kernel-width", po::value<long>()->default_value(5),                      //
-       "The width of the kernel.")                                                    //
-      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),                     //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-res", po::value<double>()->default_value(0),                          //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-in-weight",                                                           //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0.0}, "0.0"),                            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sigma-in-weight",                                                        //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0.1}, "0.1"),                            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-fb-weight",                                                           //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0}, "0"),                                //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sigma-fb-weight",                                                        //
-       po::value<std::vector<double>>()                                               //
-         ->multitoken()                                                               //
-         ->default_value(std::vector<double>{0}, "0.0"),                              //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sigma-b", po::value<double>()->default_value(0),                         //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-b", po::value<double>()->default_value(0),                            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.sparsity", po::value<double>()->default_value(0),                        //
-       "See random_lcnn().")                                                          //
-      ("lcnn.in-fb-sparsity", po::value<double>()->default_value(0),                  //
-       "See random_lcnn().")                                                          //
-      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),            //
-       "See random_lcnn().")                                                          //
-      ("lcnn.input-to-n", po::value<double>()->default_value(1.),                     //
-       "See random_lcnn().")                                                          //
-      ("lcnn.noise", po::value<double>()->default_value(0),                           //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.leakage", po::value<double>()->default_value(1),                         //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),                //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.l2", po::value<double>()->default_value(0),                              //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.enet-lambda", po::value<double>()->default_value(0),                     //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.enet-alpha", po::value<double>()->default_value(0),                      //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.enet-standardize", po::value<bool>()->default_value(false),              //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.exp-training-weights", po::value<double>()->default_value(std::exp(1)),  //
-       "Weight the training data points exponentially.")                              //
-      ("lcnn.act-steepness", po::value<double>()->default_value(1.0),                 //
-       "See lcnn_config class.")                                                      //
-      ("lcnn.memory-length", po::value<long>()->default_value(0.0),                   //
-       "The maximum reach of the memory. Set to 0 to disable memory.")                //
-      ("lcnn.memory-prob", po::value<double>()->default_value(1.0),                   //
-       "The probability that a neuron is a memory neuron.")                           //
-      ("lcnn.sigma-memory", po::value<double>()->default_value(1.0),                  //
-       "See random_lcnn().")                                                          //
-      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                     //
-       "See random_lcnn().")                                                          //
-      ("lcnn.verbose", po::value<bool>()->default_value(false),                       //
-       "Increase verbosity level.")                                                   //
-      ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                 //
-       "Autoretrain the lcnn after every n steps with feedback.")                     //
-      ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),           //
-       "Learning rate for weight adaptation. Set to 0 to disable learning.")          //
-      ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),          //
-       "Decay rate for weight adaptation.")                                           //
-      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(1.0),   //
-       "Target value of neuron activation during adaptation.")                        //
-      ("lcnn.load", po::value<std::string>(),                                         //
-       "Directory from which to load the network.")                                   //
+    lcnn_arg_desc.add_options()                                                      //
+      ("lcnn.state-height", po::value<long>()->default_value(11),                    //
+       "The fixed height of the kernel.")                                            //
+      ("lcnn.state-width", po::value<long>()->default_value(11),                     //
+       "The width of the state matrix.")                                             //
+      ("lcnn.kernel-height", po::value<long>()->default_value(5),                    //
+       "The height of the kernel.")                                                  //
+      ("lcnn.kernel-width", po::value<long>()->default_value(5),                     //
+       "The width of the kernel.")                                                   //
+      ("lcnn.sigma-res", po::value<double>()->default_value(0.2),                    //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-res", po::value<double>()->default_value(0),                         //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-in-weight",                                                          //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0.0}, "0.0"),                           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sigma-in-weight",                                                       //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0.1}, "0.1"),                           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-fb-weight",                                                          //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0}, "0"),                               //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sigma-fb-weight",                                                       //
+       po::value<std::vector<double>>()                                              //
+         ->multitoken()                                                              //
+         ->default_value(std::vector<double>{0}, "0.0"),                             //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sigma-b", po::value<double>()->default_value(0),                        //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-b", po::value<double>()->default_value(0),                           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.sparsity", po::value<double>()->default_value(0),                       //
+       "See random_lcnn().")                                                         //
+      ("lcnn.in-fb-sparsity", po::value<double>()->default_value(0),                 //
+       "See random_lcnn().")                                                         //
+      ("lcnn.topology", po::value<std::string>()->default_value("sparse"),           //
+       "See random_lcnn().")                                                         //
+      ("lcnn.input-to-n", po::value<double>()->default_value(1.),                    //
+       "See random_lcnn().")                                                         //
+      ("lcnn.noise", po::value<double>()->default_value(0),                          //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.leakage", po::value<double>()->default_value(1),                        //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.intermediate-steps", po::value<long>()->default_value(1),               //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.l2", po::value<double>()->default_value(0),                             //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.enet-lambda", po::value<double>()->default_value(0),                    //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.enet-alpha", po::value<double>()->default_value(0),                     //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.enet-standardize", po::value<bool>()->default_value(false),             //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.exp-training-weights", po::value<double>()->default_value(E),           //
+       "Weight the training data points exponentially.")                             //
+      ("lcnn.act-steepness", po::value<double>()->default_value(1.0),                //
+       "See lcnn_config class.")                                                     //
+      ("lcnn.memory-length", po::value<long>()->default_value(0.0),                  //
+       "The maximum reach of the memory. Set to 0 to disable memory.")               //
+      ("lcnn.memory-prob", po::value<double>()->default_value(1.0),                  //
+       "The probability that a neuron is a memory neuron.")                          //
+      ("lcnn.sigma-memory", po::value<double>()->default_value(1.0),                 //
+       "See random_lcnn().")                                                         //
+      ("lcnn.mu-memory", po::value<double>()->default_value(0.0),                    //
+       "See random_lcnn().")                                                         //
+      ("lcnn.verbose", po::value<bool>()->default_value(false),                      //
+       "Increase verbosity level.")                                                  //
+      ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                //
+       "Autoretrain the lcnn after every n steps with feedback.")                    //
+      ("lcnn.lms", po::value<bool>()->default_value(true),                           //
+       "Update weights using least mean squares filter.")                            //
+      ("lcnn.lms-mu", po::value<double>()->default_value(0),                         //
+       "Least mean squares mu coefficient.")                                         //
+      ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),          //
+       "Learning rate for weight adaptation. Set to 0 to disable learning.")         //
+      ("lcnn.adapt.weight-leakage", po::value<double>()->default_value(0.0),         //
+       "Decay rate for weight adaptation.")                                          //
+      ("lcnn.adapt.abs-target-activation", po::value<double>()->default_value(1.0),  //
+       "Target value of neuron activation during adaptation.")                       //
+      ("lcnn.load", po::value<std::string>(),                                        //
+       "Directory from which to load the network.")                                  //
       ;
     return lcnn_arg_desc;
 }

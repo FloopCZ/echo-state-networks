@@ -101,12 +101,11 @@ int main(int argc, char* argv[])
         param_names.push_back("lcnn.kernel-height");
         param_names.push_back("lcnn.kernel-width");
         param_names.push_back("lcnn.input-to-n");
-        param_names.push_back("lcnn.n-state-predictors");
-        param_names.push_back("lcnn.train-valid-ratio");
+        param_names.push_back("lcnn.exp-training-weights");
+        param_names.push_back("lcnn.lms");
+        param_names.push_back("lcnn.lms-mu");
         param_names.push_back("lcnn.act-steepness");
-        param_names.push_back("lcnn.n-train-trials");
         param_names.push_back("lcnn.intermediate-steps");
-        param_names.push_back("lcnn.train-aggregation");
         param_names.push_back("lcnn.l2");
         param_names.push_back("lcnn.enet-lambda");
         param_names.push_back("lcnn.enet-alpha");
@@ -168,6 +167,8 @@ int main(int argc, char* argv[])
                     fout << params.at(param).as<int>();
                 } else if (typeid(long) == params.at(param).value().type()) {
                     fout << params.at(param).as<long>();
+                } else if (typeid(bool) == params.at(param).value().type()) {
+                    fout << params.at(param).as<bool>();
                 } else if (typeid(std::string) == params.at(param).value().type()) {
                     fout << params.at(param).as<std::string>();
                 } else if (typeid(std::vector<long>) == params.at(param).value().type()) {

@@ -30,7 +30,7 @@ mkdir -p "${out_dir}"
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
   --bench.train-steps=4811 \
-  --bench.valid-steps=1517 \
+  --bench.valid-steps=760 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \
