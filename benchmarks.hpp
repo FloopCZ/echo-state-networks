@@ -235,7 +235,6 @@ public:
                .input_transform = input_transform_fn()});
         }
         net.random_noise(false);
-        net.clear_feedback();
         // evaluate the performance of the network on all continuous intervals of the validation
         // sequence of length n_steps_ahead_ (except the last such interval)
         const long n_validations =
