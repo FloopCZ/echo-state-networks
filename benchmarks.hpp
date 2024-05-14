@@ -33,7 +33,7 @@ protected:
 
     virtual data_map input_transform(const data_map& xs) const
     {
-        return xs;
+        return {xs.keys(), af::clamp(xs.data(), -10., 10.)};
     }
 
     input_transform_fn_t input_transform_fn() const
@@ -602,7 +602,8 @@ public:
       const std::vector<std::string>& header,
       af::seq train_selector,
       af::seq valid_selector,
-      af::seq test_selector)
+      af::seq test_selector,
+      double clamp_train = 10.)
     {
         csv_loader::load_data(csv_path, header);
 
@@ -619,6 +620,10 @@ public:
         std::cout << "Dataset test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
         std::cout << std::flush;
+
+        // Remove the outliers from train data.
+        af::array new_train = af::clamp(train_data_.data(), -clamp_train, clamp_train);
+        train_data_ = {train_data_.keys(), std::move(new_train)};
 
         refresh_concatenated();
 
@@ -882,11 +887,6 @@ protected:
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
-    data_map input_transform(const data_map& xs) const override
-    {
-        return {xs.keys(), af::clamp(xs.data(), -10., 10.)};
-    }
-
 public:
     weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
@@ -901,11 +901,6 @@ public:
         load_data(
           "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
           test_selector);
-
-        // Remove the outliers from train data.
-        af::array new_train = af::clamp(train_data_.data(), -10., 10.);
-        train_data_ = {train_data_.keys(), std::move(new_train)};
-        refresh_concatenated();
     }
 
     const std::set<std::string>& persistent_input_names() const override
