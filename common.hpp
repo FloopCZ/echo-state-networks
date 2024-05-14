@@ -1,9 +1,12 @@
 #pragma once
 
 #include <arrayfire.h>
+#include <cmath>
 #include <random>
 
 namespace esn {
+
+inline const double E = std::exp(1);
 
 using prng_t = std::mt19937_64;
 static thread_local std::random_device global_rd;

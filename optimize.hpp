@@ -44,6 +44,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.memory-prob",
   "lcnn.sigma-memory",
   "lcnn.mu-memory",
+  "lcnn.exp-training-weights",
   "lcnn.adapt.learning-rate",
   "lcnn.adapt.weight-leakage",
   "lcnn.adapt.abs-target-activation",
@@ -546,6 +547,8 @@ public:
                 params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.mu-memory") {
                 params.emplace(key, vm.at(key).as<double>());
+            } else if (key == "lcnn.exp-training-weights") {
+                params.emplace(key, vm.at(key).as<double>());
             } else if (key == "lcnn.lms-mu") {
                 params.emplace(key, inv_exp_transform(vm.at(key).as<double>()));
             } else if (key == "lcnn.adapt.learning-rate") {
@@ -710,6 +713,11 @@ public:
             cfg.insert_or_assign("lcnn.mu-memory", val(params.at("lcnn.mu-memory")));
             params.erase("lcnn.mu-memory");
         }
+        if (params.contains("lcnn.exp-training-weights")) {
+            cfg.insert_or_assign(
+              "lcnn.exp-training-weights", val(params.at("lcnn.exp-training-weights")));
+            params.erase("lcnn.exp-training-weights");
+        }
         if (params.contains("lcnn.lms-mu")) {
             cfg.insert_or_assign("lcnn.lms-mu", expval(params.at("lcnn.lms-mu")));
             params.erase("lcnn.lms-mu");
@@ -863,6 +871,7 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", 0.5},
           {"lcnn.mu-memory", 1.0},
+          {"lcnn.exp-training-weights", E},
           {"lcnn.lms-mu", inv_exp_transform(1e-4)},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
@@ -909,6 +918,7 @@ public:
           "lcnn.memory-prob",
           "lcnn.sigma-memory",
           "lcnn.mu-memory",
+          "lcnn.exp-training-weights",
           "lcnn.lms-mu",
           "lcnn.adapt.learning-rate",
           "lcnn.adapt.weight-leakage",
@@ -960,6 +970,7 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", 0.1},
           {"lcnn.mu-memory", 0.05},
+          {"lcnn.exp-training-weights", 0.05},
           {"lcnn.lms-mu", 0.01},
           {"lcnn.adapt.learning-rate", 0.05},
           {"lcnn.adapt.weight-leakage", 0.05},
@@ -997,6 +1008,7 @@ public:
           {"lcnn.memory-prob", -0.1},
           {"lcnn.sigma-memory", -0.1},
           {"lcnn.mu-memory", -0.1},
+          {"lcnn.exp-training-weights", 1.0},
           {"lcnn.lms-mu", -0.1},
           {"lcnn.adapt.learning-rate", -0.1},
           {"lcnn.adapt.weight-leakage", -0.1},
@@ -1034,6 +1046,7 @@ public:
           {"lcnn.memory-prob", 1.1},
           {"lcnn.sigma-memory", 1.1},
           {"lcnn.mu-memory", 2.1},
+          {"lcnn.exp-training-weights", 10.0},
           {"lcnn.lms-mu", 2.0},
           {"lcnn.adapt.learning-rate", 2.0},
           {"lcnn.adapt.weight-leakage", 2.0},
