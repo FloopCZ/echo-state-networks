@@ -568,7 +568,6 @@ public:
     {
         // TODO desired and feedback is the same, only one should be provided and there should
         // be teacher-force bool param
-        update_last_output_via_teacher_force(prev_step_feedback_);
 
         // Update the output weights using LMS filter.
         // Note: for partial step feedback, it should be sufficient to
@@ -577,6 +576,8 @@ public:
 
         // Retrain if appropriate.
         autoretrain(prev_step_feedback_);
+
+        update_last_output_via_teacher_force(prev_step_feedback_);
 
         // Store the previous feedback to be used in the next step.
         prev_step_feedback_ = step_feedback;
