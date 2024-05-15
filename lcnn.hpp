@@ -366,7 +366,7 @@ public:
 
         std::ofstream{dir / "params.json"} << data.dump(2);
 
-        {
+        if (!state_delta_.isempty()) {
             std::string p = dir / "state_delta.bin";
             af::saveArray("data", state_delta_, p.c_str());
         }
@@ -465,7 +465,7 @@ public:
 
         {
             std::string p = dir / "state_delta.bin";
-            net.state_delta_ = af::readArray(p.c_str(), "data");
+            if (fs::exists(p)) net.state_delta_ = af::readArray(p.c_str(), "data");
         }
         {
             std::string p = dir / "state.bin";

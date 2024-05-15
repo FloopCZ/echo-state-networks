@@ -17,8 +17,8 @@ echo "Model dir: ${MODEL_DIR}" >> ${out_dir}/out.txt
 --bench.error-measure=mse \
 --bench.set-type=train-valid-test \
 --bench.init-steps=500 \
---bench.train-steps=46926 \
---bench.valid-steps=5270 \
+--bench.train-steps=46925 \
+--bench.valid-steps=5271 \
 --bench.n-steps-ahead="${N_STEPS_AHEAD}" \
 --bench.validation-stride="${VALIDATION_STRIDE}" \
 --gen.benchmark-set=weather-loop \

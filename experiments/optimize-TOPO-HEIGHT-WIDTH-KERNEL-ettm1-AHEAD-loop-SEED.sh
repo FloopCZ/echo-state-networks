@@ -30,8 +30,8 @@ mkdir -p "${out_dir}"
   --bench.ett-variant=1 \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
-  --bench.train-steps=34060 \
-  --bench.valid-steps=11520 \
+  --bench.train-steps=34059 \
+  --bench.valid-steps=11521 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \

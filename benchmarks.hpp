@@ -33,7 +33,7 @@ protected:
 
     virtual data_map input_transform(const data_map& xs) const
     {
-        return {xs.keys(), af::clamp(xs.data(), -10., 10.)};
+        return xs;
     }
 
     input_transform_fn_t input_transform_fn() const
@@ -144,7 +144,6 @@ public:
                .input_transform = input_transform_fn()});
         }
         net.random_noise(false);
-        net.clear_feedback();
         // evaluate the performance of the network on the validation sequence
         // note no teacher forcing
         assert(!xs_groups.at(2).empty());
@@ -206,11 +205,17 @@ public:
         assert(xs.keys() == net.input_names());
         assert(ys.keys() == net.output_names());
         assert(xs.length() == ys.length());
-        if (xs.length() < rg::accumulate(split_sizes_, 0L))
+        long split_sizes_sum = rg::accumulate(split_sizes_, 0L);
+        if (xs.length() < split_sizes_sum)
             throw std::runtime_error{
               "Not enough data in the dataset for the given split sizes. Data have "
-              + std::to_string(xs.length()) + " and split sizes "
-              + std::to_string(rg::accumulate(split_sizes_, 0L)) + "."};
+              + std::to_string(xs.length()) + " and split sizes " + std::to_string(split_sizes_sum)
+              + "."};
+        if (xs.length() != split_sizes_sum)
+            throw std::runtime_error{
+              "Split sizes sum does not correspond to the length of the dataset. Data have "
+              + std::to_string(xs.length()) + " and split sizes " + std::to_string(split_sizes_sum)
+              + "."};
         // split the sequences into groups
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
@@ -260,7 +265,6 @@ public:
             // create a copy of the network before the validation so that we can simply
             // continue feeding of the original net in the next iteration
             std::unique_ptr<net_base> net_copy = net.clone();
-            net_copy->clear_feedback();
             // evaluate the performance of the network on the validation subsequence
             data_map loop_input = xs_groups.at(2)
                                     .select(af::seq(i, i + n_steps_ahead_ - 1))
@@ -602,8 +606,7 @@ public:
       const std::vector<std::string>& header,
       af::seq train_selector,
       af::seq valid_selector,
-      af::seq test_selector,
-      double clamp_train = 10.)
+      af::seq test_selector)
     {
         csv_loader::load_data(csv_path, header);
 
@@ -620,10 +623,6 @@ public:
         std::cout << "Dataset test has " << test_data_.length() << " points.\n";
         test_data_ = test_data_.normalize_by(norm_reference);
         std::cout << std::flush;
-
-        // Remove the outliers from train data.
-        af::array new_train = af::clamp(train_data_.data(), -clamp_train, clamp_train);
-        train_data_ = {train_data_.keys(), std::move(new_train)};
 
         refresh_concatenated();
 
@@ -887,6 +886,11 @@ protected:
     std::set<std::string> output_names_ = input_names_;
     std::set<std::string> target_names_ = output_names_;
 
+    data_map input_transform(const data_map& xs) const override
+    {
+        return xs.clamp(-10., 10.);
+    }
+
 public:
     weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
@@ -901,6 +905,10 @@ public:
         load_data(
           "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
           test_selector);
+
+        // Remove outliers from the training data.
+        train_data_ = train_data_.clamp(-10., 10.);
+        refresh_concatenated();
     }
 
     const std::set<std::string>& persistent_input_names() const override

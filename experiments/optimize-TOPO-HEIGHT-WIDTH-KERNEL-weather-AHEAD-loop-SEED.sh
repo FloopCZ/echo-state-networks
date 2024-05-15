@@ -29,8 +29,8 @@ mkdir -p "${out_dir}"
   --gen.benchmark-set=weather-loop \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
-  --bench.train-steps=36387 \
-  --bench.valid-steps=5270 \
+  --bench.train-steps=36386 \
+  --bench.valid-steps=5271 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \

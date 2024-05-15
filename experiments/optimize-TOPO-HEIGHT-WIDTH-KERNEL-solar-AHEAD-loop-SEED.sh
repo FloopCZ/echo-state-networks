@@ -29,8 +29,8 @@ mkdir -p "${out_dir}"
   --gen.benchmark-set=solar-loop \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
-  --bench.train-steps=36292 \
-  --bench.valid-steps=5256 \
+  --bench.train-steps=36291 \
+  --bench.valid-steps=5257 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \

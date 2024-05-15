@@ -231,6 +231,11 @@ public:
         return {keys_, af::join(1, data_, rhs.data_)};
     }
 
+    data_map clamp(double low, double high) const
+    {
+        return {keys_, af::clamp(data_, low, high)};
+    }
+
     const std::set<std::string>& keys() const
     {
         return keys_;

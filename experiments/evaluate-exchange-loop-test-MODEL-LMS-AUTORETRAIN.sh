@@ -17,8 +17,8 @@ echo "Model dir: ${MODEL_DIR}" >> ${out_dir}/out.txt
 --bench.error-measure=mse \
 --bench.set-type=train-valid-test \
 --bench.init-steps=500 \
---bench.train-steps=6328 \
---bench.valid-steps=760 \
+--bench.train-steps=6327 \
+--bench.valid-steps=761 \
 --bench.n-steps-ahead="${N_STEPS_AHEAD}" \
 --bench.validation-stride="${VALIDATION_STRIDE}" \
 --gen.benchmark-set=exchange-loop \

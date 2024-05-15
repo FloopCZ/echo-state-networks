@@ -29,8 +29,8 @@ mkdir -p "${out_dir}"
   --gen.benchmark-set=electricity-loop \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
-  --bench.train-steps=17912 \
-  --bench.valid-steps=2632 \
+  --bench.train-steps=17911 \
+  --bench.valid-steps=2633 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \

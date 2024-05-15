@@ -29,8 +29,8 @@ mkdir -p "${out_dir}"
   --gen.benchmark-set=exchange-loop \
   --bench.set-type=train-valid \
   --bench.init-steps=500 \
-  --bench.train-steps=4811 \
-  --bench.valid-steps=760 \
+  --bench.train-steps=4810 \
+  --bench.valid-steps=761 \
   --bench.n-steps-ahead="${AHEAD}" \
   --bench.validation-stride=30 \
   --gen.seed="${SEED}" \
