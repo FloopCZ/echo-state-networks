@@ -19,6 +19,7 @@ mkdir -p "${out_dir}"
   --gen.kernel-sizes=${KERNELS} \
   --lcnn.topology="${TOPO}" \
   --lcnn.exp-training-weights=false \
+  --lcnn.lms=false \
   --gen.state-heights="${HEIGHT}" \
   --gen.state-widths="${WIDTH}" \
   --gen.benchmark-set=narma10 \

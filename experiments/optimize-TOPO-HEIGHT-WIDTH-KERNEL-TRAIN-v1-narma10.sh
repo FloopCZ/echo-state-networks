@@ -15,6 +15,7 @@ mkdir -p "${out_dir}"
   --gen.net-type=lcnn \
   --lcnn.topology="${TOPO}" \
   --lcnn.exp-training-weights=false \
+  --lcnn.lms=false \
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
   --lcnn.state-height="${HEIGHT}" \
