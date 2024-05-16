@@ -85,8 +85,8 @@ public:
       net_base& net,
       prng_t& prng,
       std::optional<optimization_status_t> opt_status = std::nullopt) const = 0;
-    virtual const std::set<std::string>& input_names() const = 0;
-    virtual const std::set<std::string>& output_names() const = 0;
+    virtual const immutable_set<std::string>& input_names() const = 0;
+    virtual const immutable_set<std::string>& output_names() const = 0;
     virtual ~benchmark_set_base() = default;
     virtual bool constant_data() const
     {
@@ -295,9 +295,9 @@ public:
         return error;
     }
 
-    virtual const std::set<std::string>& persistent_input_names() const = 0;
+    virtual const immutable_set<std::string>& persistent_input_names() const = 0;
 
-    virtual const std::set<std::string>& target_names() const = 0;
+    virtual const immutable_set<std::string>& target_names() const = 0;
 };
 
 /// The parameters are from Reservoir Topology in Deep Echo State Networks [2019]
@@ -324,8 +324,8 @@ public:
 
 class narma10_benchmark_set : public benchmark_set, public narma10_generator {
 protected:
-    std::set<std::string> input_names_{"xs"};
-    std::set<std::string> output_names_{"ys"};
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
 public:
     narma10_benchmark_set(po::variables_map config)
@@ -340,12 +340,12 @@ public:
         return {{"xs", xs}, {"ys", ys}};
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -354,8 +354,8 @@ public:
 class narma30_benchmark_set : public benchmark_set {
 protected:
     long tau_;
-    std::set<std::string> input_names_{"xs"};
-    std::set<std::string> output_names_{"ys"};
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
     std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, prng_t& prng) const override
@@ -376,12 +376,12 @@ public:
     {
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -390,8 +390,8 @@ public:
 class memory_capacity_benchmark_set : public benchmark_set {
 protected:
     long history_;
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_;
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_;
 
     std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, prng_t& prng) const override
@@ -432,15 +432,17 @@ public:
             throw std::invalid_argument(
               "Memory history is too low (" + std::to_string(history_) + ").");
         input_names_ = {"xs"};
-        for (long i = 0; i < history_; ++i) output_names_.insert("ys-" + std::to_string(i));
+        std::set<std::string> output_names;
+        for (long i = 0; i < history_; ++i) output_names.insert("ys-" + std::to_string(i));
+        output_names_ = immutable_set<std::string>{output_names};
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -451,8 +453,8 @@ public:
 class memory_single_benchmark_set : public benchmark_set {
 protected:
     long history_;
-    std::set<std::string> input_names_{"xs"};
-    std::set<std::string> output_names_{"ys"};
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
     std::tuple<data_map, data_map>
     generate_data(long len, af::dtype dtype, prng_t& prng) const override
@@ -472,12 +474,12 @@ public:
               "Memory history is too low (" + std::to_string(history_) + ").");
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -487,8 +489,8 @@ class mackey_glass_benchmark_set : public benchmark_set {
 protected:
     long tau_;
     double delta_;
-    std::set<std::string> input_names_{"xs"};
-    std::set<std::string> output_names_{"ys"};
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
     data_map input_transform(const data_map& xs) const override
     {
@@ -513,12 +515,12 @@ public:
     {
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -675,10 +677,10 @@ public:
 /// own output as feedback during validation.
 class narma10_loop_benchmark_set : public loop_benchmark_set, narma10_generator {
 protected:
-    std::set<std::string> persistent_input_names_{"xs"};
-    std::set<std::string> input_names_{"xs", "ys"};
-    std::set<std::string> output_names_{"ys"};
-    std::set<std::string> target_names_{"ys"};
+    immutable_set<std::string> persistent_input_names_{"xs"};
+    immutable_set<std::string> input_names_{"xs", "ys"};
+    immutable_set<std::string> output_names_{"ys"};
+    immutable_set<std::string> target_names_{"ys"};
 
     std::tuple<data_map, data_map> generate_data(af::dtype dtype, prng_t& prng) const override
     {
@@ -695,22 +697,22 @@ public:
     {
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -718,10 +720,10 @@ public:
 
 class etth_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
     int variant_;
 
 public:
@@ -738,22 +740,22 @@ public:
           train_selector, valid_selector, test_selector);
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -761,9 +763,9 @@ public:
 
 class etth_single_loop_benchmark_set : public etth_loop_benchmark_set {
 protected:
-    std::set<std::string> input_names_{"OT"};
-    std::set<std::string> output_names_{"OT"};
-    std::set<std::string> target_names_{"OT"};
+    immutable_set<std::string> input_names_{"OT"};
+    immutable_set<std::string> output_names_{"OT"};
+    immutable_set<std::string> target_names_{"OT"};
 
 public:
     etth_single_loop_benchmark_set(po::variables_map config)
@@ -771,17 +773,17 @@ public:
     {
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -789,10 +791,10 @@ public:
 
 class ettm_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
     int variant_;
 
 public:
@@ -809,22 +811,22 @@ public:
           train_selector, valid_selector, test_selector);
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -832,9 +834,9 @@ public:
 
 class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
 protected:
-    std::set<std::string> input_names_{"OT"};
-    std::set<std::string> output_names_{"OT"};
-    std::set<std::string> target_names_{"OT"};
+    immutable_set<std::string> input_names_{"OT"};
+    immutable_set<std::string> output_names_{"OT"};
+    immutable_set<std::string> target_names_{"OT"};
 
 public:
     ettm_single_loop_benchmark_set(po::variables_map config)
@@ -842,17 +844,17 @@ public:
     {
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -860,8 +862,8 @@ public:
 
 class weather_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_{
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_{
       "p (mbar)",
       "T (degC)",
       "Tpot (K)",
@@ -883,8 +885,8 @@ protected:
       "max. PAR (�mol/m�/s)",
       "Tlog (degC)",
       "OT"};
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
 
     data_map input_transform(const data_map& xs) const override
     {
@@ -911,22 +913,22 @@ public:
         refresh_concatenated();
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -934,17 +936,21 @@ public:
 
 class electricity_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
 
 public:
     electricity_loop_benchmark_set(po::variables_map config)
       : loop_dataset_loader{std::move(config)}
     {
-        for (long i = 0; i <= 319; ++i) input_names_.insert(std::to_string(i));
-        input_names_.insert("OT");
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i <= 319; ++i) input_names.insert(std::to_string(i));
+            input_names.insert("OT");
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
         output_names_ = input_names_;
         target_names_ = input_names_;
 
@@ -961,22 +967,22 @@ public:
           test_selector);
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -984,16 +990,20 @@ public:
 
 class traffic_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
 
 public:
     traffic_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
-        for (long i = 0; i <= 860; ++i) input_names_.insert(std::to_string(i));
-        input_names_.insert("OT");
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i <= 860; ++i) input_names.insert(std::to_string(i));
+            input_names.insert("OT");
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
         output_names_ = input_names_;
         target_names_ = input_names_;
 
@@ -1010,22 +1020,22 @@ public:
           test_selector);
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -1033,16 +1043,20 @@ public:
 
 class exchange_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
 
 public:
     exchange_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
-        for (long i = 0; i <= 6; ++i) input_names_.insert(std::to_string(i));
-        input_names_.insert("OT");
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i <= 6; ++i) input_names.insert(std::to_string(i));
+            input_names.insert("OT");
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
         output_names_ = input_names_;
         target_names_ = input_names_;
 
@@ -1059,22 +1073,22 @@ public:
           valid_selector, test_selector);
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -1082,15 +1096,19 @@ public:
 
 class solar_loop_benchmark_set : public loop_dataset_loader {
 protected:
-    std::set<std::string> persistent_input_names_{};
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_ = input_names_;
-    std::set<std::string> target_names_ = output_names_;
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
 
 public:
     solar_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
-        for (long i = 0; i < 137; ++i) input_names_.insert(fmt::format("{:03d}", i));
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i < 137; ++i) input_names.insert(fmt::format("{:03d}", i));
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
         output_names_ = input_names_;
         target_names_ = input_names_;
 
@@ -1107,22 +1125,22 @@ public:
           valid_selector, test_selector);
     }
 
-    const std::set<std::string>& persistent_input_names() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
         return persistent_input_names_;
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
 
-    const std::set<std::string>& target_names() const override
+    const immutable_set<std::string>& target_names() const override
     {
         return target_names_;
     }
@@ -1134,8 +1152,8 @@ protected:
     long seq_len_;
     double d0_;
     long n_retries_;
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_;
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_;
 
     double lyapunov_trial_(const net_base& net_, double d0, af::randomEngine& af_prng) const
     {
@@ -1201,8 +1219,8 @@ public:
     /// \param n_retries The maximum number of retries if NaN is encountered (set -1 for infinity).
     lyapunov_benchmark_set(
       po::variables_map config,
-      std::set<std::string> input_names = {"xs"},
-      std::set<std::string> output_names = {"ys"},
+      immutable_set<std::string> input_names = {"xs"},
+      immutable_set<std::string> output_names = {"ys"},
       double d0 = 1e-12,
       long n_retries = 8)
       : benchmark_set_base{std::move(config)}
@@ -1229,12 +1247,12 @@ public:
         return {"lyap", std::numeric_limits<double>::quiet_NaN()};
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -1245,15 +1263,15 @@ class semaphore_benchmark_set : public benchmark_set_base {
 protected:
     long period_;
     long stop_;
-    std::set<std::string> input_names_{"xs"};
-    std::set<std::string> output_names_{"ys"};
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
 public:
     semaphore_benchmark_set(
       po::variables_map config,
       long period = 100,
-      std::set<std::string> input_names = {"xs"},
-      std::set<std::string> output_names = {"ys"})
+      immutable_set<std::string> input_names = {"xs"},
+      immutable_set<std::string> output_names = {"ys"})
       : benchmark_set_base{std::move(config)}
       , period_{config_.at("bench.semaphore-period").as<long>()}
       , stop_{config_.at("bench.semaphore-stop").as<long>()}
@@ -1278,12 +1296,12 @@ public:
         return {"semaphore", std::numeric_limits<double>::quiet_NaN()};
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }

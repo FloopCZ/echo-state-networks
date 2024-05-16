@@ -153,12 +153,12 @@ public:
         throw std::runtime_error{"Not implemented."};
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return predict_net_->input_names();
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return fixer_net_->output_names();
     }
@@ -205,8 +205,8 @@ public:
 
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 lcnn_fixer<DType> random_lcnn_fixer(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
+  const immutable_set<std::string>& input_names,
+  const immutable_set<std::string>& output_names,
   const po::variables_map& args,
   prng_t& prng)
 {
@@ -228,8 +228,8 @@ inline po::options_description lcnn_fixer_arg_description()
 }
 
 inline std::unique_ptr<net_base> make_net(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
+  const immutable_set<std::string>& input_names,
+  const immutable_set<std::string>& output_names,
   const po::variables_map& args,
   prng_t& prng)
 {

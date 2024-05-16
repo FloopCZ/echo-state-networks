@@ -65,7 +65,7 @@
             ]
         },
         {
-            "name": "(gdb) Launch evaluate_cuda for lcnn on weather",
+            "name": "(gdb) Launch evaluate_cuda for lcnn on etth1",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/evaluate_cuda",
@@ -73,10 +73,12 @@
                 "--gen.net-type=lcnn",
                 "--lcnn.state-height=10",
                 "--lcnn.state-width=15",
-                "--gen.benchmark-set=weather-loop",
-                "--bench.init-steps=10",
-                "--bench.train-steps=100",
-                "--bench.valid-steps=100",
+                "--gen.benchmark-set=etth-loop",
+                "--gen.overwrite",
+                "--bench.init-steps=500",
+                "--bench.train-steps=8139",
+                "--bench.valid-steps=2881",
+                "--bench.validation-stride=500",
                 "--gen.n-evals=1",
                 "--gen.af-device=0"
             ],

@@ -6,7 +6,9 @@
 #include <arrayfire.h>
 #include <filesystem>
 #include <fstream>
+#include <initializer_list>
 #include <map>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <range/v3/all.hpp>
 #include <range/v3/view/enumerate.hpp>
@@ -19,12 +21,81 @@ namespace rg = ranges;
 namespace rgv = ranges::views;
 namespace fs = std::filesystem;
 
+template <typename T>
+class immutable_set {
+protected:
+    mutable std::shared_ptr<std::set<T>> values_;
+
+public:
+    immutable_set() : values_{std::make_shared<std::set<T>>()} {}
+
+    explicit immutable_set(std::set<T> values)
+      : values_{std::make_shared<std::set<T>>(std::move(values))}
+    {
+    }
+
+    immutable_set(std::initializer_list<T> values)
+      : values_{std::make_shared<std::set<T>>(std::move(values))}
+    {
+    }
+
+    template <rg::range Rng>
+    explicit immutable_set(Rng&& values)
+    {
+        values_ = std::make_shared<std::set<T>>(values | rg::to<std::set>);
+    }
+
+    bool operator==(const immutable_set<T>& rhs) const
+    {
+        if (values_ == rhs.values_) return true;
+        // If the sets compare equal, unify the pointers.
+        bool eq = *values_ == *rhs.values_;
+        if (eq) values_ = rhs.values_;
+        return eq;
+    }
+
+    std::set<T>::const_iterator begin() const
+    {
+        return values_->begin();
+    }
+
+    std::set<T>::const_iterator end() const
+    {
+        return values_->end();
+    }
+
+    std::set<T>::const_iterator find(const T& key) const
+    {
+        return values_->find(key);
+    }
+
+    const std::set<T>& data() const
+    {
+        return *values_;
+    }
+
+    bool empty() const
+    {
+        return values_->empty();
+    }
+
+    bool contains(const T& val) const
+    {
+        return values_->contains(val);
+    }
+
+    std::size_t size() const
+    {
+        return values_->size();
+    }
+};
+
 class data_map {
 private:
-    std::set<std::string> keys_;
+    immutable_set<std::string> keys_;
     af::array data_;
 
-    std::map<std::string, double> key_indices(const std::set<std::string>& keys) const
+    std::map<std::string, double> key_indices(const immutable_set<std::string>& keys) const
     {
         for ([[maybe_unused]] const std::string& key : keys) assert(keys_.contains(key));
         std::vector<double> indices;
@@ -48,7 +119,7 @@ private:
 public:
     data_map() = default;
 
-    data_map(std::set<std::string> keys, af::array data)
+    data_map(immutable_set<std::string> keys, af::array data)
     {
         if (keys.empty() || data.isempty()) return;
         assert(data.dims(0) == (long)keys.size());
@@ -70,7 +141,7 @@ public:
         for (const auto& [i, v] : rgv::enumerate(rgv::values(data_vectors))) {
             data_(i, af::span) = v.T();
         }
-        keys_ = rgv::keys(data_vectors) | rg::to<std::set>;
+        keys_ = immutable_set<std::string>(rgv::keys(data_vectors));
     }
 
     data_map(const std::vector<std::string>& keys, const af::array& data)
@@ -79,14 +150,14 @@ public:
         assert(data.numdims() <= 2);
         const std::map<std::string, double> ordered_indices = iota_indices(keys);
         const af::array index_array = make_index_array(ordered_indices);
-        keys_.insert(keys.begin(), keys.end());
+        keys_ = immutable_set<std::string>{keys};
         data_ = data(index_array, af::span);
     }
 
     data_map(const std::string& key, const af::array& data_vector)
     {
         assert(data_vector.numdims() == 1);
-        keys_.insert(key);
+        keys_ = {key};
         data_ = data_vector.T();
     }
 
@@ -112,16 +183,14 @@ public:
         return data_(idx, af::span).T();
     }
 
-    template <rg::range Rng>
-    data_map filter(Rng&& keys_rng) const
+    data_map filter(const immutable_set<std::string>& keys) const
     {
-        std::set<std::string> keys = keys_rng | rg::to<std::set<std::string>>;
         if (keys.empty()) return {};
         if (keys == keys_) return *this;
 
-        const std::map<std::string, double> indices = key_indices(keys_rng | rg::to<std::set>);
+        const std::map<std::string, double> indices = key_indices(keys);
         const af::array index_array = af_utils::to_array(rgv::values(indices) | rg::to_vector);
-        return {std::move(keys), data_(index_array, af::span)};
+        return {keys, data_(index_array, af::span)};
     }
 
     data_map shift(long shift, double fill = af::NaN) const
@@ -155,6 +224,7 @@ public:
     data_map extend(const data_map& rhs) const
     {
         if (keys_.empty()) return rhs;
+        if (keys_ == rhs.keys_) return *this;  // maybe unifies sets
         if (rg::includes(keys_, rhs.keys_)) return *this;
 
         assert(length() == rhs.length());
@@ -164,7 +234,9 @@ public:
         joined_indices.insert(rhs_indices.begin(), rhs_indices.end());
         af::array index_array = make_index_array(joined_indices);
 
-        return {rgv::keys(joined_indices) | rg::to<std::set>, joined_data(index_array, af::span)};
+        return {
+          immutable_set<std::string>{rgv::keys(joined_indices)},
+          joined_data(index_array, af::span)};
     }
 
     /// Drop all data sequences that are fully NaN.
@@ -178,11 +250,13 @@ public:
         std::set<std::string> nonnan_keys;
         for (const auto& [is_nonnan, key] : rgv::zip(nonnan_indicators, keys_))
             if (is_nonnan) nonnan_keys.insert(key);
-        return {std::move(nonnan_keys), data_(nonnan_indicator_arr, af::span)};
+        return {
+          immutable_set<std::string>{std::move(nonnan_keys)},
+          data_(nonnan_indicator_arr, af::span)};
     }
 
     /// Only keep every n-th, others set to NaN.
-    data_map every_nth(const std::set<std::string>& keys, long n) const
+    data_map every_nth(const immutable_set<std::string>& keys, long n) const
     {
         assert(n > 0);
         if (keys_.empty()) return *this;
@@ -200,7 +274,10 @@ public:
 
     /// Probabilistically change values to NaN.
     data_map probably_nan(
-      const std::set<std::string>& keys, double p, long keep_tail, af::randomEngine& af_prng) const
+      const immutable_set<std::string>& keys,
+      double p,
+      long keep_tail,
+      af::randomEngine& af_prng) const
     {
         if (keys_.empty()) return *this;
         if (p <= 0.) return *this;
@@ -236,7 +313,7 @@ public:
         return {keys_, af::clamp(data_, low, high)};
     }
 
-    const std::set<std::string>& keys() const
+    const immutable_set<std::string>& keys() const
     {
         return keys_;
     }
@@ -268,14 +345,14 @@ public:
 
     void clear()
     {
-        keys_.clear();
+        keys_ = immutable_set<std::string>{};
         data_ = af::array{};
     }
 
     void save(const fs::path& dir)
     {
         fs::create_directories(dir);
-        nlohmann::json keys = keys_;
+        nlohmann::json keys = keys_.data();
         std::ofstream{dir / "keys.json"} << keys.dump();
         std::string data_file = dir / "data.bin";
         if (!data_.isempty()) af::saveArray("data", data_, data_file.c_str());
@@ -286,7 +363,8 @@ public:
         if (!fs::exists(dir))
             throw std::runtime_error{"Data map dir " + dir.string() + " does not exist."};
         std::ifstream fin{dir / "keys.json"};
-        keys_ = nlohmann::json::parse(fin);
+        std::set<std::string> keys = nlohmann::json::parse(fin);
+        keys_ = immutable_set<std::string>{keys};
         std::string data_file = dir / "data.bin";
         data_ = af::array{};
         if (fs::exists(data_file)) data_ = af::readArray(data_file.c_str(), "data");
