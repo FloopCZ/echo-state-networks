@@ -535,7 +535,7 @@ public:
         if (output_w_.isempty() || step_feedback.empty() || last_output_.empty()) return;
         af::array x = af_utils::add_ones(af::flat(state_), 0);
         af::array e = step_feedback.data() - last_output_.data();
-        output_w_ += (lms_mu_ * af::matmulNT(x, e) / af::matmulNT(x, x)).T();
+        output_w_ += (lms_mu_ * af::matmulNT(x, e) / af::matmulTN(x, x)).T();
     }
 
     void autoretrain(const data_map& step_feedback)
