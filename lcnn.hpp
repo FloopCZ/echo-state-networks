@@ -29,8 +29,8 @@ namespace po = boost::program_options;
 /// Locally connected network configuration.
 struct lcnn_config {
     /// Input and output names.
-    std::set<std::string> input_names;
-    std::set<std::string> output_names;
+    immutable_set<std::string> input_names;
+    immutable_set<std::string> output_names;
     /// The initial state of the network of size [state_height, state_width].
     af::array init_state;
     /// The reservoir weights of size [state_height, state_width, kernel_height, kernel_width].
@@ -101,8 +101,8 @@ struct lcnn_config {
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 class lcnn : public net_base {
 protected:
-    std::set<std::string> input_names_;
-    std::set<std::string> output_names_;
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_;
     af::array state_delta_;  // working variable used during the step function
     af::array state_;
     af::array memory_map_;
@@ -330,8 +330,8 @@ public:
         nlohmann::json data;
         data["snapshot_version"] = 1;
 
-        data["input_names"] = input_names_;
-        data["output_names"] = output_names_;
+        data["input_names"] = input_names_.data();
+        data["output_names"] = output_names_.data();
         data["memory_length"] = memory_length_;
         data["force_matmul"] = force_matmul_;
         data["noise_enabled"] = noise_enabled_;
@@ -430,8 +430,10 @@ public:
         if (data.at("snapshot_version").get<int>() != 1)
             throw std::runtime_error{"Snapshot not compatible with the current binary."};
 
-        net.input_names_ = data["input_names"];
-        net.output_names_ = data["output_names"];
+        std::set<std::string> input_names = data["input_names"];
+        net.input_names_ = immutable_set<std::string>{input_names};
+        std::set<std::string> output_names = data["output_names"];
+        net.output_names_ = immutable_set<std::string>{output_names};
         net.memory_length_ = data["memory_length"];
         net.force_matmul_ = data["force_matmul"];
         net.noise_enabled_ = data["noise_enabled"];
@@ -833,13 +835,13 @@ public:
     }
 
     /// The input names.
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
     /// The output names.
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -1048,8 +1050,8 @@ public:
 /// \param args The parameters by which is the network constructed.
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 lcnn<DType> random_lcnn(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
+  const immutable_set<std::string>& input_names,
+  const immutable_set<std::string>& output_names,
   const po::variables_map& args,
   prng_t& prng)
 {

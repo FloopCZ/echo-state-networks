@@ -152,9 +152,9 @@ public:
 
     virtual void state(af::array new_state) = 0;
 
-    virtual const std::set<std::string>& input_names() const = 0;
+    virtual const immutable_set<std::string>& input_names() const = 0;
 
-    virtual const std::set<std::string>& output_names() const = 0;
+    virtual const immutable_set<std::string>& output_names() const = 0;
 
     virtual double neuron_ins() const = 0;
 

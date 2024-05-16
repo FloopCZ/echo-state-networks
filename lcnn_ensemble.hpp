@@ -128,12 +128,12 @@ public:
         throw std::runtime_error{"Not implemented."};
     }
 
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return nets_.at(0)->input_names();
     }
 
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return nets_.at(0)->output_names();
     }
@@ -170,8 +170,8 @@ public:
 
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 lcnn_ensemble<DType> random_lcnn_ensemble(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
+  const immutable_set<std::string>& input_names,
+  const immutable_set<std::string>& output_names,
   const po::variables_map& args,
   prng_t& prng)
 {

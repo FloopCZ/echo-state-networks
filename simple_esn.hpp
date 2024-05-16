@@ -22,9 +22,9 @@ class simple_esn : public net_base {
     // the number of reservoir neurons
     long n_;
     // the input neuron names
-    std::set<std::string> input_names_;
+    immutable_set<std::string> input_names_;
     // the output neuron names
-    std::set<std::string> output_names_;
+    immutable_set<std::string> output_names_;
     // reservoir connections
     // a matrix of size n x n
     af::array reservoir_w_;
@@ -61,8 +61,8 @@ public:
     /// Echo state network constructor.
     simple_esn(
       long n,
-      std::set<std::string> input_names,
-      std::set<std::string> output_names,
+      immutable_set<std::string> input_names,
+      immutable_set<std::string> output_names,
       af::array reservoir_w,
       af::array input_w,
       af::array feedback_w,
@@ -105,8 +105,8 @@ public:
     /// Echo state network constructor with no biases.
     simple_esn(
       long n,
-      std::set<std::string> input_names,
-      std::set<std::string> output_names,
+      immutable_set<std::string> input_names,
+      immutable_set<std::string> output_names,
       af::array reservoir_w,
       af::array input_w,
       af::array feedback_w,
@@ -317,13 +317,13 @@ public:
     }
 
     /// The input names.
-    const std::set<std::string>& input_names() const override
+    const immutable_set<std::string>& input_names() const override
     {
         return input_names_;
     }
 
     /// The output names.
-    const std::set<std::string>& output_names() const override
+    const immutable_set<std::string>& output_names() const override
     {
         return output_names_;
     }
@@ -370,8 +370,8 @@ public:
 /// \param args The parameters by which is the network constructed.
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 simple_esn<DType> random_esn(
-  const std::set<std::string>& input_names,
-  const std::set<std::string>& output_names,
+  const immutable_set<std::string>& input_names,
+  const immutable_set<std::string>& output_names,
   const po::variables_map& args,
   prng_t& prng)
 {
