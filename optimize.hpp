@@ -863,7 +863,7 @@ public:
           {"lcnn.memory-prob", 0.1},
           {"lcnn.sigma-memory", 0.5},
           {"lcnn.mu-memory", 1.0},
-          {"lcnn.lms-mu", inv_exp_transform(1e-4)},
+          {"lcnn.lms-mu", inv_exp_transform(0.5)},
           {"lcnn.adapt.learning-rate", 0.1},
           {"lcnn.adapt.weight-leakage", 0.5},
           {"lcnn.adapt.abs-target-activation", inv_exp_transform(1.0)},
