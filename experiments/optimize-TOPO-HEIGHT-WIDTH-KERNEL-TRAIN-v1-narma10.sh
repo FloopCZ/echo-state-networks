@@ -10,16 +10,18 @@ KERNEL="$4"
 TRAIN="$5"
 TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
+BACKEND=${BACKEND:-"cuda"}
 
 MULTITHREADING="false"
-if [[ -n "$OMP_NUM_THREADS" && "$OMP_NUM_THREADS" -gt 1 ]]; then
+if [[ "$BACKEND" == "cpu" ]]; then
+    export AF_SYNCHORNOUS_CALLS=1
     MULTITHREADING="true"
 fi
 
 export AF_MAX_BUFFERS=100000
 out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-narma10"
 mkdir -p "${out_dir}"
-./build/optimize_cuda \
+"./build/optimize_${BACKEND}" \
   --gen.net-type=lcnn \
   --opt.exclude-params=default \
   --opt.exclude-params=lcnn.lms-mu \
