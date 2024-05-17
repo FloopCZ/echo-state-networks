@@ -186,6 +186,8 @@ if __name__ == "__main__":
                 mse_result = np.round(df_ds[model+'-mse'].iloc[0], 3)
                 if math.isnan(mse_result):
                     mse_result = f"N/A"
+                elif mse_result >= 10:
+                    mse_result = f"$\\infty$"
                 elif mse_result == mse_order[0]:
                     mse_result = f"\\firstres{{{mse_result:.3f}}}"
                 elif mse_result == mse_order[1]:
@@ -196,6 +198,8 @@ if __name__ == "__main__":
                 mae_result = np.round(df_ds[model+'-mae'].iloc[0], 3)
                 if math.isnan(mae_result):
                     mae_result = f"N/A"
+                elif mae_result >= 10:
+                    mae_result = f"$\\infty$"
                 elif mae_result == mae_order[0]:
                     mae_result = f"\\firstres{{{mae_result:.3f}}}"
                 elif mae_result == mae_order[1]:
@@ -360,6 +364,8 @@ if __name__ == "__main__":
                 mse_result = np.round(our_df_ds[model+'-mse'].iloc[0], 3)
                 if math.isnan(mse_result):
                     mse_result = f"N/A"
+                elif mse_result >= 10:
+                    mse_result = f"$\\infty$"
                 elif mse_result == mse_order[0]:
                     mse_result = f"\\firstres{{{mse_result:.3f}}}"
                 elif mse_result == mse_order[1]:
@@ -370,6 +376,8 @@ if __name__ == "__main__":
                 mae_result = np.round(our_df_ds[model+'-mae'].iloc[0], 3)
                 if math.isnan(mae_result):
                     mae_result = f"N/A"
+                elif mae_result >= 10:
+                    mae_result = f"$\\infty$"
                 elif mae_result == mae_order[0]:
                     mae_result = f"\\firstres{{{mae_result:.3f}}}"
                 elif mae_result == mae_order[1]:
