@@ -9,6 +9,7 @@ WIDTH="$3"
 KERNEL="$4"
 TRAIN="$5"
 
+export AF_MAX_BUFFERS=100000
 out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-narma10"
 mkdir -p "${out_dir}"
 ./build/optimize_cuda \
