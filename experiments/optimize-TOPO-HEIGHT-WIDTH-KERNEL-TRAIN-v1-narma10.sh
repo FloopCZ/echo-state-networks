@@ -21,6 +21,7 @@ out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-n
 mkdir -p "${out_dir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
+  --opt.exclude-params=default \
   --opt.exclude-params=lcnn.lms-mu \
   --lcnn.topology="${TOPO}" \
   --lcnn.exp-training-weights=false \
