@@ -1184,7 +1184,7 @@ lcnn<DType> random_lcnn(
         for (int i = 0; i < neurons; ++i) cfg.reservoir_w_full(i, perm.at(i)) = 1;
         // Assign random weights to the permuted eye matrix.
         cfg.reservoir_w_full = cfg.reservoir_w_full * sigma_res
-            * af::randn({cfg.reservoir_w_full.dims()}, DType, af_prng)
+            * (af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) * 2 - 1)
           + cfg.reservoir_w_full * mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
@@ -1195,7 +1195,7 @@ lcnn<DType> random_lcnn(
         if (topo_params.contains("chain")) cfg.reservoir_w_full(neurons - 1, 0) = 0;
         // Assign random weights to the ring matrix.
         cfg.reservoir_w_full = cfg.reservoir_w_full * sigma_res
-            * af::randn({cfg.reservoir_w_full.dims()}, DType, af_prng)
+            * (af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) * 2 - 1)
           + cfg.reservoir_w_full * mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
