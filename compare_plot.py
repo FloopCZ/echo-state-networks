@@ -75,6 +75,7 @@ def main():
     parser.add_argument("--sort-by", type=str, help="The parameter by which should the plot be sorted.")
     parser.add_argument("--connect", type=str, help="The parameter by which should the individual violins "
                                                     "be connected using a line.")
+    parser.add_argument("--rotate-labels", type=int, help="The rotation of the x-axis labels.")
     parser.add_argument("csvs", nargs='+', help="The csvs to be concatenated and plotted.")
     args = parser.parse_args()
 
@@ -101,6 +102,7 @@ def main():
         df_best = best_run(df, args.param).copy()
         log_plot(df_best, param=args.param)
     set_log_y(ax=plt.gca())
+    plt.gca().tick_params(axis='x', labelrotation=args.rotate_labels)
 
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
