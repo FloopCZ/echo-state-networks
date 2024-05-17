@@ -1136,7 +1136,7 @@ lcnn<DType> random_lcnn(
     } else if (topo_params.contains("conv")) {
         // generate kernel
         af::array kernel =
-          sigma_res * af::randn({kernel_height, kernel_width}, DType, af_prng) + mu_res;
+          sigma_res * (af::randu({kernel_height, kernel_width}, DType, af_prng) * 2 - 1) + mu_res;
         if (topo_params.contains("od")) {
             kernel(af::span, af::seq(half_kernel_width, af::end)) = 0.;
         }
