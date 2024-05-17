@@ -14,7 +14,7 @@ BACKEND=${BACKEND:-"cuda"}
 
 MULTITHREADING="false"
 if [[ "$BACKEND" == "cpu" ]]; then
-    export AF_SYNCHORNOUS_CALLS=1
+    export AF_SYNCHRONOUS_CALLS=1
     MULTITHREADING="true"
 fi
 
