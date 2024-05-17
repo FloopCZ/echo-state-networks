@@ -27,9 +27,9 @@ mkdir -p "${out_dir}"
   --bench.init-steps=1000 \
   --bench.train-steps="${TRAIN}" \
   --bench.valid-steps=1000 \
+  --opt.max-fevals=2500 \
   --gen.af-device=0 \
   --gen.output-dir="${out_dir}" \
   --gen.task-offset="${TASK_OFFSET}" \
   --gen.n-tasks="${N_TASKS}" \
-  --opt.max-fevals=2500 \
   2>&1 | tee -a "${out_dir}/out_${TASK_OFFSET}_${N_TASKS}.txt"

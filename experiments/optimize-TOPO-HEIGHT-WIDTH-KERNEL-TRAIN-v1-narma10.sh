@@ -8,6 +8,13 @@ HEIGHT="$2"
 WIDTH="$3"
 KERNEL="$4"
 TRAIN="$5"
+TASK_OFFSET=${TASK_OFFSET:-0}
+N_TASKS=${N_TASKS:-99999}
+
+MULTITHREADING="false"
+if [[ -n "$OMP_NUM_THREADS" && "$OMP_NUM_THREADS" -gt 1 ]]; then
+    MULTITHREADING="true"
+fi
 
 export AF_MAX_BUFFERS=100000
 out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-narma10"
@@ -27,7 +34,9 @@ mkdir -p "${out_dir}"
   --bench.train-steps="${TRAIN}" \
   --bench.valid-steps=1000 \
   --gen.af-device=0 \
-  --gen.output-dir="${out_dir}" \
-  --opt.multithreading=true \
   --opt.max-fevals=2500 \
-  2>&1 | tee -a "${out_dir}/out.txt"
+  --opt.multithreading="${MULTITHREADING}" \
+  --gen.output-dir="${out_dir}" \
+  --gen.task-offset="${TASK_OFFSET}" \
+  --gen.n-tasks="${N_TASKS}" \
+  2>&1 | tee -a "${out_dir}/out_${TASK_OFFSET}_${N_TASKS}.txt"
