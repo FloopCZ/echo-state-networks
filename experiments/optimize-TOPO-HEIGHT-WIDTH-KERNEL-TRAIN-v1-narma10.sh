@@ -13,6 +13,7 @@ out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-train${TRAIN}-v1-n
 mkdir -p "${out_dir}"
 ./build/optimize_cuda \
   --gen.net-type=lcnn \
+  --opt.exclude-params=lcnn.lms-mu \
   --lcnn.topology="${TOPO}" \
   --lcnn.exp-training-weights=false \
   --lcnn.lms=false \
@@ -26,5 +27,6 @@ mkdir -p "${out_dir}"
   --bench.valid-steps=1000 \
   --gen.af-device=0 \
   --gen.output-dir="${out_dir}" \
+  --opt.multithreading=true \
   --opt.max-fevals=2500 \
   2>&1 | tee -a "${out_dir}/out.txt"

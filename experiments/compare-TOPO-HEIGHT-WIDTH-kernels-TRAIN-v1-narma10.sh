@@ -17,6 +17,7 @@ mkdir -p "${out_dir}"
 ./build/compare_lcnn_kernels_cuda \
   --gen.net-type=lcnn \
   --gen.kernel-sizes=${KERNELS} \
+  --opt.exclude-params=lcnn.lms-mu \
   --lcnn.topology="${TOPO}" \
   --lcnn.exp-training-weights=false \
   --lcnn.lms=false \
