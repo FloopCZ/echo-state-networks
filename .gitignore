@@ -141,7 +141,7 @@ visual.csv
 fplot.dat
 
 # Metacentrum results
-run-gpu-experiment.o*
+run-cuda-expeeriment.o*
 cmake-build-singularity.o*
 c_cpp_properties.json
 
