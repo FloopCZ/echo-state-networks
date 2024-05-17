@@ -25,12 +25,13 @@ sizes=(
     "22 23"
 )
 n_tasks=1
+backend="cuda"
 
 for size in "${sizes[@]}"; do
     read h w <<< "${size}"
     for task_offset in `seq 0 $n_tasks 4`; do
         echo $task_offset $n_tasks
         cmd="./experiments/optimize-TOPO-HEIGHT-WIDTH-KERNEL-TRAIN-v1-narma10.sh "${TOPO}" "${h}" "${w}" "${KERNEL}" 12000"
-        qsub -v TASK_OFFSET="${task_offset}",N_TASKS="${n_tasks}",cmd="${cmd}" ../run-gpu-experiment-singularity.sh
+        qsub -v BACKEND="${backend},TASK_OFFSET="${task_offset}",N_TASKS="${n_tasks}",cmd="${cmd}" ../run-gpu-experiment-singularity.sh
     done
 done
