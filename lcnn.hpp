@@ -1129,7 +1129,8 @@ lcnn<DType> random_lcnn(
     int half_kernel_width = kernel_width / 2;
     // generate the reservoir weights based on topology
     if (topo_params.contains("sparse")) {
-        cfg.reservoir_w_full = sigma_res * af::randn({neurons, neurons}, DType, af_prng) + mu_res;
+        cfg.reservoir_w_full =
+          sigma_res * (af::randu({neurons, neurons}, DType, af_prng) * 2 - 1) + mu_res;
         // make the reservoir sparse by the given coefficient
         cfg.reservoir_w_full *=
           af::randu({cfg.reservoir_w_full.dims()}, DType, af_prng) >= sparsity;
