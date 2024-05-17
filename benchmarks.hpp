@@ -33,7 +33,7 @@ protected:
 
     virtual data_map input_transform(const data_map& xs) const
     {
-        return xs;
+        return xs.clamp(-10., 10.);
     }
 
     input_transform_fn_t input_transform_fn() const
@@ -626,6 +626,9 @@ public:
         test_data_ = test_data_.normalize_by(norm_reference);
         std::cout << std::flush;
 
+        // Remove outliers from the training data.
+        train_data_ = train_data_.clamp(-10., 10.);
+
         refresh_concatenated();
 
         if (data_.contains("OT"))
@@ -888,11 +891,6 @@ protected:
     immutable_set<std::string> output_names_ = input_names_;
     immutable_set<std::string> target_names_ = output_names_;
 
-    data_map input_transform(const data_map& xs) const override
-    {
-        return xs.clamp(-10., 10.);
-    }
-
 public:
     weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
     {
@@ -907,10 +905,6 @@ public:
         load_data(
           "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
           test_selector);
-
-        // Remove outliers from the training data.
-        train_data_ = train_data_.clamp(-10., 10.);
-        refresh_concatenated();
     }
 
     const immutable_set<std::string>& persistent_input_names() const override
