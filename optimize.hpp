@@ -44,6 +44,7 @@ inline const std::vector<std::string> DEFAULT_EXCLUDED_PARAMS = {
   "lcnn.memory-prob",
   "lcnn.sigma-memory",
   "lcnn.mu-memory",
+  "lcnn.lms-mu",
   "lcnn.adapt.learning-rate",
   "lcnn.adapt.weight-leakage",
   "lcnn.adapt.abs-target-activation",

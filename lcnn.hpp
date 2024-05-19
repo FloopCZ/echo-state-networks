@@ -1388,7 +1388,7 @@ inline po::options_description lcnn_arg_description()
        "Increase verbosity level.")                                                  //
       ("lcnn.autoretrain-every", po::value<long>()->default_value(0),                //
        "Autoretrain the lcnn after every n steps with feedback.")                    //
-      ("lcnn.lms", po::value<bool>()->default_value(true),                           //
+      ("lcnn.lms", po::value<bool>()->default_value(false),                          //
        "Update weights using least mean squares filter.")                            //
       ("lcnn.lms-mu", po::value<double>()->default_value(0),                         //
        "Least mean squares mu coefficient.")                                         //
