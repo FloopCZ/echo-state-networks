@@ -11,11 +11,18 @@ AHEAD="$5"
 SEED="${6:-50}"
 TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
+BACKEND=${BACKEND:-"cuda"}
+
+MULTITHREADING="false"
+if [[ "$BACKEND" == "cpu" ]]; then
+    export AF_SYNCHRONOUS_CALLS=1
+    MULTITHREADING="true"
+fi
 
 export AF_MAX_BUFFERS=100000
 out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-weather-ahead${AHEAD}-loop-seed${SEED}/"
 mkdir -p "${out_dir}"
-./build/optimize_cuda \
+"./build/optimize_${BACKEND}" \
   --gen.net-type=lcnn \
   --gen.optimizer-type=lcnn \
   --opt.exclude-params=default \
@@ -36,6 +43,7 @@ mkdir -p "${out_dir}"
   --gen.seed="${SEED}" \
   --gen.n-trials=1 \
   --gen.af-device=0 \
+  --opt.multithreading="${MULTITHREADING}" \
   --gen.output-dir="${out_dir}" \
   --gen.task-offset="${TASK_OFFSET}" \
   --gen.n-tasks="${N_TASKS}" \
