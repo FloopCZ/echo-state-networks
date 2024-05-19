@@ -51,10 +51,10 @@ Solar         , 720     , 0.249            , 0.275            , 0.397       , 0.
 DATASETS=("ETTm1", "ETTm2", "ETTh1", "ETTh2", "Weather", "Electricity", "Traffic", "Exchange", "Solar")
 PRED_LENS=(96, 192, 336, 720)
 OUR_MODELS={
-    "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-57-70-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
-    "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-57-70-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
-    "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-57-70-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
-    "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-57-70-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
+    "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
+    "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
+    "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
+    "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
 
 MODEL_TO_TITLE = {
     "SotA": r"SotA",
