@@ -50,11 +50,12 @@ Solar         , 720     , 0.249            , 0.275            , 0.397       , 0.
 """
 DATASETS=("ETTm1", "ETTm2", "ETTh1", "ETTh2", "Weather", "Electricity", "Traffic", "Exchange", "Solar")
 PRED_LENS=(96, 192, 336, 720)
-OUR_MODELS={
+OUR_MODEL_DIRS={
     "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
     "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
     "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
     "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
+OUR_MODELS = list(OUR_MODEL_DIRS.keys())
 
 MODEL_TO_TITLE = {
     "SotA": r"SotA",
@@ -91,45 +92,104 @@ MODEL_TO_CITE = {
 if __name__ == "__main__":
     df = pd.read_csv(StringIO(RESULTS.replace(" ", "")))
     models=list(set(c.removesuffix("-mse").removesuffix("-mae") for c in df.columns if c not in ("Dataset", "Horizon")))
-    mse_model_selector=[f"{model}-mse" for model in models]
-    mae_model_selector=[f"{model}-mae" for model in models]
 
-    num_first=defaultdict(lambda: 0)
-    num_compete=defaultdict(lambda: 0)
-    for ds in DATASETS:
-        for pred_len in PRED_LENS:
-            df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
-            for model in models:
-                mse_order = df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
-                mse_order = np.unique(np.round(mse_order, 3))
-                mae_order = df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
-                mae_order = np.unique(np.round(mae_order, 3))
+    def theirs_metric_selector(metric, extra_models=()):
+        return [f"{model}-{metric}" for model in models + list(extra_models)]
 
-                mse_result = np.round(df_ds[model+'-mse'].iloc[0], 3)
-                if mse_result == mse_order[0]:
-                    num_first[model+'-mse'] += 1
-                if not math.isnan(mse_result):
-                    num_compete[model+'-mse'] += 1
+    def ours_metric_selector(metric, extra_models=()):
+        return [f"{model}-{metric}" for model in OUR_MODELS + list(extra_models)]
 
-                mae_result = np.round(df_ds[model+'-mae'].iloc[0], 3)
-                if mae_result == mae_order[0]:
-                    num_first[model+'-mae'] += 1
-                if not math.isnan(mae_result):
-                    num_compete[model+'-mae'] += 1
-    models.sort(key=lambda model: num_first[model+'-mse']/num_compete[model+'-mse'], reverse=True)
-    models_1st_mse = []
-    models_1st_mae = []
-    for model in models:
-        models_1st_mse.append(num_first[model+'-mse']/num_compete[model+'-mse'])
-        models_1st_mae.append(num_first[model+'-mae']/num_compete[model+'-mae'])
-    models_1st_mse = np.flip(np.unique(models_1st_mse))
-    models_1st_mae = np.flip(np.unique(models_1st_mae))
+    for model in OUR_MODELS:
+        model_results_mse = []
+        model_results_mae = []
+        for ds in DATASETS:
+            for pred_len in PRED_LENS:
+                csv_file = OUR_MODEL_DIRS[model](ds, pred_len) + "/results.csv"
+                try:
+                    if os.path.exists(csv_file):
+                        results = pd.read_csv(csv_file, index_col=0)
+                        model_results_mse.append(results["mse"].values[0])
+                        model_results_mae.append(results["mae"].values[0])
+                    else:
+                        model_results_mse.append(np.nan)
+                        model_results_mae.append(np.nan)
+                except pd.errors.EmptyDataError:
+                    model_results_mse.append(np.nan)
+                    model_results_mae.append(np.nan)
+        df[model+'-mse'] = model_results_mse
+        df[model+'-mae'] = model_results_mae
+
+    def add_our_best(df) -> pd.DataFrame:
+        df2 = df.copy()
+        df2["Ours-mse"] = df2[ours_metric_selector("mse")].min(axis=1, numeric_only=True)
+        df2["Ours-mae"] = df2[ours_metric_selector("mae")].min(axis=1, numeric_only=True)
+        return df2
+
+    def model_place(model, ds, pred_len, metric) -> int:
+        if model not in OUR_MODELS:
+            df2 = add_our_best(df)
+            df2_ds = df2[(df2["Dataset"] == ds) & (df2["Horizon"] == pred_len)][theirs_metric_selector(metric, ["Ours"])]
+        else:
+            df2 = df.copy()
+            df2_ds = df2[(df2["Dataset"] == ds) & (df2["Horizon"] == pred_len)][theirs_metric_selector(metric, [model])]
+        this_result = np.round(df2_ds[model+"-"+metric].iloc[0], 3)
+        if np.isnan(this_result): return 100
+        order = df2_ds.sort_values(df2_ds.index[0], axis=1).values.flatten()
+        order = np.unique(np.round(order, 3))
+        return np.nonzero(order == this_result)[0][0]
+
+    def num_first(model, metric) -> int:
+        return sum(model_place(model, ds, pred_len, metric) == 0 for ds in DATASETS for pred_len in PRED_LENS)
+
+    def num_compete(model, metric) -> int:
+        df2 = add_our_best(df)
+        return pd.notna(df2[model+"-"+metric]).sum()
+
+    def score(model, metric) -> float:
+        if num_compete(model, metric) == 0:
+            return -1
+        return np.round(num_first(model, metric) / num_compete(model, metric), 3)
+
+    def score_order(model, metric) -> int:
+        if model not in OUR_MODELS:
+            order = [score(m, metric) for m in models + ["Ours"]]
+        else:
+            order = [score(m, metric) for m in models + [model]]
+        order = np.flip(np.sort(np.unique(np.round(order, 3))))
+        return np.where(order == score(model, metric))[0][0]
+
+    def score_str(model, metric) -> str:
+        score_str = f"{num_first(model, metric)}/{num_compete(model, metric)}"
+        if score_order(model, metric) == 0:
+            return f"\\firstres{{{score_str}}}"
+        if score_order(model, metric) == 1:
+            return f"\\secondres{{{score_str}}}"
+        return score_str
+
+    def result(model, ds, pred_len, metric) -> float:
+        df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
+        return np.round(df_ds[model+'-'+metric].iloc[0], 3)
+
+    def result_to_str(model, ds, pred_len, metric) -> str:
+        this_result = result(model, ds, pred_len, metric)
+        if math.isnan(this_result):
+            return f"N/A"
+        if this_result >= 10:
+            return f"$\\infty$"
+        if model_place(model, ds, pred_len, metric) == 0:
+            return f"\\firstres{{{this_result:.3f}}}"
+        if model_place(model, ds, pred_len, metric) == 1:
+            return f"\\secondres{{{this_result:.3f}}}"
+        return f"{this_result:.3f}"
+
+    models = sorted(models, key=lambda model: score(model, "mse"), reverse=True)
 
     # Third party results.
 
     print(textwrap.dedent(r"""
         \newcommand{\firstres}[1]{{\textbf{\textcolor{red}{#1}}}}
         \newcommand{\secondres}[1]{{\underline{\textcolor{blue}{#1}}}}
+        \newcolumntype{?}{!{\vrule width 1pt}}
 
         \newcommand{\resulttitlescale}{0.8}
         \newcommand{\resultdsscale}{0.95}
@@ -149,25 +209,26 @@ if __name__ == "__main__":
         """))
 
     print(textwrap.dedent(r"""\begin{tabular}{c|c|"""), end="")
-    print("|".join(["cc"] * len(models)) + "}")
+    print("|".join(["cc"] * len(OUR_MODELS)) + "?cc", end="")
+    print("|".join(["cc"] * (len(models) - 1)) + "}")
 
     print(textwrap.dedent(r"""
         \toprule
         \multicolumn{2}{c}{\multirow{2}{*}{Models}}
         """))
-    for model in models:
+    for model in OUR_MODELS + models:
         print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_TITLE[model]}}}}} ")
     print(r"""\\""")
 
     print(r"""\multicolumn{2}{c}{} """)
-    for model in models:
+    for model in OUR_MODELS + models:
         print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_CITE[model]}}}}} ")
     print(r"""\\""")
 
-    for i, model in enumerate(models):
+    for i, model in enumerate(OUR_MODELS + models):
         print(f"\\cmidrule(lr){{{2*i+3}-{2*i+4}}}")
     print(r"""\multicolumn{2}{c}{Metric} """)
-    for i, model in enumerate(models):
+    for i, model in enumerate(OUR_MODELS + models):
         print(r"""& \scalebox{\resultscale}{MSE} & \scalebox{\resultscale}{MAE}""")
     print(r"""\\""")
     print(r"""\midrule""")
@@ -175,38 +236,10 @@ if __name__ == "__main__":
     for ds in DATASETS:
         print(f"""\\multirow{{4}}{{*}}{{\\rotatebox{{90}}{{\\scalebox{{\\resultdsscale}}{{{ds}}}}}}}""")
         for pred_len in PRED_LENS:
-            df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
             print(f"& \\scalebox{{\\resultscale}}{{{pred_len}}} ", end="")
-            for model in models:
-                mse_order = df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
-                mse_order = np.unique(np.round(mse_order, 3))
-                mae_order = df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten()
-                mae_order = np.unique(np.round(mae_order, 3))
-
-                mse_result = np.round(df_ds[model+'-mse'].iloc[0], 3)
-                if math.isnan(mse_result):
-                    mse_result = f"N/A"
-                elif mse_result >= 10:
-                    mse_result = f"$\\infty$"
-                elif mse_result == mse_order[0]:
-                    mse_result = f"\\firstres{{{mse_result:.3f}}}"
-                elif mse_result == mse_order[1]:
-                    mse_result = f"\\secondres{{{mse_result:.3f}}}"
-                else:
-                    mse_result = f"{mse_result:.3f}"
-
-                mae_result = np.round(df_ds[model+'-mae'].iloc[0], 3)
-                if math.isnan(mae_result):
-                    mae_result = f"N/A"
-                elif mae_result >= 10:
-                    mae_result = f"$\\infty$"
-                elif mae_result == mae_order[0]:
-                    mae_result = f"\\firstres{{{mae_result:.3f}}}"
-                elif mae_result == mae_order[1]:
-                    mae_result = f"\\secondres{{{mae_result:.3f}}}"
-                else:
-                    mae_result = f"{mae_result:.3f}"
-
+            for model in OUR_MODELS + models:
+                mse_result = result_to_str(model, ds, pred_len, "mse")
+                mae_result = result_to_str(model, ds, pred_len, "mse")
                 print(f"& \\scalebox{{\\resultscale}}{{{mse_result}}} ", end="")
                 print(f"& \\scalebox{{\\resultscale}}{{{mae_result}}} ")
             print(r"""\\""")
@@ -215,202 +248,11 @@ if __name__ == "__main__":
         print(r"""\midrule""")
 
     print(r"""\multicolumn{2}{c|}{\scalebox{\resultscale}{{\# $1^{\text{st}}$}}}""")
-    for i, model in enumerate(models):
-        model_1st_mse = num_first[model+'-mse']/num_compete[model+'-mse']
-        model_1st_mse_str = f"{num_first[model+'-mse']}/{num_compete[model+'-mse']}"
-        if model_1st_mse == models_1st_mse[0]:
-            model_1st_mse_str = f"\\firstres{{{model_1st_mse_str}}}"
-        elif model_1st_mse == models_1st_mse[1]:
-            model_1st_mse_str = f"\\secondres{{{model_1st_mse_str}}}"
-        print(f"& \\scalebox{{\\resultscale}}{{{model_1st_mse_str}}}", end="")
-        model_1st_mae = num_first[model+'-mae']/num_compete[model+'-mae']
-        model_1st_mae_str = f"{num_first[model+'-mae']}/{num_compete[model+'-mae']}"
-        if model_1st_mae == models_1st_mae[0]:
-            model_1st_mae_str = f"\\firstres{{{model_1st_mae_str}}}"
-        elif model_1st_mae == models_1st_mae[1]:
-            model_1st_mae_str = f"\\secondres{{{model_1st_mae_str}}}"
-        print(f"& \\scalebox{{\\resultscale}}{{{model_1st_mae_str}}}", end="")
-    print(r"""\\""")
-    print(r"""\bottomrule""")
-
-    print(textwrap.dedent(r"""
-        \end{tabular}
-        \end{small}
-        \end{threeparttable}
-    }
-    \end{table}
-    """))
-
-    # Our results.
-
-    our_df = df[["Dataset", "Horizon"]].copy()
-    our_df["SotA-mse"] = df[mse_model_selector].min(axis=1, skipna=True, numeric_only=True)
-    our_df["SotA-mae"] = df[mae_model_selector].min(axis=1, skipna=True, numeric_only=True)
-
-    for model in OUR_MODELS:
-        model_results_mse = []
-        model_results_mae = []
-        for ds in DATASETS:
-            for pred_len in PRED_LENS:
-                csv_file = OUR_MODELS[model](ds, pred_len) + "/results.csv"
-                if os.path.exists(csv_file):
-                    results = pd.read_csv(OUR_MODELS[model](ds, pred_len) + "/results.csv", index_col=0)
-                    model_results_mse.append(results["mse"].values[0])
-                    model_results_mae.append(results["mae"].values[0])
-                else:
-                    model_results_mse.append(np.nan)
-                    model_results_mae.append(np.nan)
-        our_df[model+'-mse'] = model_results_mse
-        our_df[model+'-mae'] = model_results_mae
-
-    our_models=list(set(c.removesuffix("-mse").removesuffix("-mae") for c in our_df.columns if c not in ("Dataset", "Horizon")))
-    our_mse_model_selector=[f"{model}-mse" for model in our_models]
-    our_mae_model_selector=[f"{model}-mae" for model in our_models]
-
-    our_num_first=defaultdict(lambda: 0)
-    our_num_compete=defaultdict(lambda: 0)
-    for ds in DATASETS:
-        for pred_len in PRED_LENS:
-            df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
-            our_df_ds = our_df[(our_df["Dataset"] == ds) & (our_df["Horizon"] == pred_len)]
-            for model in our_models:
-                mse_order = np.hstack([df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
-                                      our_df_ds[our_mse_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()])
-                mse_order = np.unique(np.round(mse_order, 3))
-                mae_order = np.unique(np.hstack([df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
-                                      our_df_ds[our_mae_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()]))
-                mae_order = np.unique(np.round(mae_order, 3))
-
-                mse_result = np.round(our_df_ds[model+'-mse'].iloc[0], 3)
-                if mse_result == mse_order[0]:
-                    our_num_first[model+'-mse'] += 1
-                if not math.isnan(mse_result):
-                    our_num_compete[model+'-mse'] += 1
-
-                mae_result = np.round(our_df_ds[model+'-mae'].iloc[0], 3)
-                if mae_result == mae_order[0]:
-                    our_num_first[model+'-mae'] += 1
-                if not math.isnan(mae_result):
-                    our_num_compete[model+'-mae'] += 1
-    def model_score(model, suffix):
-        if our_num_compete[model+suffix] == 0:
-            return -1
-        return our_num_first[model+suffix]/our_num_compete[model+suffix]
-    our_models.sort(key=lambda model: model_score(model, "-mse"), reverse=True)
-    our_models_1st_mse = []
-    our_models_1st_mae = []
-    for model in our_models:
-        our_models_1st_mse.append(model_score(model, "-mse"))
-        our_models_1st_mae.append(model_score(model, "-mae"))
-    our_models_1st_mse = np.flip(np.unique(np.hstack((models_1st_mse, our_models_1st_mse))))
-    our_models_1st_mae = np.flip(np.unique(np.hstack((models_1st_mae, our_models_1st_mae))))
-
-    print(textwrap.dedent(r"""
-        \renewcommand{\resulttitlescale}{0.8}
-        \renewcommand{\resultdsscale}{0.95}
-        \renewcommand{\resultscale}{0.78}
-
-        \begin{table}[htbp]
-        \label{tab:our-results}
-        \vskip -0.0in
-        \vspace{3pt}
-        \renewcommand{\arraystretch}{0.9}
-        \centering
-        \resizebox{0.7\columnwidth}{!}{
-        \begin{threeparttable}
-        \begin{small}
-        \renewcommand{\multirowsetup}{\centering}
-        \setlength{\tabcolsep}{1pt}
-        """))
-
-    print(textwrap.dedent(r"""\begin{tabular}{c|c|"""), end="")
-    print("|".join(["cc"] * len(our_models)) + "}")
-
-    print(textwrap.dedent(r"""
-        \toprule
-        \multicolumn{2}{c}{\multirow{2}{*}{Models}}
-        """))
-    for model in our_models:
-        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_TITLE[model]}}}}} ")
-    print(r"""\\""")
-
-    # print(r"""\multicolumn{2}{c}{} """)
-    # for model in our_models:
-    #     print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_CITE[model]}}}}} ")
-    # print(r"""\\""")
-
-    for i, model in enumerate(our_models):
-        print(f"\\cmidrule(lr){{{2*i+3}-{2*i+4}}}")
-    print(r"""\multicolumn{2}{c}{Metric} """)
-    for i, model in enumerate(our_models):
-        print(r"""& \scalebox{\resultscale}{MSE} & \scalebox{\resultscale}{MAE}""")
-    print(r"""\\""")
-    print(r"""\midrule""")
-
-    for ds in DATASETS:
-        print(f"""\\multirow{{4}}{{*}}{{\\rotatebox{{90}}{{\\scalebox{{\\resultdsscale}}{{{ds}}}}}}}""")
-        for pred_len in PRED_LENS:
-            df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
-            our_df_ds = our_df[(our_df["Dataset"] == ds) & (our_df["Horizon"] == pred_len)]
-            print(f"& \\scalebox{{\\resultscale}}{{{pred_len}}} ", end="")
-            for model in our_models:
-                mse_order = np.hstack([df_ds[mse_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
-                                      our_df_ds[our_mse_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()])
-                mse_order = np.unique(np.round(mse_order, 3))
-                mae_order = np.unique(np.hstack([df_ds[mae_model_selector].sort_values(df_ds.index[0], axis=1).values.flatten(), 
-                                      our_df_ds[our_mae_model_selector].sort_values(our_df_ds.index[0], axis=1).values.flatten()]))
-                mae_order = np.unique(np.round(mae_order, 3))
-
-                mse_result = np.round(our_df_ds[model+'-mse'].iloc[0], 3)
-                if math.isnan(mse_result):
-                    mse_result = f"N/A"
-                elif mse_result >= 10:
-                    mse_result = f"$\\infty$"
-                elif mse_result == mse_order[0]:
-                    mse_result = f"\\firstres{{{mse_result:.3f}}}"
-                elif mse_result == mse_order[1]:
-                    mse_result = f"\\secondres{{{mse_result:.3f}}}"
-                else:
-                    mse_result = f"{mse_result:.3f}"
-
-                mae_result = np.round(our_df_ds[model+'-mae'].iloc[0], 3)
-                if math.isnan(mae_result):
-                    mae_result = f"N/A"
-                elif mae_result >= 10:
-                    mae_result = f"$\\infty$"
-                elif mae_result == mae_order[0]:
-                    mae_result = f"\\firstres{{{mae_result:.3f}}}"
-                elif mae_result == mae_order[1]:
-                    mae_result = f"\\secondres{{{mae_result:.3f}}}"
-                else:
-                    mae_result = f"{mae_result:.3f}"
-
-                print(f"& \\scalebox{{\\resultscale}}{{{mse_result}}} ", end="")
-                print(f"& \\scalebox{{\\resultscale}}{{{mae_result}}} ")
-            print(r"""\\""")
-            
-        # print(r"""\cmidrule(lr){2-26}""")
-        print(r"""\midrule""")
-
-    print(r"""\multicolumn{2}{c|}{\scalebox{\resultscale}{{\# $1^{\text{st}}$}}}""")
-    for i, model in enumerate(our_models):
-        if our_num_compete[model+'-mse'] == 0:
-            print(r"& \scalebox{\resultscale}{N/A} & \scalebox{\resultscale}{N/A}")
-            continue
-        # model_1st_mse = our_num_first[model+'-mse']/our_num_compete[model+'-mse']
-        model_1st_mse_str = f"{our_num_first[model+'-mse']}/{our_num_compete[model+'-mse']}"
-        # if model_1st_mse == our_models_1st_mse[0]:
-        #     model_1st_mse_str = f"\\firstres{{{model_1st_mse_str}}}"
-        # elif model_1st_mse == our_models_1st_mse[1]:
-        #     model_1st_mse_str = f"\\secondres{{{model_1st_mse_str}}}"
-        print(f"& \\scalebox{{\\resultscale}}{{{model_1st_mse_str}}}", end="")
-        # model_1st_mae = our_num_first[model+'-mae']/our_num_compete[model+'-mae']
-        model_1st_mae_str = f"{our_num_first[model+'-mae']}/{our_num_compete[model+'-mae']}"
-        # if model_1st_mae == our_models_1st_mae[0]:
-        #     model_1st_mae_str = f"\\firstres{{{model_1st_mae_str}}}"
-        # elif model_1st_mae == our_models_1st_mae[1]:
-        #     model_1st_mae_str = f"\\secondres{{{model_1st_mae_str}}}"
-        print(f"& \\scalebox{{\\resultscale}}{{{model_1st_mae_str}}}")
+    for i, model in enumerate(OUR_MODELS + models):
+        score_mse_str = score_str(model, "mse")
+        score_mae_str = score_str(model, "mae")
+        print(f"& \\scalebox{{\\resultscale}}{{{score_mse_str}}}", end="")
+        print(f"& \\scalebox{{\\resultscale}}{{{score_mae_str}}}")
     print(r"""\\""")
     print(r"""\bottomrule""")
 
