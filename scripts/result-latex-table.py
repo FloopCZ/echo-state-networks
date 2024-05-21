@@ -217,7 +217,7 @@ def main():
 
     THEIR_MODELS = sorted(THEIR_MODELS, key=lambda model: score(df, model, "mse"), reverse=True)
 
-    # Third party results.
+    # All results.
 
     print(textwrap.dedent(r"""
         \newcommand{\firstres}[1]{{\textbf{\textcolor{red}{#1}}}}
@@ -229,7 +229,7 @@ def main():
         \newcommand{\resultscale}{0.78}
 
         \begin{table}[htbp]
-        \label{tab:third-party-results}
+        \label{tab:real-world-results}
         \vskip -0.0in
         \vspace{3pt}
         \renewcommand{\arraystretch}{0.9} 
@@ -290,6 +290,76 @@ def main():
         print(r"""\midrule""")
 
     print(r"""\multicolumn{2}{c|}{\scalebox{\resultscale}{{\# $1^{\text{st}}$}}}""")
+    for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
+        score_mse_str = score_latex(df, model, "mse")
+        score_mae_str = score_latex(df, model, "mae")
+        print(f"& \\scalebox{{\\resultscale}}{{{score_mse_str}}}", end="")
+        print(f"& \\scalebox{{\\resultscale}}{{{score_mae_str}}}")
+    print(r"""\\""")
+    print(r"""\bottomrule""")
+
+    print(textwrap.dedent(r"""
+        \end{tabular}
+        \end{small}
+        \end{threeparttable}
+    }
+    \end{table}
+    """))
+
+    # Average only.
+
+    print(textwrap.dedent(r"""
+        \begin{table}[htbp]
+        \label{tab:real-world-average-results}
+        \vskip -0.0in
+        \vspace{3pt}
+        \renewcommand{\arraystretch}{0.9} 
+        \centering
+        \resizebox{1\columnwidth}{!}{
+        \begin{threeparttable}
+        \begin{small}
+        \renewcommand{\multirowsetup}{\centering}
+        \setlength{\tabcolsep}{1pt}
+        """))
+
+    print(textwrap.dedent(r"""\begin{tabular}{c|"""), end="")
+    print("|".join(["cc"] * len(OUR_MODELS)) + "?cc|", end="")
+    print("|".join(["cc"] * (len(THEIR_MODELS) - 1)) + "}")
+
+    print(textwrap.dedent(r"""
+        \toprule
+        {\multirow{2}{*}{Models}}
+        """))
+    for model in OUR_MODELS + THEIR_MODELS:
+        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_TITLE[model]}}}}} ")
+    print(r"""\\""")
+
+    print(r"""{} """)
+    for model in OUR_MODELS + THEIR_MODELS:
+        print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_CITE[model]}}}}} ")
+    print(r"""\\""")
+
+    for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
+        print(f"\\cmidrule(lr){{{2*i+2}-{2*i+3}}}")
+    print(r"""{Metric} """)
+    for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
+        print(r"""& \scalebox{\resultscale}{MSE} & \scalebox{\resultscale}{MAE}""")
+    print(r"""\\""")
+    print(r"""\midrule""")
+
+    for ds in DATASETS:
+        print(f"""{{\\rotatebox{{0}}{{\\scalebox{{\\resultdsscale}}{{{ds}}}}}}}""")
+
+        for model in OUR_MODELS + THEIR_MODELS:
+            mse_result = avg_result_latex(df, model, ds, "mse")
+            mae_result = avg_result_latex(df, model, ds, "mae")
+            print(f"& \\scalebox{{\\resultscale}}{{{mse_result}}} ", end="")
+            print(f"& \\scalebox{{\\resultscale}}{{{mae_result}}} ")
+        print(r"""\\""")
+
+        print(r"""\midrule""")
+
+    print(r"""{\scalebox{\resultscale}{{\# $1^{\text{st}}$}}}""")
     for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
         score_mse_str = score_latex(df, model, "mse")
         score_mae_str = score_latex(df, model, "mae")
