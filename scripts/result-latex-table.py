@@ -190,6 +190,36 @@ def avg_result_latex(df, model, ds, metric) -> str:
         return f"\\secondres{{{this_result:.3f}}}"
     return f"{this_result:.3f}"
 
+def avg_num_first(df, model, metric) -> int:
+    return sum(avg_result_place(df, model, ds, metric) == 0 for ds in DATASETS)
+
+def avg_num_compete(df, model, metric) -> int:
+    df2 = add_our_best(df)
+    df2 = df2.groupby("Dataset").mean(numeric_only=True)
+    return pd.notna(df2[model+"-"+metric]).sum()
+
+def avg_score(df, model, metric) -> float:
+    if avg_num_compete(df, model, metric) == 0:
+        return -1
+    return np.round(avg_num_first(df, model, metric) / avg_num_compete(df, model, metric), 3)
+
+def avg_score_place(df, model, metric) -> int:
+    if model not in OUR_MODELS:
+        order = [avg_score(df, m, metric) for m in THEIR_MODELS + ["Ours"]]
+    else:
+        order = [avg_score(df, m, metric) for m in THEIR_MODELS + [model]]
+    order = np.flip(np.sort(np.unique(np.round(order, 3))))
+    return np.where(order == avg_score(df, model, metric))[0][0]
+
+def avg_score_latex(df, model, metric) -> str:
+    score_str = f"{avg_num_first(df, model, metric)}/{avg_num_compete(df, model, metric)}"
+    place = avg_score_place(df, model, metric) 
+    if place == 0:
+        return f"\\firstres{{{score_str}}}"
+    if place == 1:
+        return f"\\secondres{{{score_str}}}"
+    return score_str
+
 def main():
     df = pd.read_csv(StringIO(RESULTS.replace(" ", "")))
     global THEIR_MODELS
@@ -299,14 +329,16 @@ def main():
     print(r"""\bottomrule""")
 
     print(textwrap.dedent(r"""
-        \end{tabular}
-        \end{small}
-        \end{threeparttable}
+    \end{tabular}
+    \end{small}
+    \end{threeparttable}
     }
     \end{table}
     """))
 
     # Average only.
+
+    THEIR_MODELS = sorted(THEIR_MODELS, key=lambda model: avg_score(df, model, "mse"), reverse=True)
 
     print(textwrap.dedent(r"""
         \begin{table}[htbp]
@@ -361,17 +393,17 @@ def main():
 
     print(r"""{\scalebox{\resultscale}{{\# $1^{\text{st}}$}}}""")
     for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
-        score_mse_str = score_latex(df, model, "mse")
-        score_mae_str = score_latex(df, model, "mae")
+        score_mse_str = avg_score_latex(df, model, "mse")
+        score_mae_str = avg_score_latex(df, model, "mae")
         print(f"& \\scalebox{{\\resultscale}}{{{score_mse_str}}}", end="")
         print(f"& \\scalebox{{\\resultscale}}{{{score_mae_str}}}")
     print(r"""\\""")
     print(r"""\bottomrule""")
 
     print(textwrap.dedent(r"""
-        \end{tabular}
-        \end{small}
-        \end{threeparttable}
+    \end{tabular}
+    \end{small}
+    \end{threeparttable}
     }
     \end{table}
     """))
