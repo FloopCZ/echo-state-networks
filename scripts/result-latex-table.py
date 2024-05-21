@@ -297,7 +297,7 @@ def main():
     print(r"""\midrule""")
 
     for ds in DATASETS:
-        print(f"""\\multirow{{4}}{{*}}{{\\rotatebox{{90}}{{\\scalebox{{\\resultdsscale}}{{{ds}}}}}}}""")
+        print(f"""\\multirow{{5}}{{*}}{{\\rotatebox{{90}}{{\\scalebox{{\\resultdsscale}}{{{ds}}}}}}}""")
         for pred_len in PRED_LENS:
             print(f"& \\scalebox{{\\resultscale}}{{{pred_len}}} ", end="")
             for model in OUR_MODELS + THEIR_MODELS:
