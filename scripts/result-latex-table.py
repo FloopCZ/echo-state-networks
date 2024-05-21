@@ -48,6 +48,7 @@ Solar         , 192     , 0.233            , 0.261            , 0.359       , 0.
 Solar         , 336     , 0.248            , 0.273            , 0.397       , 0.369       , 0.290        , 0.315        , 0.319        , 0.330        , 0.353       , 0.415       , N/A         , N/A         , 0.282         , 0.376         , 0.941          , 0.723
 Solar         , 720     , 0.249            , 0.275            , 0.397       , 0.356       , 0.289        , 0.317        , 0.338        , 0.337        , 0.356       , 0.413       , N/A         , N/A         , 0.357         , 0.427         , 0.882          , 0.717
 """
+THEIR_MODELS=[]
 DATASETS=("ETTm1", "ETTm2", "ETTh1", "ETTh2", "Weather", "Electricity", "Traffic", "Exchange", "Solar")
 PRED_LENS=(96, 192, 336, 720)
 OUR_MODEL_DIRS={
@@ -89,15 +90,110 @@ MODEL_TO_CITE = {
     "TimesNet": r"{\citeyearpar{wu2023timesnet}}"
 }
 
-if __name__ == "__main__":
+def metric_selector(models, metric, extra_models=()):
+    return [f"{model}-{metric}" for model in models + list(extra_models)]
+
+def add_our_best(df) -> pd.DataFrame:
+    df2 = df.copy()
+    df2["Ours-mse"] = df2[metric_selector(OUR_MODELS, "mse")].min(axis=1, numeric_only=True)
+    df2["Ours-mae"] = df2[metric_selector(OUR_MODELS, "mae")].min(axis=1, numeric_only=True)
+    return df2
+
+def result(df, model, ds, pred_len, metric) -> float:
+    df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
+    return np.round(df_ds[model+'-'+metric].iloc[0], 3)
+
+def model_place(df, model, ds, pred_len, metric) -> int:
+    if model not in OUR_MODELS:
+        df2 = add_our_best(df)
+        selector = metric_selector(THEIR_MODELS, metric, ["Ours"])
+    else:
+        df2 = df.copy()
+        selector = metric_selector(THEIR_MODELS, metric, [model])
+    this_result = result(df2, model, ds, pred_len, metric)
+    if np.isnan(this_result): return 100
+    df2_ds = df2[(df2["Dataset"] == ds) & (df2["Horizon"] == pred_len)][selector]
+    results = df2_ds.sort_values(df2_ds.index[0], axis=1).values.flatten()
+    results = np.unique(np.round(results, 3))
+    return np.nonzero(results == this_result)[0][0]
+
+def num_first(df, model, metric) -> int:
+    return sum(model_place(df, model, ds, pred_len, metric) == 0 for ds in DATASETS for pred_len in PRED_LENS)
+
+def num_compete(df, model, metric) -> int:
+    df2 = add_our_best(df)
+    return pd.notna(df2[model+"-"+metric]).sum()
+
+def score(df, model, metric) -> float:
+    if num_compete(df, model, metric) == 0:
+        return -1
+    return np.round(num_first(df, model, metric) / num_compete(df, model, metric), 3)
+
+def score_place(df, model, metric) -> int:
+    if model not in OUR_MODELS:
+        order = [score(df, m, metric) for m in THEIR_MODELS + ["Ours"]]
+    else:
+        order = [score(df, m, metric) for m in THEIR_MODELS + [model]]
+    order = np.flip(np.sort(np.unique(np.round(order, 3))))
+    return np.where(order == score(df, model, metric))[0][0]
+
+def score_latex(df, model, metric) -> str:
+    score_str = f"{num_first(df, model, metric)}/{num_compete(df, model, metric)}"
+    place = score_place(df, model, metric) 
+    if place == 0:
+        return f"\\firstres{{{score_str}}}"
+    if place == 1:
+        return f"\\secondres{{{score_str}}}"
+    return score_str
+
+def result_latex(df, model, ds, pred_len, metric) -> str:
+    this_result = result(df, model, ds, pred_len, metric)
+    if math.isnan(this_result):
+        return f"N/A"
+    if this_result >= 10:
+        return f"$\\infty$"
+    place = model_place(df, model, ds, pred_len, metric) 
+    if place == 0:
+        return f"\\firstres{{{this_result:.3f}}}"
+    if place == 1:
+        return f"\\secondres{{{this_result:.3f}}}"
+    return f"{this_result:.3f}"
+
+def avg_result(df, model, ds, metric) -> float:
+    df_mean = df[df["Dataset"] == ds].mean(numeric_only=True)
+    return np.round(df_mean[model+'-'+metric], 3)
+
+def avg_result_place(df, model, ds, metric) -> int:
+    if model not in OUR_MODELS:
+        df2 = add_our_best(df)
+        selector = metric_selector(THEIR_MODELS, metric, ["Ours"])
+    else:
+        df2 = df.copy()
+        selector = metric_selector(THEIR_MODELS, metric, [model])
+    this_result = avg_result(df2, model, ds, metric)
+    if np.isnan(this_result): return 100
+    df2_mean = df2[df2["Dataset"] == ds].mean(numeric_only=True)[selector]
+    results = df2_mean.sort_values().values
+    results = np.unique(np.round(results, 3))
+    return np.nonzero(results == this_result)[0][0]
+
+def avg_result_latex(df, model, ds, metric) -> str:
+    this_result = avg_result(df, model, ds, metric)
+    if math.isnan(this_result):
+        return f"N/A"
+    if this_result >= 10:
+        return f"$\\infty$"
+    place = avg_result_place(df, model, ds, metric) 
+    if place == 0:
+        return f"\\firstres{{{this_result:.3f}}}"
+    if place == 1:
+        return f"\\secondres{{{this_result:.3f}}}"
+    return f"{this_result:.3f}"
+
+def main():
     df = pd.read_csv(StringIO(RESULTS.replace(" ", "")))
-    models=list(set(c.removesuffix("-mse").removesuffix("-mae") for c in df.columns if c not in ("Dataset", "Horizon")))
-
-    def theirs_metric_selector(metric, extra_models=()):
-        return [f"{model}-{metric}" for model in models + list(extra_models)]
-
-    def ours_metric_selector(metric, extra_models=()):
-        return [f"{model}-{metric}" for model in OUR_MODELS + list(extra_models)]
+    global THEIR_MODELS
+    THEIR_MODELS=list(set(c.removesuffix("-mse").removesuffix("-mae") for c in df.columns if c not in ("Dataset", "Horizon")))
 
     for model in OUR_MODELS:
         model_results_mse = []
@@ -119,70 +215,7 @@ if __name__ == "__main__":
         df[model+'-mse'] = model_results_mse
         df[model+'-mae'] = model_results_mae
 
-    def add_our_best(df) -> pd.DataFrame:
-        df2 = df.copy()
-        df2["Ours-mse"] = df2[ours_metric_selector("mse")].min(axis=1, numeric_only=True)
-        df2["Ours-mae"] = df2[ours_metric_selector("mae")].min(axis=1, numeric_only=True)
-        return df2
-
-    def model_place(model, ds, pred_len, metric) -> int:
-        if model not in OUR_MODELS:
-            df2 = add_our_best(df)
-            df2_ds = df2[(df2["Dataset"] == ds) & (df2["Horizon"] == pred_len)][theirs_metric_selector(metric, ["Ours"])]
-        else:
-            df2 = df.copy()
-            df2_ds = df2[(df2["Dataset"] == ds) & (df2["Horizon"] == pred_len)][theirs_metric_selector(metric, [model])]
-        this_result = np.round(df2_ds[model+"-"+metric].iloc[0], 3)
-        if np.isnan(this_result): return 100
-        order = df2_ds.sort_values(df2_ds.index[0], axis=1).values.flatten()
-        order = np.unique(np.round(order, 3))
-        return np.nonzero(order == this_result)[0][0]
-
-    def num_first(model, metric) -> int:
-        return sum(model_place(model, ds, pred_len, metric) == 0 for ds in DATASETS for pred_len in PRED_LENS)
-
-    def num_compete(model, metric) -> int:
-        df2 = add_our_best(df)
-        return pd.notna(df2[model+"-"+metric]).sum()
-
-    def score(model, metric) -> float:
-        if num_compete(model, metric) == 0:
-            return -1
-        return np.round(num_first(model, metric) / num_compete(model, metric), 3)
-
-    def score_order(model, metric) -> int:
-        if model not in OUR_MODELS:
-            order = [score(m, metric) for m in models + ["Ours"]]
-        else:
-            order = [score(m, metric) for m in models + [model]]
-        order = np.flip(np.sort(np.unique(np.round(order, 3))))
-        return np.where(order == score(model, metric))[0][0]
-
-    def score_str(model, metric) -> str:
-        score_str = f"{num_first(model, metric)}/{num_compete(model, metric)}"
-        if score_order(model, metric) == 0:
-            return f"\\firstres{{{score_str}}}"
-        if score_order(model, metric) == 1:
-            return f"\\secondres{{{score_str}}}"
-        return score_str
-
-    def result(model, ds, pred_len, metric) -> float:
-        df_ds = df[(df["Dataset"] == ds) & (df["Horizon"] == pred_len)]
-        return np.round(df_ds[model+'-'+metric].iloc[0], 3)
-
-    def result_to_str(model, ds, pred_len, metric) -> str:
-        this_result = result(model, ds, pred_len, metric)
-        if math.isnan(this_result):
-            return f"N/A"
-        if this_result >= 10:
-            return f"$\\infty$"
-        if model_place(model, ds, pred_len, metric) == 0:
-            return f"\\firstres{{{this_result:.3f}}}"
-        if model_place(model, ds, pred_len, metric) == 1:
-            return f"\\secondres{{{this_result:.3f}}}"
-        return f"{this_result:.3f}"
-
-    models = sorted(models, key=lambda model: score(model, "mse"), reverse=True)
+    THEIR_MODELS = sorted(THEIR_MODELS, key=lambda model: score(df, model, "mse"), reverse=True)
 
     # Third party results.
 
@@ -210,25 +243,25 @@ if __name__ == "__main__":
 
     print(textwrap.dedent(r"""\begin{tabular}{c|c|"""), end="")
     print("|".join(["cc"] * len(OUR_MODELS)) + "?cc|", end="")
-    print("|".join(["cc"] * (len(models) - 1)) + "}")
+    print("|".join(["cc"] * (len(THEIR_MODELS) - 1)) + "}")
 
     print(textwrap.dedent(r"""
         \toprule
         \multicolumn{2}{c}{\multirow{2}{*}{Models}}
         """))
-    for model in OUR_MODELS + models:
+    for model in OUR_MODELS + THEIR_MODELS:
         print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_TITLE[model]}}}}} ")
     print(r"""\\""")
 
     print(r"""\multicolumn{2}{c}{} """)
-    for model in OUR_MODELS + models:
+    for model in OUR_MODELS + THEIR_MODELS:
         print(f"& \\multicolumn{{2}}{{c}}{{\\scalebox{{\\resulttitlescale}}{{{MODEL_TO_CITE[model]}}}}} ")
     print(r"""\\""")
 
-    for i, model in enumerate(OUR_MODELS + models):
+    for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
         print(f"\\cmidrule(lr){{{2*i+3}-{2*i+4}}}")
     print(r"""\multicolumn{2}{c}{Metric} """)
-    for i, model in enumerate(OUR_MODELS + models):
+    for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
         print(r"""& \scalebox{\resultscale}{MSE} & \scalebox{\resultscale}{MAE}""")
     print(r"""\\""")
     print(r"""\midrule""")
@@ -237,20 +270,29 @@ if __name__ == "__main__":
         print(f"""\\multirow{{4}}{{*}}{{\\rotatebox{{90}}{{\\scalebox{{\\resultdsscale}}{{{ds}}}}}}}""")
         for pred_len in PRED_LENS:
             print(f"& \\scalebox{{\\resultscale}}{{{pred_len}}} ", end="")
-            for model in OUR_MODELS + models:
-                mse_result = result_to_str(model, ds, pred_len, "mse")
-                mae_result = result_to_str(model, ds, pred_len, "mse")
+            for model in OUR_MODELS + THEIR_MODELS:
+                mse_result = result_latex(df, model, ds, pred_len, "mse")
+                mae_result = result_latex(df, model, ds, pred_len, "mae")
                 print(f"& \\scalebox{{\\resultscale}}{{{mse_result}}} ", end="")
                 print(f"& \\scalebox{{\\resultscale}}{{{mae_result}}} ")
             print(r"""\\""")
             
-        # print(r"""\cmidrule(lr){2-26}""")
+        print(r"""\cmidrule(lr){2-26}""")
+
+        print(f"& \\scalebox{{\\resultscale}}{{Avg}} ", end="")
+        for model in OUR_MODELS + THEIR_MODELS:
+            mse_result = avg_result_latex(df, model, ds, "mse")
+            mae_result = avg_result_latex(df, model, ds, "mae")
+            print(f"& \\scalebox{{\\resultscale}}{{{mse_result}}} ", end="")
+            print(f"& \\scalebox{{\\resultscale}}{{{mae_result}}} ")
+        print(r"""\\""")
+
         print(r"""\midrule""")
 
     print(r"""\multicolumn{2}{c|}{\scalebox{\resultscale}{{\# $1^{\text{st}}$}}}""")
-    for i, model in enumerate(OUR_MODELS + models):
-        score_mse_str = score_str(model, "mse")
-        score_mae_str = score_str(model, "mae")
+    for i, model in enumerate(OUR_MODELS + THEIR_MODELS):
+        score_mse_str = score_latex(df, model, "mse")
+        score_mae_str = score_latex(df, model, "mae")
         print(f"& \\scalebox{{\\resultscale}}{{{score_mse_str}}}", end="")
         print(f"& \\scalebox{{\\resultscale}}{{{score_mae_str}}}")
     print(r"""\\""")
@@ -263,3 +305,6 @@ if __name__ == "__main__":
     }
     \end{table}
     """))
+
+if __name__ == "__main__":
+    main()
