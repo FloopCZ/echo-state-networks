@@ -518,6 +518,7 @@ public:
         // Override options from args.
         if (args) {
             if (args->contains("lcnn.lms")) net.lms_ = args->at("lcnn.lms").as<bool>();
+            if (args->contains("lcnn.lms-mu")) net.lms_mu_ = args->at("lcnn.lms-mu").as<double>();
             if (args->contains("lcnn.autoretrain-every")) {
                 net.autoretrain_every_ = args->at("lcnn.autoretrain-every").as<long>();
                 net.init_autoretrain();
@@ -1390,7 +1391,7 @@ inline po::options_description lcnn_arg_description()
        "Autoretrain the lcnn after every n steps with feedback.")                    //
       ("lcnn.lms", po::value<bool>()->default_value(false),                          //
        "Update weights using least mean squares filter.")                            //
-      ("lcnn.lms-mu", po::value<double>()->default_value(0),                         //
+      ("lcnn.lms-mu", po::value<double>()->default_value(1e-3),                      //
        "Least mean squares mu coefficient.")                                         //
       ("lcnn.adapt.learning-rate", po::value<double>()->default_value(0.0),          //
        "Learning rate for weight adaptation. Set to 0 to disable learning.")         //
