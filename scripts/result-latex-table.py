@@ -54,7 +54,7 @@ OUR_MODEL_DIRS={
     "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
     "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
     "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
-    "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain1-ahead{ahead}-stride1"}
+    "LCESN-LR1": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain1-ahead{ahead}-stride1"}
 OUR_MODELS = list(OUR_MODEL_DIRS.keys())
 
 MODEL_TO_TITLE = {
@@ -209,7 +209,7 @@ if __name__ == "__main__":
         """))
 
     print(textwrap.dedent(r"""\begin{tabular}{c|c|"""), end="")
-    print("|".join(["cc"] * len(OUR_MODELS)) + "?cc", end="")
+    print("|".join(["cc"] * len(OUR_MODELS)) + "?cc|", end="")
     print("|".join(["cc"] * (len(models) - 1)) + "}")
 
     print(textwrap.dedent(r"""
