@@ -47,7 +47,8 @@ RUN cd /tmp \
 RUN /usr/local/bin/aur-install libcmaes-openmp --noconfirm --needed
 
 # Install remote connection utilities
-RUN pacman -Syu --noconfirm --needed openssh python python-numpy python-pandas python-pip zsh tmux htop
+RUN pacman -Syu --noconfirm --needed openssh python python-numpy python-pandas python-pip
+RUN pacman -Syu --noconfirm --needed zsh tmux htop neovim mc xsel curl fzf ripgrep
 RUN ssh-keygen -A && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
 
 # Set up users and passwords.
