@@ -46,8 +46,23 @@ RUN cd /tmp \
 # Install AUR dependencies.
 RUN /usr/local/bin/aur-install libcmaes-openmp --noconfirm --needed
 
+# Install remote connection utilities
+RUN pacman -Syu --noconfirm --needed openssh python python-numpy python-pandas python-pip
+RUN pacman -Syu --noconfirm --needed zsh tmux htop neovim mc xsel curl fzf ripgrep
+RUN ssh-keygen -A && echo "PermitRootLogin yes" >> /etc/ssh/sshd_config
+
+# Set up users and passwords.
+RUN useradd -m -s /usr/bin/zsh somebody \
+  && echo 'somebody ALL=(ALL) ALL' > /etc/sudoers.d/somebody \
+  && echo 'Defaults env_keep += "EDITOR"' >> /etc/sudoers.d/somebody \
+  && echo "somebody:metaTrailerLeverage" | chpasswd \
+  && echo "root:rosenPikeTraversal" | chpasswd
+
 # Compile echo-state-networks.
 COPY ./ ${HOME}/echo-state-networks/
 WORKDIR ${HOME}/echo-state-networks/
 RUN source /etc/profile && cmake -GNinja -B build -DCMAKE_BUILD_TYPE=Release . \
  && LD_LIBRARY_PATH=/opt/cuda/targets/x86_64-linux/lib/stubs/ cmake --build build
+
+# Start ssh server by default.
+ENTRYPOINT ["/usr/bin/sshd", "-D"]
