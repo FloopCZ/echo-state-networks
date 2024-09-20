@@ -12,6 +12,8 @@ SEED="${6:-50}"
 TASK_OFFSET=${TASK_OFFSET:-0}
 N_TASKS=${N_TASKS:-99999}
 BACKEND=${BACKEND:-"cuda"}
+MEMLEN=${MEMLEN:-100}
+EXTRA_STR=${EXTRA_STR:-""}
 
 MULTITHREADING="false"
 if [[ "$BACKEND" == "cpu" ]]; then
@@ -20,7 +22,7 @@ if [[ "$BACKEND" == "cpu" ]]; then
 fi
 
 export AF_MAX_BUFFERS=100000
-out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-ettm2-ahead${AHEAD}-loop-seed${SEED}/"
+out_dir="./log/optimize-${TOPO}-${HEIGHT}-${WIDTH}-k${KERNEL}-ettm2-ahead${AHEAD}-loop${EXTRA_STR}-seed${SEED}/"
 mkdir -p "${out_dir}"
 "./build/optimize_${BACKEND}" \
   --gen.net-type=lcnn \
@@ -32,7 +34,7 @@ mkdir -p "${out_dir}"
   --lcnn.state-width="${WIDTH}" \
   --lcnn.kernel-height="${KERNEL}" \
   --lcnn.kernel-width="${KERNEL}" \
-  --lcnn.memory-length=100 \
+  --lcnn.memory-length="${MEMLEN}" \
   --gen.benchmark-set=ettm-loop \
   --bench.ett-variant=2 \
   --bench.set-type=train-valid \
