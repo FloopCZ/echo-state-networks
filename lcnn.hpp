@@ -489,7 +489,7 @@ public:
         net.prev_step_feedback_.load(dir / "prev_step_feedback/");
         {
             std::string p = dir / "reservoir_w.bin";
-            net.reservoir_w_ = af::readArray(p.c_str(), "data");
+            if (fs::exists(p)) net.reservoir_w_ = af::readArray(p.c_str(), "data");
         }
         {
             std::string p = dir / "reservoir_w_full.bin";
