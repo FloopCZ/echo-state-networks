@@ -49,7 +49,8 @@ Solar         , 336     , 0.248            , 0.273            , 0.397       , 0.
 Solar         , 720     , 0.249            , 0.275            , 0.397       , 0.356       , 0.289        , 0.317        , 0.338        , 0.337        , 0.356       , 0.413       , N/A         , N/A         , 0.357         , 0.427         , 0.882          , 0.717
 """
 THEIR_MODELS=[]
-DATASETS=("ETTm1", "ETTm2", "ETTh1", "ETTh2", "Weather", "Electricity", "Traffic", "Exchange", "Solar")
+# DATASETS=("ETTm1", "ETTm2", "ETTh1", "ETTh2", "Weather", "Electricity", "Traffic", "Exchange", "Solar")
+DATASETS=("ETTm1", "ETTm2", "Weather", "Solar", "Electricity", "Traffic", "ETTh1", "ETTh2", "Exchange")
 PRED_LENS=(96, 192, 336, 720)
 OUR_MODEL_DIRS={
     "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
@@ -225,25 +226,23 @@ def main():
     global THEIR_MODELS
     THEIR_MODELS=list(set(c.removesuffix("-mse").removesuffix("-mae") for c in df.columns if c not in ("Dataset", "Horizon")))
 
-    for model in OUR_MODELS:
-        model_results_mse = []
-        model_results_mae = []
-        for ds in DATASETS:
-            for pred_len in PRED_LENS:
+    model_data = []
+    for ds in DATASETS:
+        for pred_len in PRED_LENS:
+            model_data.append({'Dataset': ds, 'Horizon': pred_len})
+            for model in OUR_MODELS:
+                model_data[-1][model+'-mse'] = pd.NA
+                model_data[-1][model+'-mae'] = pd.NA
                 csv_file = OUR_MODEL_DIRS[model](ds, pred_len) + "/results.csv"
                 try:
                     if os.path.exists(csv_file):
                         results = pd.read_csv(csv_file, index_col=0)
-                        model_results_mse.append(results["mse"].values[0])
-                        model_results_mae.append(results["mae"].values[0])
-                    else:
-                        model_results_mse.append(np.nan)
-                        model_results_mae.append(np.nan)
+                        model_data[-1][model+'-mse'] = results["mse"].values[0]
+                        model_data[-1][model+'-mae'] = results["mae"].values[0]
                 except pd.errors.EmptyDataError:
-                    model_results_mse.append(np.nan)
-                    model_results_mae.append(np.nan)
-        df[model+'-mse'] = model_results_mse
-        df[model+'-mae'] = model_results_mae
+                    pass
+    model_df = pd.DataFrame(model_data)
+    df = pd.merge(df, model_df, on=["Dataset", "Horizon"], how="outer")
 
     THEIR_MODELS = sorted(THEIR_MODELS, key=lambda model: score(df, model, "mse"), reverse=True)
 

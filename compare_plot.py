@@ -59,7 +59,7 @@ def log_plot(df, param, color=None, connect_label=None):
     df["f-value"] = np.log10(df["f-value"])
 
     palette = None if color else "deep"
-    ax = sns.violinplot(data=df, x=param, y="f-value", color=color, palette=palette, zorder=2)
+    ax = sns.violinplot(data=df, x=param, y="f-value", color=color, palette=palette, hue=param, zorder=2)
     if connect_label:
         sns.lineplot(data=df, x=param, y="f-value", color=color, palette=palette,
                      zorder=1, label=connect_label, errorbar=None)
