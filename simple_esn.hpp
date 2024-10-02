@@ -16,7 +16,7 @@ namespace esn {
 
 namespace po = boost::program_options;
 
-/// Echo state network.
+/// The basic Echo state network.
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 class simple_esn : public net_base {
     // the number of reservoir neurons
@@ -114,16 +114,16 @@ public:
       double leakage,
       prng_t prng)
       : simple_esn{
-        n,
-        std::move(input_names),
-        std::move(output_names),
-        std::move(reservoir_w),
-        std::move(input_w),
-        std::move(feedback_w),
-        af::constant(0, n, DType),
-        noise,
-        leakage,
-        prng}
+          n,
+          std::move(input_names),
+          std::move(output_names),
+          std::move(reservoir_w),
+          std::move(input_w),
+          std::move(feedback_w),
+          af::constant(0, n, DType),
+          noise,
+          leakage,
+          prng}
     {
     }
 
@@ -139,6 +139,9 @@ public:
       const data_map& step_desired,
       input_transform_fn_t input_transform) override
     {
+        throw std::invalid_argument{
+          "simple_esn model is deprecated and may not work properly. Please use the lcnn model."};
+
         data_map orig_step_input = step_input;
 
         // prepare the inputs for this step (add missing keys from last output)
@@ -233,11 +236,7 @@ public:
         return result;
     }
 
-    /// TODO fix docs
     /// Train the network on the given sequence.
-    /// \param inputs Input sequence of dimensions [n_ins, time].
-    /// \param desired The desired output sequences. Those are also teacher-forced into the net.
-    ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
         return train(feed(input));

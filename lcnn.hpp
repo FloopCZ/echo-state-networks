@@ -556,13 +556,7 @@ public:
         }
     }
 
-    /// TODO fix docs
     /// Perform a single step with a single input.
-    /// \param input The input value.
-    /// \param feedback The teacher-forced feedback to be used instead
-    ///                 of the network's output.
-    /// \param desired The desired output. This is only used for callbacks.
-    ///                Has to be of size [n_outs].
     void step(
       const data_map& step_input,
       const data_map& step_feedback,
@@ -664,15 +658,7 @@ public:
         last_output_ = std::move(value);
     }
 
-    /// TODO fix docs
     /// Perform multiple steps with multiple input seqences.
-    /// \param inputs Input sequence of dimensions [n_ins, time].
-    /// \param feedback The desired output sequences to be teacher-forced into the net.
-    ///                 Needs to have dimensions [n_outs, time]
-    /// \param desired The desired output. This is only used for callbacks.
-    ///                Has to be of size [n_outs, time].
-    /// \return The array of intermediate states of dimensions [state_height, state_width, time]
-    ///         and the array of intermediate outputs of dimensions [n_outs, time].
     feed_result_t feed(const input_t& input) override
     {
         long data_len = -1;
@@ -706,11 +692,7 @@ public:
         return result;
     }
 
-    // TODO fix docs
     /// Train the network on the given sequence.
-    /// \param input Input sequence of dimensions [n_ins, time].
-    /// \param desired The desired output sequences. Those are also teacher-forced into the net.
-    ///                Needs to have dimensions [n_outs, time]
     train_result_t train(const input_t& input) override
     {
         init_autoretrain();
@@ -1046,8 +1028,8 @@ public:
 
 /// Generate a random locally connected echo state network.
 ///
-/// \param n_ins The number of inputs.
-/// \param n_outs The number of outputs.
+/// \param inpput_names The names of the inputs.
+/// \param output_names The names of the outputs.
 /// \param args The parameters by which is the network constructed.
 template <af::dtype DType = DEFAULT_AF_DTYPE>
 lcnn<DType> random_lcnn(
