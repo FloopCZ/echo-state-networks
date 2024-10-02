@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Optimize the given model on a real world dataset (GPU cluster version).
+
 BACKEND=${BACKEND:-"cuda"}
 
 n_tasks=1

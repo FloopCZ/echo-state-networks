@@ -2,6 +2,9 @@
 set -e
 set -o pipefail
 
+# Optimize a LCESN for each of the real-world datasets (GPU cluster version).
+# This local version would take very long and we recommend it only for debugging purposes.
+
 BACKEND=${BACKEND:-"cuda"}
 
 trap "trap - SIGTERM && kill -- -$$" SIGINT SIGTERM EXIT

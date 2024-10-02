@@ -2,6 +2,8 @@
 set -e
 set -o pipefail
 
+# Evaluate the optimized models on all the real-world datasets.
+
 if [ $# != 2 ]; then echo "Invalid usage"; exit 1; fi
 
 LMS="${1}"

@@ -2,6 +2,7 @@
 set -e
 set -o pipefail
 
+# Create a CSV file with NARMA10 results when the training size is varied.
 
 mkdir -p ./log/
 ./build/param_sensitivity_int_cuda \

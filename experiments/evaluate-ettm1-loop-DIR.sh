@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Evaluate an optimized model from the given directory on the ETTm1 validation set.
+
 if [ $# -lt 1 ]; then echo "Invalid usage"; exit 1; fi
 MODEL_DIR="$1"
 N_STEPS_AHEAD="${2:-96}"

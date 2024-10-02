@@ -2,6 +2,8 @@
 set -e
 set -o pipefail
 
+# Compare various kernel sizes on the NARMA10 task.
+
 if [ $# != 4 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"

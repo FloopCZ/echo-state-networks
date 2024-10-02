@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Evaluate an untrained model on the ettm dataset in order to benchmark its computational resources.
+
 if [ $# -lt 3 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"

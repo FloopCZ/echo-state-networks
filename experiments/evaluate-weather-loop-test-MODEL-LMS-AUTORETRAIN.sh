@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Evaluate an optimized network on the testing data of a real-world dataset.
+
 if [ $# -lt 1 ]; then echo "Invalid usage"; exit 1; fi
 MODEL_DIR="$1"
 LMS="${2:-true}"

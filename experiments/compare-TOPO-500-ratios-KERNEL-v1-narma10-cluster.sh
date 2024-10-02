@@ -2,6 +2,8 @@
 set -e
 set -o pipefail
 
+# Comparison of multiple aspect ratios of the state on the NARMA10 task (GPU cluster version).
+
 if [ $# != 2 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 KERNEL="$2"

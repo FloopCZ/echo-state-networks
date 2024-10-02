@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Compare various kernel sizes on the NARMA10 task (GPU cluster version).
+
 n_tasks=1
 for task_offset in `seq 0 $n_tasks 29`; do
     echo $task_offset $n_tasks

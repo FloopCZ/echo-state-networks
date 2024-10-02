@@ -2,6 +2,8 @@
 set -e
 set -o pipefail
 
+# Optimize the given model on a real world dataset.
+
 if [ $# -lt 5 ]; then echo "Invalid usage"; exit 1; fi
 TOPO="$1"
 HEIGHT="$2"

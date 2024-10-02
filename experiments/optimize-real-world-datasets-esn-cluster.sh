@@ -2,6 +2,8 @@
 set -e
 set -o pipefail
 
+# Optimize a conventional ESN for each of the real-world datasets (GPU cluster version).
+
 export MEMLEN=0  # Pure ESN without forced memory
 export EXTRA_STR="-memlen0"
 
