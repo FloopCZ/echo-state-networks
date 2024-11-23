@@ -53,6 +53,7 @@ THEIR_MODELS=[]
 DATASETS=("ETTm1", "ETTm2", "Weather", "Solar", "Electricity", "Traffic", "ETTh1", "ETTh2", "Exchange")
 PRED_LENS=(96, 192, 336, 720)
 OUR_MODEL_DIRS={
+    "ESN": lambda ds, ahead: f"./log/optimize-sparse-40-50-k7-{ds.lower()}-ahead192-loop-memlen0-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
     "LCESN": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms0-retrain0-ahead{ahead}-stride1",
     "LCESN-LMS": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain0-ahead{ahead}-stride1",
     "LCESN-LR100": lambda ds, ahead: f"./log/optimize-lcnn-40-50-k7-{ds.lower()}-ahead192-loop-seed50/evaluate-{ds.lower()}-loop-test-lms1-retrain100-ahead{ahead}-stride1",
@@ -61,6 +62,7 @@ OUR_MODELS = list(OUR_MODEL_DIRS.keys())
 
 MODEL_TO_TITLE = {
     "SotA": r"SotA",
+    "ESN": r"ESN",
     "LCESN": r"\textbf{LCESN}",
     "LCESN-LMS": r"\textbf{LCESN-LMS}",
     "LCESN-LR100": r"\textbf{LCESN-LR100}",
@@ -77,6 +79,7 @@ MODEL_TO_TITLE = {
 
 MODEL_TO_CITE = {
     "SotA": r"",
+    "ESN": r"{\citeyearpar{jaeger2001echo}}",
     "LCESN": r"{\textbf{Ours}}",
     "LCESN-LMS": r"{\textbf{Ours}}",
     "LCESN-LR100": r"{\textbf{Ours}}",
