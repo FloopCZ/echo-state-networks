@@ -2,7 +2,7 @@
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
-matplotlib.rcParams['figure.figsize'] = 6, 4
+matplotlib.rcParams['figure.figsize'] = 6, 2
 import matplotlib.pyplot as plt
 from matplotlib import ticker as pltticker
 import numpy as np
@@ -39,7 +39,7 @@ def set_log_y(ax):
     ax.grid(which='minor', color='whitesmoke')
     return ax
 
-def plot(df, param, plot_type, logscale, color=None, connect_label=None):
+def plot(df, param, plot_type, logscale, color=None, connect_label=None, order=None):
     # Print some useful statistics.
     stats_df = df.groupby(["run", param]).agg({'f-value': ['mean','std']})
     stats_df = stats_df.reset_index().sort_values(param)
@@ -61,9 +61,9 @@ def plot(df, param, plot_type, logscale, color=None, connect_label=None):
 
     palette = None if color else "deep"
     if plot_type == "violin":
-        ax = sns.violinplot(data=df, x=param, y="f-value", color=color, palette=palette, hue=param, zorder=2)
+        ax = sns.violinplot(data=df, x=param, y="f-value", color=color, palette=palette, hue=param, order=order, zorder=2)
     elif plot_type == "box":
-        ax = sns.boxplot(data=df, x=param, y="f-value", color=color, palette=palette, hue=param, zorder=2)
+        ax = sns.boxplot(data=df, x=param, y="f-value", color=color, palette=palette, hue=param, order=order, zorder=2)
     else:
         raise ValueError(f"Unknown plot type `{plot_type}`.")
 
@@ -87,10 +87,13 @@ def main():
                                                     "be connected using a line.")
     parser.add_argument("--rotate-labels", type=int, help="The rotation of the x-axis labels.")
     parser.add_argument("--all-runs", action=argparse.BooleanOptionalAction, help="Select all runs, not only the best")
+    parser.add_argument("--no-legend", action='store_true', help="Disable legend.")
     parser.add_argument("--plot-type", type=str, help="Plot type (e.g., violin, box.", default="violin")
     parser.add_argument("--logscale", action=argparse.BooleanOptionalAction, help="Plot in logarithmic scale")
-    parser.add_argument("csvs", nargs='+', help="The csvs to be concatenated and plotted.")
+    parser.add_argument("--order", nargs='*', type=str, help="Ordered labels. Has to cover all labels.")
+    parser.add_argument("csvs", nargs='*', help="The csvs to be concatenated and plotted.")
     args = parser.parse_args()
+    print(args.order)
 
     df = pd.concat(pd.read_csv(csv) for csv in args.csvs)
     if ("lcnn.state-height" in df.columns and "lcnn.state-width" in df.columns):
@@ -99,6 +102,8 @@ def main():
     if ("lcnn.kernel-height" in df.columns and "lcnn.kernel-width" in df.columns):
         df["lcnn.kernel-area"] = df["lcnn.kernel-height"] * df["lcnn.kernel-width"]
         df["lcnn.kernel-size"] = df["lcnn.kernel-height"].astype(str) + "x" + df["lcnn.kernel-width"].astype(str)
+    if ("lcnn.memory-length" in df.columns and "lcnn.topology" in df.columns):
+        df["lcnn.memory-length-topo"] = df["lcnn.memory-length"].astype(str) + "-" + df["lcnn.topology"].astype(str)
     # TODO this is dirty, the stats object should not replace nans by infs.
     df = df.replace([np.inf, -np.inf], np.nan)
     if args.sort_by:
@@ -109,11 +114,14 @@ def main():
             df_exp_set = df[df[args.connect] == connect_value]
             df_best = best_run(df_exp_set, args.param).copy() if not args.all_runs else df_exp_set
             plot(df_best, param=args.param, plot_type=args.plot_type, logscale=args.logscale,
-                 color=color, connect_label=connect_value)
+                 color=color, connect_label=connect_value, order=args.order)
             plt.legend(title=args.connect)
     else:
         df_best = best_run(df, args.param).copy() if not args.all_runs else df
-        plot(df_best, param=args.param, plot_type=args.plot_type, logscale=args.logscale)
+        plot(df_best, param=args.param, plot_type=args.plot_type, logscale=args.logscale, order=args.order)
+
+    if args.no_legend and plt.gca().get_legend():
+        plt.gca().get_legend().remove()
     plt.gca().tick_params(axis='x', labelrotation=args.rotate_labels)
 
     plt.tight_layout()
