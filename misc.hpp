@@ -78,7 +78,21 @@ public:
         records_[label].is_running = true;
     }
 
-    void stop(const std::string& label)
+    void output(const std::string& label)
+    {
+        auto it = records_.find(label);
+        if (it == records_.end())
+            throw std::logic_error("Benchmark never started for label: " + label);
+        if (it->second.is_running)
+            throw std::logic_error("Benchmark still running for label: " + label);
+
+        auto& record = it->second;
+        *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label
+                        << "]: " << record.duration.count() << " seconds." << std::endl;
+        if (csv_file_.is_open()) csv_file_ << label << "," << record.duration.count() << "\n";
+    }
+
+    void stop(const std::string& label, bool quiet = false)
     {
         auto it = records_.find(label);
         if (it == records_.end() || !it->second.is_running)
@@ -88,10 +102,7 @@ public:
         record.duration += std::chrono::steady_clock::now() - record.start_time;
         record.is_running = false;
 
-        *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label
-                        << "]: " << record.duration.count() << " seconds." << std::endl;
-
-        if (csv_file_.is_open()) csv_file_ << label << "," << record.duration.count() << "\n";
+        if (!quiet) output(label);
     }
 };
 
