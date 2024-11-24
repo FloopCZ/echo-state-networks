@@ -49,6 +49,7 @@ private:
     struct TimeRecord {
         std::chrono::steady_clock::time_point start_time;
         std::chrono::duration<double> duration;
+        long count;
         bool is_running;
     };
 
@@ -63,7 +64,7 @@ public:
         if (!csv_path.empty()) {
             csv_file_.open(csv_path, std::ios::out | std::ios::app);
             if (csv_file_.is_open())
-                csv_file_ << "Label,Duration (seconds)\n";
+                csv_file_ << "label,count,duration\n";
             else
                 throw std::ios_base::failure("Failed to open CSV file.");
         }
@@ -73,9 +74,12 @@ public:
         auto& record = records_[label];
         if (record.is_running)
             throw std::logic_error("Benchmark already started for label: " + label);
-        if (!accumulate) record.duration = std::chrono::duration<double>(0);
-        records_[label].start_time = std::chrono::steady_clock::now();
-        records_[label].is_running = true;
+        record = {
+          .start_time = std::chrono::steady_clock::now(),
+          .duration = accumulate ? record.duration : std::chrono::duration<double>(0),
+          .count = accumulate ? record.count + 1 : 0,
+          .is_running = true,
+        };
     }
 
     void output(const std::string& label)
@@ -87,9 +91,12 @@ public:
             throw std::logic_error("Benchmark still running for label: " + label);
 
         auto& record = it->second;
-        *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label
-                        << "]: " << record.duration.count() << " seconds." << std::endl;
-        if (csv_file_.is_open()) csv_file_ << label << "," << record.duration.count() << "\n";
+        std::string count_str;
+        if (record.count) count_str = " " + std::to_string(record.count) + "x";
+        *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label << "]"
+                        << count_str << ": " << record.duration.count() << " seconds." << std::endl;
+        if (csv_file_.is_open())
+            csv_file_ << label << "," << record.count << "," << record.duration.count() << "\n";
     }
 
     void stop(const std::string& label, bool quiet = false)
