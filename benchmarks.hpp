@@ -7,6 +7,7 @@
 #include "benchmark_results.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
+#include "misc.hpp"
 #include "net.hpp"
 
 #include <boost/algorithm/string.hpp>
@@ -219,25 +220,30 @@ public:
         // split the sequences into groups
         std::vector<data_map> xs_groups = xs.split(split_sizes_);
         std::vector<data_map> ys_groups = ys.split(split_sizes_);
+        Timer timer;
         // initialize the network using the initial sequence
         net.random_noise(true);
         if (!xs_groups.at(0).empty()) {
             net.event("init-start");
+            timer.start("init");
             net.feed(
               {.input = xs_groups.at(0),
                .feedback = ys_groups.at(0),
                .desired = ys_groups.at(0),
                .input_transform = input_transform_fn()});
+            timer.stop("init");
         }
         net.learning(false);
         // train the network on the training sequence with teacher forcing
         if (!xs_groups.at(1).empty()) {
             net.event("train-start");
+            timer.start("train");
             net.train(
               {.input = xs_groups.at(1),
                .feedback = ys_groups.at(1),
                .desired = ys_groups.at(1),
                .input_transform = input_transform_fn()});
+            timer.stop("train");
         }
         net.random_noise(false);
         // evaluate the performance of the network on all continuous intervals of the validation
@@ -256,11 +262,13 @@ public:
                 data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                 data_map desired = ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                 net.event("feed-extra");
+                timer.start(fmt::format("feed-extra {}", i));
                 net.feed(
                   {.input = input,
                    .feedback = desired,
                    .desired = desired,
                    .input_transform = input_transform_fn()});
+                timer.stop(fmt::format("feed-extra {}", i));
             }
             // create a copy of the network before the validation so that we can simply
             // continue feeding of the original net in the next iteration
@@ -271,6 +279,7 @@ public:
                                     .filter(persistent_input_names());
             data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
             net_copy->event("validation-start");
+            timer.start(fmt::format("validation {}", i));
             af::array raw_predicted = net_copy
                                         ->feed(
                                           {.input = loop_input,
@@ -278,6 +287,7 @@ public:
                                            .desired = desired,
                                            .input_transform = input_transform_fn()})
                                         .outputs;
+            timer.stop(fmt::format("validation {}", i));
             data_map predicted{output_names(), std::move(raw_predicted)};
             // extract the targets
             all_predicted.at(i / validation_stride_) = predicted.filter(target_names());

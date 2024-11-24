@@ -7,6 +7,7 @@
 #include "data_map.hpp"
 #include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
+#include "misc.hpp"
 #include "net.hpp"
 #include "third_party/elasticnet_af/elasticnet_af.hpp"
 
@@ -696,7 +697,14 @@ public:
     train_result_t train(const input_t& input) override
     {
         init_autoretrain();
-        return train(feed(input));
+        Timer timer;
+        timer.start("LCNN feed");
+        auto feed_data = feed(input);
+        timer.stop("LCNN feed");
+        timer.start("LCNN train");
+        auto train_data = train(std::move(feed_data));
+        timer.stop("LCNN train");
+        return train_data;
     }
 
     /// Clear the network output weights and reset prng to the initial state.
