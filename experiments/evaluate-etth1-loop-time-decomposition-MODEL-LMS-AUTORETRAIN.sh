@@ -12,7 +12,7 @@ VALIDATION_STRIDE="${5:-1}"
 
 export AF_MAX_BUFFERS=100000
 echo "Model dir: ${MODEL_DIR}"
-./build/evaluate_cpu \
+./build/evaluate_cuda \
 --bench.error-measure=mse \
 --bench.set-type=train-valid-test \
 --bench.init-steps=500 \
