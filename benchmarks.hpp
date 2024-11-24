@@ -1153,20 +1153,24 @@ protected:
     {
         // create a copy of the network to work with
         std::unique_ptr<net_base> net = net_.clone();
-        assert(net->input_names() == input_names_);
-        assert(net->output_names() == output_names_);
+        assert(!net->input_names().empty());
+        std::string first_input = *net->input_names().begin();
         auto dtype = net->state().type();
+        auto generate_input = [&](long len) -> data_map {
+            std::map<std::string, af::array> init_data_map;
+            for (const auto& input_name : net->input_names())
+                init_data_map[input_name] = af::randu({len}, dtype, af_prng) * 0.5;
+            return data_map{init_data_map};
+        };
         // pass initial transitions by feeding a random sequence
-        af::array init_xs =
-          af::randu({(dim_t)net->input_names().size(), init_len_}, dtype, af_prng) * 0.5;
+        data_map init_data = generate_input(init_len_);
         net->feed(
-          {.input = {"xs", init_xs},
+          {.input = init_data,
            .feedback = {},
            .desired = {},
            .input_transform = input_transform_fn()});
         // build the sequence to be analyzed
-        af::array xs =
-          af::randu({(dim_t)net->input_names().size(), seq_len_}, dtype, af_prng) * 0.5;
+        data_map xs = generate_input(seq_len_);
         // make a soon-to-be perturbed clone of the original net
         net->random_noise(false);
         std::unique_ptr<net_base> net_pert = net->clone();
@@ -1175,12 +1179,12 @@ protected:
         // for each time step
         for (int t = 0; t < seq_len_; ++t) {
             // perform a single step on the cloned net
-            net->step({"xs", xs(af::span, t)}, {}, {}, input_transform_fn());
+            net->step(xs.select(t), {}, {}, input_transform_fn());
             // perform a single step on the perturbed net (and perturb input in time 0)
             if (t == 0)
-                net_pert->step({"xs", xs(af::span, t) + d0}, {}, {}, input_transform_fn());
+                net_pert->step(xs.select(t) + d0, {}, {}, input_transform_fn());
             else
-                net_pert->step({"xs", xs(af::span, t)}, {}, {}, input_transform_fn());
+                net_pert->step(xs.select(t), {}, {}, input_transform_fn());
             // calculate the distance between net and net_pert states
             double norm = af::norm(net->state() - net_pert->state(), AF_NORM_VECTOR_2);
             dists_time(t) = norm;

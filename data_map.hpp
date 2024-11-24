@@ -371,4 +371,9 @@ public:
     }
 };
 
+inline data_map operator+(const data_map& lhs, double value)
+{
+    return {lhs.keys(), lhs.data() + value};
+}
+
 }  // namespace esn
