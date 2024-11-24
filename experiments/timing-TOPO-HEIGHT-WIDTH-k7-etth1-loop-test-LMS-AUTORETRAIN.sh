@@ -27,7 +27,7 @@ mkdir -p "${out_dir}"
 --bench.error-measure=mse \
 --bench.set-type=train-valid-test \
 --bench.init-steps=500 \
---bench.train-steps=11019 \
+--bench.train-steps=8139 \
 --bench.valid-steps=2881 \
 --bench.n-steps-ahead="${N_STEPS_AHEAD}" \
 --bench.validation-stride="${VALIDATION_STRIDE}" \
