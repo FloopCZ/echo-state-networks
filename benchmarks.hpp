@@ -268,7 +268,7 @@ public:
                    .feedback = desired,
                    .desired = desired,
                    .input_transform = input_transform_fn()});
-                timer.stop("feed-extra");
+                timer.stop("feed-extra", true);
             }
             // create a copy of the network before the validation so that we can simply
             // continue feeding of the original net in the next iteration
@@ -287,12 +287,14 @@ public:
                                            .desired = desired,
                                            .input_transform = input_transform_fn()})
                                         .outputs;
-            timer.stop("validation");
+            timer.stop("validation", true);
             data_map predicted{output_names(), std::move(raw_predicted)};
             // extract the targets
             all_predicted.at(i / validation_stride_) = predicted.filter(target_names());
             all_desired.at(i / validation_stride_) = desired.filter(target_names());
         }
+        timer.output("feed-extra");
+        timer.output("validation");
         assert(i / validation_stride_ == n_validations);
         benchmark_results error = multi_error_fnc(all_predicted, all_desired);
         // print statistics
