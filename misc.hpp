@@ -68,11 +68,12 @@ public:
                 throw std::ios_base::failure("Failed to open CSV file.");
         }
     }
-
-    void start(const std::string& label)
+    void start(const std::string& label, bool accumulate = false)
     {
-        if (records_[label].is_running)
+        auto& record = records_[label];
+        if (record.is_running)
             throw std::logic_error("Benchmark already started for label: " + label);
+        if (!accumulate) record.duration = std::chrono::duration<double>(0);
         records_[label].start_time = std::chrono::steady_clock::now();
         records_[label].is_running = true;
     }
@@ -84,7 +85,7 @@ public:
             throw std::logic_error("Benchmark not started for label: " + label);
 
         auto& record = it->second;
-        record.duration = std::chrono::steady_clock::now() - record.start_time;
+        record.duration += std::chrono::steady_clock::now() - record.start_time;
         record.is_running = false;
 
         *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label
