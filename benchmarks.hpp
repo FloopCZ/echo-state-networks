@@ -262,7 +262,7 @@ public:
                 data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                 data_map desired = ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
                 net.event("feed-extra");
-                timer.start(fmt::format("feed-extra {}", i));
+                timer.start(fmt::format("feed-extra {}", i), true);
                 net.feed(
                   {.input = input,
                    .feedback = desired,
@@ -279,7 +279,7 @@ public:
                                     .filter(persistent_input_names());
             data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
             net_copy->event("validation-start");
-            timer.start(fmt::format("validation {}", i));
+            timer.start(fmt::format("validation {}", i), true);
             af::array raw_predicted = net_copy
                                         ->feed(
                                           {.input = loop_input,
