@@ -226,7 +226,7 @@ add_with_all("visual")
 add_with_all("compare_lcnn_kernels")
 add_with_all("param_sensitivity_int")
 add_with_all("param_sensitivity_double")
-add_with_all("compare_lcnn_step_to_sparse_matmul")
+add_with_all("benchmark_lcnn_step_speed")
 
 # ---------
 # Add tests

@@ -3,6 +3,7 @@
 #include "misc.hpp"
 
 #include <arrayfire.h>
+#include <fmt/format.h>
 #include <iostream>
 
 struct sparse_variants {
@@ -75,7 +76,11 @@ int main(int argc, char* argv[])
           generate_weights(state_height, state_width, kernel_height, kernel_width, af_prng);
 
         int count = 10000;
-        esn::Timer timer;
+        esn::Timer timer(
+          std::cout,
+          fmt::format(
+            "./log/benchmark_lcnn_step_speed_{}_{}_{}_{}.csv", state_height, state_width,
+            kernel_height, kernel_width));
 
         {
             af::array new_state = af::matmul(data.dense, af::flat(state));
