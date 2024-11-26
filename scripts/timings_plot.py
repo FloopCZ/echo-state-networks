@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+# Plot the GPU time and memory of the different models.
+
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42

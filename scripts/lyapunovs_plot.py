@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Plot the lyapunov exponent of multiple hyperparameter optimizer runs for multiple models
+
 import pandas as pd
 from pathlib import Path
 import matplotlib

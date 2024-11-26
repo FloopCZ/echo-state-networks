@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+# Plot the effect of forced memory.
+# This script is deprecated.
+
 import pandas as pd
 from pathlib import Path
 import matplotlib

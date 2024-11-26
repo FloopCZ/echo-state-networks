@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# This script runs a given command on a free GPU. If no GPU is available, it waits until one becomes available.
+
 LOCK_DIR="/tmp/gpu_lock"
 mkdir -p $LOCK_DIR
 

@@ -1,4 +1,7 @@
 #!/usr/bin/env python
+
+# Plot the comparison of lcnn step and sparse matrix step speed.
+
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
