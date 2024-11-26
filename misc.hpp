@@ -64,12 +64,12 @@ public:
         if (!csv_path.empty()) {
             csv_file_.open(csv_path, std::ios::out | std::ios::app);
             if (csv_file_.is_open())
-                csv_file_ << "label,count,duration\n";
+                csv_file_ << "label,count,duration,average\n";
             else
                 throw std::ios_base::failure("Failed to open CSV file.");
         }
     }
-    void start(const std::string& label, bool accumulate = false)
+    void start(const std::string& label, bool accumulate = false, long count = 1)
     {
         auto& record = records_[label];
         if (record.is_running)
@@ -77,7 +77,7 @@ public:
         record = {
           .start_time = std::chrono::steady_clock::now(),
           .duration = accumulate ? record.duration : std::chrono::duration<double>(0),
-          .count = accumulate ? record.count + 1 : 0,
+          .count = accumulate ? record.count + count : count,
           .is_running = true,
         };
     }
@@ -91,12 +91,23 @@ public:
             throw std::logic_error("Benchmark still running for label: " + label);
 
         auto& record = it->second;
-        std::string count_str;
-        if (record.count) count_str = " " + std::to_string(record.count) + "x";
-        *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label << "]"
-                        << count_str << ": " << record.duration.count() << " seconds." << std::endl;
-        if (csv_file_.is_open())
-            csv_file_ << label << "," << record.count << "," << record.duration.count() << "\n";
+        *stream_output_ << std::fixed << std::setprecision(6) << "Timer [" << label << "]";
+        if (record.count > 1)
+            *stream_output_ << " " << std::fixed << std::setprecision(6)
+                            << std::to_string(record.count) << "x";
+        *stream_output_ << ": " << std::fixed << record.duration.count() << "s total";
+        if (record.count > 1)
+            *stream_output_ << " " << std::fixed << std::setprecision(6)
+                            << record.duration.count() / record.count << "s avg";
+        *stream_output_ << std::endl;
+        if (csv_file_.is_open()) {
+            csv_file_ << label << "," << std::fixed << std::setprecision(6) << record.count << ","
+                      << record.duration.count();
+            if (record.count > 1)
+                csv_file_ << "," << std::fixed << std::setprecision(6)
+                          << record.duration.count() / record.count;
+            csv_file_ << std::endl;
+        }
     }
 
     void stop(const std::string& label, bool quiet = false)
