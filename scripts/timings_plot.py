@@ -23,13 +23,11 @@ def main():
     sns.barplot(df, x="state size", y="time [s]", hue="model", ax=ax1)
     sns.barplot(df, x="state size", y="max memory [MiB]", hue="model", ax=ax2)
     ax1.tick_params(axis='x', labelrotation=args.rotate_labels)
-    ax1.set_yscale("log")
     ax2.tick_params(axis='x', labelrotation=args.rotate_labels)
-    ax2.set_yscale("log")
 
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
-    plt.savefig("timings_plot.pdf")
+    plt.savefig("./log/timings_plot.pdf")
     plt.show()
 
 if __name__ == "__main__": main()

@@ -126,7 +126,7 @@ def main():
 
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
-    plt.savefig("compare_plot.pdf")
+    plt.savefig("./log/compare_plot.pdf")
     plt.show()
 
 if __name__ == "__main__": main()

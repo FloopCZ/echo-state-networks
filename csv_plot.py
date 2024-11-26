@@ -31,5 +31,5 @@ if __name__ == "__main__":
 
     sns.despine(left=True, bottom=True)
     plt.tight_layout()
-    plt.savefig(f"{'_'.join(args.params)}_func.pdf")
+    plt.savefig(f"./log/{'_'.join(args.params)}_func.pdf")
     plt.show()
