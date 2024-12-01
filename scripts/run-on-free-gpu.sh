@@ -1,16 +1,23 @@
 #!/bin/bash
 
 # This script runs a given command on a free GPU. If no GPU is available, it waits until one becomes available.
+# The script assumes that the command uses the CUDA_VISIBLE_DEVICES environment variable to select the GPU.
+
+# The script creates a lock file for each GPU with the PID of the process using the GPU. The lock file is removed
+# when the process finishes. If the process dies unexpectedly, the lock file is removed and the GPU is considered free.
 
 LOCK_DIR="/tmp/gpu_lock"
+MAX_MEM=100
+
 mkdir -p $LOCK_DIR
+chmod 777 $LOCK_DIR
 
 # Function to get a list of free GPUs (i.e., GPUs using less than 100MB of memory).
 get_free_gpus() {
     nvidia-smi --query-gpu=index,memory.used --format=csv,noheader,nounits | while read -r line; do
         index=$(echo $line | cut -d ',' -f 1 | xargs)
         memory=$(echo $line | cut -d ',' -f 2 | xargs)
-        if (( memory < 100 )); then
+        if (( memory < $MAX_MEM )); then
             if [ ! -f $LOCK_DIR/gpu_$index.lock ]; then
                 echo $index
             else
@@ -38,6 +45,7 @@ run_task_on_gpu() {
 acquire_lock() {
     local gpu_id=$1
     if ( set -o noclobber; echo "$$" > $LOCK_DIR/gpu_$gpu_id.lock ) 2> /dev/null; then
+        chmod 666 $LOCK_DIR/gpu_$gpu_id.lock
         return 0
     else
         return 1
