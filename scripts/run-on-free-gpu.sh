@@ -6,6 +6,11 @@
 # The script creates a lock file for each GPU with the PID of the process using the GPU. The lock file is removed
 # when the process finishes. If the process dies unexpectedly, the lock file is removed and the GPU is considered free.
 
+if [ $# -lt 1 ]; then
+    echo "Usage: $0 <command> [<arg1> <arg2> ...]"
+    exit 1
+fi
+
 LOCK_DIR="/tmp/gpu_lock"
 MAX_MEM=100
 
