@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
-# Plot the GPU time and memory of the different models.
+# Plot the GPU time and memory of the given models.
+# Data file (CSV) for this script has to be created manaually.
 
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
