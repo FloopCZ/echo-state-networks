@@ -31,10 +31,10 @@ sparse_variants generate_weights(
                     int from_j = (j + l - kernel_width / 2 + state_width) % state_width;
                     int dense_index = i + j * state_height
                       + (from_i + from_j * state_height) * state_height * state_width;
-                    assert(full_index >= 0 && full_index < (long)dense_data.size());
+                    assert(dense_index >= 0 && dense_index < (long)dense_data_vec.size());
                     int lcnn_index = i + j * state_height + k * state_height * state_width
                       + l * state_height * state_width * kernel_height;
-                    assert(sparse_index >= 0 && sparse_index < (long)lcnn_data.elements());
+                    assert(lcnn_index >= 0 && lcnn_index < (long)lcnn_data.elements());
                     dense_data_vec[dense_index] += lcnn_data_vec[lcnn_index];
                 }
             }
