@@ -2,7 +2,7 @@
 import matplotlib
 matplotlib.rcParams['pdf.fonttype'] = 42
 matplotlib.rcParams['ps.fonttype'] = 42
-matplotlib.rcParams['figure.figsize'] = 6, 2
+matplotlib.rcParams['figure.figsize'] = 3, 3
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -23,7 +23,8 @@ def main():
     if ("lcnn.kernel-height" in df.columns and "lcnn.kernel-width" in df.columns):
         df["lcnn.kernel-area"] = df["lcnn.kernel-height"] * df["lcnn.kernel-width"]
         df["lcnn.kernel-size"] = df["lcnn.kernel-height"].astype(str) + "x" + df["lcnn.kernel-width"].astype(str)
-    df = df.groupby(["lcnn.kernel-size", "lcnn.memory-length"]).min().reset_index()
+    cols = ["lcnn.kernel-size", "lcnn.kernel-area", "lcnn.memory-length", "f-value"]
+    df = df[cols].groupby(["lcnn.kernel-size", "lcnn.memory-length"]).mean().reset_index()
     df.sort_values(by=["lcnn.kernel-area", "lcnn.memory-length"], inplace=True)
     df = df[["lcnn.kernel-size", "lcnn.memory-length", "f-value"]]
     print(df)
