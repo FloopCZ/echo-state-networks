@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+# Plot the lyapunov exponent of multiple hyperparameter optimizer runs for multiple models
+
 import pandas as pd
 from pathlib import Path
 import matplotlib
@@ -30,5 +32,5 @@ if __name__ == "__main__":
     sns.boxplot(data=df_all, x="H", y="lyap", palette="deep", hue="H", legend=False)
     plt.tight_layout()
     sns.despine(left=True, bottom=True)
-    plt.savefig("memory_length_lyapunov.pdf")
+    plt.savefig("./log/memory_length_lyapunov.pdf")
     plt.show()

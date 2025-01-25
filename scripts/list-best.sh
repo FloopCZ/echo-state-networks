@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Print the best candidate f-value from all hyperopt runs in the given folder.
+
 if [ $# -lt 1 ]; then
     echo "Usage: $0 <dir>..."
     exit 1

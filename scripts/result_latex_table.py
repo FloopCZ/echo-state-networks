@@ -62,6 +62,7 @@ OUR_MODELS = list(OUR_MODEL_DIRS.keys())
 
 MODEL_TO_TITLE = {
     "SotA": r"SotA",
+    "SUM": r"\textbf{SUM}",
     "ESN": r"ESN",
     "LCESN": r"\textbf{LCESN}",
     "LCESN-LMS": r"\textbf{LCESN-LMS}",
@@ -224,6 +225,35 @@ def avg_score_latex(df, model, metric) -> str:
         return f"\\secondres{{{score_str}}}"
     return score_str
 
+def relative_ranking_matrix(df, metric='mse'):
+    models = OUR_MODELS + THEIR_MODELS
+    n = len(models)
+    ranking_matrix = np.zeros((n, n), dtype=int)
+    
+    for ds in DATASETS:
+        for pred_len in PRED_LENS:
+            results = {
+                model: result(df, model, ds, pred_len, metric) 
+                for model in models if not pd.isna(result(df, model, ds, pred_len, metric))
+            }
+            
+            # Iterate over all pairs of models to update ranking matrix
+            for i, model_i in enumerate(models):
+                for j, model_j in enumerate(models):
+                    if i != j and model_i in results and model_j in results:
+                        if np.round(results[model_i], 3) < np.round(results[model_j], 3):
+                            ranking_matrix[i, j] += 1
+    
+    # Create DataFrame for better visualization
+    heade = [MODEL_TO_TITLE[m] for m in models]
+    ranking_df = pd.DataFrame(ranking_matrix, index=heade, columns=heade)
+    
+    # Add sums and use them to sort
+    ranking_df['SUM'] = ranking_df.sum(axis=1)
+    ranking_df.sort_values('SUM', inplace=True, ascending=False)
+    
+    return ranking_df
+
 def main():
     df = pd.read_csv(StringIO(RESULTS.replace(" ", "")))
     global THEIR_MODELS
@@ -248,6 +278,30 @@ def main():
     df = pd.merge(df, model_df, on=["Dataset", "Horizon"], how="outer")
 
     THEIR_MODELS = sorted(THEIR_MODELS, key=lambda model: score(df, model, "mse"), reverse=True)
+
+    # Relative ranking matrix.
+
+    ranking_matrix = relative_ranking_matrix(df, metric='mse')
+
+    # Rotate the headers by 90 degrees
+    latex_str = ranking_matrix.to_latex(
+        header=True, column_format='c' * len(ranking_matrix.columns) + '|c'
+    )
+    lines = latex_str.splitlines()
+    header = lines[2].replace('\\\\', '').split('&')[1:]
+    rotated_header_line = ' & ' + ' & '.join(f"\\rotatebox{{90}}{{{c.strip()}}}" for c in header)
+    lines[2] = rotated_header_line + ' \\\\'
+    latex_str = '\n'.join(lines)
+
+    print(textwrap.dedent(r"""
+        \begin{table}[htbp]
+        \caption{}
+        \label{tab:relative-ranking}
+        \centering
+    """))
+    print(latex_str)
+    print(r"""\end{table}""")
+    print()
 
     # All results.
 

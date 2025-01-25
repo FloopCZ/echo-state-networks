@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+# Gather the maximum GPU memory usage over time.
+
 max_mem=0
 
 terminate_script() {
