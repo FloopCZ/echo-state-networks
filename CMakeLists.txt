@@ -14,6 +14,11 @@ if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
   SET(CMAKE_CUDA_ARCHITECTURES "52;53;60;61;62;70;72;75;80;86")
 endif()
 
+# Use new policy for Boost libraries.
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+
 project(
   "lcnn"
   VERSION 0.2
