@@ -132,7 +132,7 @@ The results can be visualized as follows:
 
 ## Citation
 
-If you consider our work useful for your research, please cite is as:
+If you consider our work useful for your research, please cite it as:
 ```bibtex
 @inproceedings{
     matzner2025lcesn,
@@ -144,7 +144,7 @@ If you consider our work useful for your research, please cite is as:
 }
 ```
 
-If you only want to refer to our previous work on hyperparameter optimization, use:
+If you want to refer to our previous work on hyperparameter optimization, use:
 ```bibtex
 @inproceedings{matzner2022hyperparameter,
     author={Matzner, Filip},
