@@ -5,10 +5,10 @@
 #include <boost/accumulators/statistics/mean.hpp>
 #include <boost/accumulators/statistics/stats.hpp>
 #include <boost/accumulators/statistics/variance.hpp>
+#include <boost/algorithm/string/join.hpp>
 #include <iomanip>
 #include <iostream>
 #include <map>
-#include <mutex>
 #include <range/v3/all.hpp>
 #include <string>
 #include <vector>
@@ -16,7 +16,6 @@
 namespace esn {
 
 namespace bacc = boost::accumulators;
-namespace rg = ranges;
 namespace rgv = ranges::views;
 
 /// A storage class for the result of a single benchmark.
@@ -72,6 +71,11 @@ public:
         return name_;
     }
 
+    const std::vector<double>& values() const
+    {
+        return values_;
+    }
+
     double mean() const
     {
         return bacc::mean(acc_);
@@ -103,27 +107,21 @@ public:
 };
 
 /// A storage class for multiple benchmark results.
-/// This storage is thread-safe for insertion.
 class benchmark_results {
 private:
     std::vector<std::string> data_order_;
     std::map<std::string, stats> data_;
-    std::mutex mtx_;
 
 public:
     benchmark_results() = default;
-    benchmark_results(const benchmark_results& rhs) : data_order_{rhs.data_order_}, data_{rhs.data_}
+    benchmark_results(std::string name, double value)
     {
-    }
-    benchmark_results(benchmark_results&& rhs)
-      : data_order_{std::move(rhs.data_order_)}, data_{std::move(rhs.data_)}
-    {
+        insert(std::move(name), value);
     }
 
     /// Insert a new result into the storage.
     void insert(const std::string& name, const std::vector<double>& values)
     {
-        std::scoped_lock lock{mtx_};
         if (!data_.contains(name)) data_order_.push_back(name);
         data_.emplace(name, name);
         data_.at(name).insert(values);
@@ -135,7 +133,35 @@ public:
         return insert(name, std::vector<double>{value});
     }
 
-    /// Insert a new result into the storage.
+    /// Insert a complete benchmark_results.
+    void insert(const benchmark_results& rhs)
+    {
+        for (const std::string& name : rhs.data_order_) {
+            insert(name, rhs.at(name).values());
+        }
+    }
+
+    /// Get the name with the given index.
+    bool contains(const std::string& name) const
+    {
+        return data_.contains(name);
+    }
+
+    /// Get the name with the given index.
+    const std::string& name_at(long index) const
+    {
+        if (index < 0 || index >= (long)data_order_.size())
+            throw std::out_of_range{"[Benchmark results] Index out of range."};
+        return data_order_.at(index);
+    }
+
+    /// Get the stats with the given index.
+    const stats& at(long index) const
+    {
+        return data_.at(name_at(index));
+    }
+
+    /// Get the stats with the given name.
     const stats& at(const std::string& name) const
     {
         return data_.at(name);
@@ -170,10 +196,18 @@ public:
         }
         return values;
     }
+
+    /// Write the results to a csv file.
+    std::ostream& to_csv(std::ostream& out, const std::string& model_name) const
+    {
+        out << "model," << boost::join(csv_header(), ",") << "\n";
+        out << model_name << "," << boost::join(csv_values(), ",") << "\n";
+        return out;
+    }
 };
 
 /// Pretty printing of benchmark results to std::ostream.
-std::ostream& operator<<(std::ostream& out, const benchmark_results& results)
+inline std::ostream& operator<<(std::ostream& out, const benchmark_results& results)
 {
     for (auto& s : results.view()) {
         out << std::setw(30) << s.name()                      //

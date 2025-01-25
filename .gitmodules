@@ -1,0 +1,3 @@
+[submodule "third_party/elasticnet_af"]
+	path = third_party/elasticnet_af
+	url = git@github.com:FloopCZ/elasticnet_af.git

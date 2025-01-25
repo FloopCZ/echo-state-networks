@@ -4,25 +4,27 @@
 
 #include "arrayfire_utils.hpp"
 #include "common.hpp"
+#include "data_map.hpp"
 #include "net.hpp"
 
 #include <arrayfire.h>
 #include <boost/program_options.hpp>
 #include <cassert>
+#include <stdexcept>
 
 namespace esn {
 
 namespace po = boost::program_options;
 
-/// Echo state network.
-template <af::dtype DType = af::dtype::f64>
+/// The basic Echo state network.
+template <af::dtype DType = DEFAULT_AF_DTYPE>
 class simple_esn : public net_base {
     // the number of reservoir neurons
     long n_;
-    // the number of input neurons
-    long n_ins_;
-    // the number of output neurons
-    long n_outs_;
+    // the input neuron names
+    immutable_set<std::string> input_names_;
+    // the output neuron names
+    immutable_set<std::string> output_names_;
     // reservoir connections
     // a matrix of size n x n
     af::array reservoir_w_;
@@ -30,7 +32,7 @@ class simple_esn : public net_base {
     // each row are the input weights for a single input neuron
     af::array input_w_;
     // output weights
-    // each col are the output weights for a single neuron, the last col is the intercept
+    // each col are the output weights for a single neuron, the first col is the intercept
     af::array output_w_;
     // feedback weights
     af::array feedback_w_;
@@ -49,7 +51,8 @@ class simple_esn : public net_base {
     af::array last_output_;
 
     // random engines
-    std::mt19937* prng_;
+    prng_t prng_init_;
+    prng_t prng_;
     af::randomEngine af_prng_;
 
 public:
@@ -58,30 +61,31 @@ public:
     /// Echo state network constructor.
     simple_esn(
       long n,
-      long n_ins,
-      long n_outs,
+      immutable_set<std::string> input_names,
+      immutable_set<std::string> output_names,
       af::array reservoir_w,
       af::array input_w,
       af::array feedback_w,
       af::array biases,
       double noise,
       double leakage,
-      std::mt19937& prng)
+      prng_t prng)
       : n_{n}
-      , n_ins_{n_ins}
-      , n_outs_{n_outs}
+      , input_names_{std::move(input_names)}
+      , output_names_{std::move(output_names)}
       , reservoir_w_{std::move(reservoir_w)}
       , input_w_{std::move(input_w)}
-      , output_w_{af::constant(af::NaN, n_outs_, n_ + 1, DType)}
+      , output_w_{af::constant(af::NaN, output_names_.size(), n_ + 1, DType)}
       , feedback_w_{std::move(feedback_w)}
       , biases_{std::move(biases)}
       , noise_enabled_{true}
       , noise_{noise}
       , leakage_{leakage}
       , state_{af::constant(0, n_, DType)}
-      , last_output_{af::constant(0, n_outs_, DType)}
-      , prng_{&prng}
-      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_->operator()()}
+      , last_output_{af::constant(0, output_names_.size(), DType)}
+      , prng_init_{std::move(prng)}
+      , prng_{prng_init_}
+      , af_prng_{AF_RANDOM_ENGINE_DEFAULT, prng_()}
     {
         // check types
         assert((reservoir_w_.type() == DType));
@@ -92,8 +96,8 @@ public:
 
         // check dimensions
         assert((reservoir_w_.dims() == af::dim4{n_, n_}));
-        assert((input_w_.dims() == af::dim4{n_, n_ins_}));
-        assert((feedback_w_.dims() == af::dim4{n_, n_outs_}));
+        assert((input_w_.dims() == af::dim4{n_, (long)input_names_.size()}));
+        assert((feedback_w_.dims() == af::dim4{n_, (long)output_names_.size()}));
         assert((biases_.dims() == af::dim4{n_}));
         assert((state_.dims() == af::dim4{n_}));
     }
@@ -101,25 +105,25 @@ public:
     /// Echo state network constructor with no biases.
     simple_esn(
       long n,
-      long n_ins,
-      long n_outs,
+      immutable_set<std::string> input_names,
+      immutable_set<std::string> output_names,
       af::array reservoir_w,
       af::array input_w,
       af::array feedback_w,
       double noise,
       double leakage,
-      std::mt19937& prng)
+      prng_t prng)
       : simple_esn{
-        n,
-        n_ins,
-        n_outs,
-        std::move(reservoir_w),
-        std::move(input_w),
-        std::move(feedback_w),
-        af::constant(0, n, DType),
-        noise,
-        leakage,
-        prng}
+          n,
+          std::move(input_names),
+          std::move(output_names),
+          std::move(reservoir_w),
+          std::move(input_w),
+          std::move(feedback_w),
+          af::constant(0, n, DType),
+          noise,
+          leakage,
+          prng}
     {
     }
 
@@ -128,19 +132,39 @@ public:
     /// \param feedback The teacher-forced feedback to be used instead
     ///                 of the network's output of size [n_outs].
     /// \param desired The desired output. This is only used for callbacks.
-    ///                This is only allowed if no feedback is provided.
     ///                Has to be of size [n_outs].
     void step(
-      const af::array& input,
-      const std::optional<af::array>& feedback = std::nullopt,
-      const std::optional<af::array>& desired = std::nullopt) override
+      const data_map& step_input,
+      const data_map& step_feedback,
+      const data_map& step_desired,
+      input_transform_fn_t input_transform) override
     {
-        assert(!desired || !feedback);
-        assert((input.dims() == af::dim4{n_ins_}));
-        assert((!feedback || feedback->dims() == af::dim4{n_outs_}));
-        assert((!desired || desired->dims() == af::dim4{n_outs_}));
-        af::array weighted_input = af::matmul(input_w_, input);
-        af::array feedback_activation = af::matmul(feedback_w_, last_output_);
+        throw std::invalid_argument{
+          "simple_esn model is deprecated and may not work properly. Please use the lcnn model."};
+
+        data_map orig_step_input = step_input;
+
+        // prepare the inputs for this step (add missing keys from last output)
+        assert(!last_output_.isempty());
+        data_map last_output{output_names_, last_output_};
+        data_map tr_last_output = input_transform(last_output);
+        data_map tr_step_input =
+          input_transform(step_input).extend(tr_last_output).filter(input_names_);
+
+        // validate all input data
+        assert(tr_step_input.keys() == input_names_);
+        assert(tr_step_input.length() == 1);
+        assert(af::allTrue<bool>(tr_step_input.data() >= -1. && tr_step_input.data() <= 1.));
+        if (!step_feedback.empty()) {
+            assert(step_feedback.length() == 1);
+        }
+        if (!step_desired.empty()) {
+            assert(step_desired.length() == 1);
+            assert(step_desired.keys() == output_names_);
+        }
+
+        af::array weighted_input = af::matmul(input_w_, tr_step_input.data());
+        af::array feedback_activation = af::matmul(feedback_w_, tr_last_output.data());
         af::array internal_activation = af::matmul(reservoir_w_, state_);
         af::array noise =
           1. + af::randn({state_.dims()}, DType, af_prng_) * noise_ * noise_enabled_;
@@ -149,18 +173,28 @@ public:
         state_ *= 1. - leakage_;
         state_ += af::tanh(state_before_activation * noise);
         af::eval(state_);
-        if (feedback)
-            last_output_ = *feedback;
-        else
-            last_output_ = af::matmul(output_w_, af_utils::add_ones(state_, 0));
-        assert(last_output_.dims() == (af::dim4{n_outs_}));
+        if (step_feedback.empty()) {
+            update_output();
+        } else {
+            assert(step_feedback.keys() == output_names_ && "Only full feedback is supported.");
+            last_output_ = step_feedback.data();
+        }
+        assert(last_output_.dims() == (af::dim4{(long)output_names_.size()}));
 
         // Call the registered callback functions.
         for (on_state_change_callback_t& fnc : on_state_change_callbacks_) {
             on_state_change_data data = {
-              .state = state_, .input = input, .output = last_output_, .desired = desired};
+              .state = state_,
+              .input =
+                {.input = step_input,
+                 .feedback = step_feedback,
+                 .desired = step_desired,
+                 .input_transform = input_transform},
+              .output = {output_names_, last_output_},
+              .event = event_};
             fnc(*this, std::move(data));
         }
+        event_ = std::nullopt;
     }
 
     /// Perform multiple steps with multiple input seqences.
@@ -168,37 +202,34 @@ public:
     /// \param feedback The desired output sequences to be teacher-forced into the net.
     ///                 Needs to have dimensions [n_outs, time]
     /// \param desired The desired output. This is only used for callbacks.
-    ///                This is only allowed if no feedback is provided.
     ///                Has to be of size [n_outs, time].
     /// \return The array of intermediate states of dimensions [n, time] and the array
     ///         of intermediate outputs of dimensions [n_outs, time].
-    feed_result_t feed(
-      const af::array& input,
-      const std::optional<af::array>& feedback = std::nullopt,
-      const std::optional<af::array>& desired = std::nullopt) override
+    feed_result_t feed(const input_t& input) override
     {
-        assert(!desired || !feedback);
-        assert(input.type() == DType);
-        assert(input.numdims() == 2);
-        assert(input.dims(0) == n_ins_);
-        assert(input.dims(1) > 0);
-        assert(!feedback || feedback->type() == DType);
-        assert(!feedback || feedback->numdims() <= 2);
-        assert(!feedback || feedback->dims(0) == n_outs_);
-        assert(!feedback || feedback->dims(1) == input.dims(1));
-        assert(!desired || desired->type() == DType);
-        assert(!desired || desired->numdims() <= 2);
-        assert(!desired || desired->dims(0) == n_outs_);
-        assert(!desired || desired->dims(1) == input.dims(1));
+        long data_len = -1;
+        auto check_data = [&data_len](const data_map& dm) {
+            if (dm.empty()) return;
+            assert(dm.data().type() == DType);
+            assert(dm.data().numdims() <= 2);
+            assert(dm.size() > 0);
+            assert(data_len == -1 || dm.length() == data_len);
+            data_len = dm.length();
+        };
+        check_data(input.input);
+        check_data(input.feedback);
+        check_data(input.desired);
+
         feed_result_t result;
-        result.states = af::array(n_, input.dims(1), DType);
-        result.outputs = af::array(n_outs_, input.dims(1), DType);
-        for (long i = 0; i < input.dims(1); ++i) {
-            std::optional<af::array> feedback_i;
-            if (feedback) feedback_i = feedback.value()(af::span, i);
-            std::optional<af::array> desired_i;
-            if (desired) desired_i = desired.value()(af::span, i);
-            step(input(af::span, i), feedback_i, desired_i);
+        result.states = af::array(n_, data_len, DType);
+        result.outputs = af::array(output_names_.size(), data_len, DType);
+        result.desired = input.desired.data();
+        for (long i = 0; i < data_len; ++i) {
+            // prepare the inputs for this step
+            data_map step_input = input.input.select(i);
+            data_map step_feedback = input.feedback.select(i);
+            data_map step_desired = input.desired.select(i);
+            step(step_input, step_feedback, step_desired, input.input_transform);
             result.states(af::span, i) = state_;
             result.outputs(af::span, i) = last_output_;
         }
@@ -206,52 +237,51 @@ public:
     }
 
     /// Train the network on the given sequence.
-    /// \param inputs Input sequence of dimensions [n_ins, time].
-    /// \param desired The desired output sequences. Those are also teacher-forced into the net.
-    ///                Needs to have dimensions [n_outs, time]
-    void train(const af::array& input, const af::array& desired) override
+    train_result_t train(const input_t& input) override
     {
-        assert(input.type() == DType);
-        assert(input.numdims() == 2);
-        assert(input.dims(0) == n_ins_);
-        assert(input.dims(1) > 0);
-        assert(desired.type() == DType);
-        assert(desired.numdims() <= 2);
-        assert(desired.dims(0) == n_outs_);
-        assert(desired.dims(1) == input.dims(1));
-        af::array states = feed(input, desired).states;
-        assert((states.dims() == af::dim4{state_.elements(), input.dims(1)}));
-        output_w_ = af_utils::lstsq_train(states.T(), desired.T()).T();
-        assert((output_w_.dims() == af::dim4{n_outs_, state_.elements() + 1}));
+        return train(feed(input));
     }
 
-    /// Perform multiple steps using self's output as input.
-    /// \param n_steps The number of steps to take.
-    /// \param desired The desired output. This is used only for callbacks.
-    ///                Needs to have dimensions [n_outs, time]
-    /// \return The same as \ref feed().
-    feed_result_t
-    loop(long n_steps, const std::optional<af::array>& desired = std::nullopt) override
+    /// Train the network on already processed feed data.
+    /// \param data Training data.
+    train_result_t train(feed_result_t data) override
     {
-        assert(n_ins_ == n_outs_);
-        assert(n_steps > 0);
-        assert(!desired || desired->type() == DType);
-        assert(!desired || desired->numdims() <= 2);
-        assert(!desired || desired->dims(0) == n_outs_);
-        assert(!desired || desired->dims(1) == n_steps);
-        feed_result_t result;
-        result.states = af::array(n_, n_steps, DType);
-        result.outputs = af::array(n_outs_, n_steps, DType);
-        for (long i = 0; i < n_steps; ++i) {
-            std::optional<af::array> desired_i;
-            if (desired) desired_i = desired.value()(af::span, i);
-            // Create a shallow copy of `last_output_` so that when step() changes it,
-            // it's `input` parameter does not change (it is taken as const ref).
-            step(af::array(last_output_), std::nullopt, desired_i);
-            result.states(af::span, i) = state_;
-            result.outputs(af::span, i) = last_output_;
-        }
-        return result;
+        assert(data.states.type() == DType);
+        assert((data.states.dims() == af::dim4{state_.dims(0), data.outputs.dims(1)}));
+        assert(data.outputs.type() == DType);
+        assert(data.outputs.numdims() <= 2);
+        assert(data.outputs.dims(0) == (long)output_names_.size());
+        if (!data.desired) throw std::runtime_error{"No desired data to train to."};
+        assert(data.outputs.dims(1) == data.desired->dims(1));
+        assert(data.desired->type() == DType);
+        assert(data.desired->numdims() <= 2);
+        assert(data.desired->dims(0) == (long)output_names_.size());
+        data.outputs = af::array{};  // free memory
+        data.states = data.states.T();
+        af::array predictors = af_utils::add_ones(data.states, 1);
+        data.states = af::array{};  // free memory
+        data.desired = data.desired->T();
+        output_w_ = af::solve(predictors, *data.desired).T();
+        data.desired = af::array{};  // free memory
+        output_w_(af::isNaN(output_w_) || af::isInf(output_w_)) = 0.;
+        assert(
+          output_w_.dims()
+          == (af::dim4{
+            (long)output_names_.size(), (long)input_names_.size() + state_.elements() + 1}));
+        return {.predictors = std::move(predictors), .output_w = output_w_};
+    }
+
+    /// Clear the stored feedback which would otherwise be used in the next step.
+    void clear_feedback() override
+    {
+        update_output();
+    }
+
+    // Update the output using the current state.
+    void update_output()
+    {
+        af::array predictors = af_utils::add_ones(state_, 0);
+        last_output_ = af::matmul(output_w_, predictors);
     }
 
     /// Get the current state of the network.
@@ -285,16 +315,16 @@ public:
         return n_;
     }
 
-    /// The number of inputs.
-    long n_ins() const override
+    /// The input names.
+    const immutable_set<std::string>& input_names() const override
     {
-        return n_ins_;
+        return input_names_;
     }
 
-    /// The number of outputs.
-    long n_outs() const override
+    /// The output names.
+    const immutable_set<std::string>& output_names() const override
     {
-        return n_outs_;
+        return output_names_;
     }
 
     /// The average number of inputs to a neuron.
@@ -304,21 +334,30 @@ public:
         return af::mean<double>(reservoir_w_);
     }
 
-    /// Set the learning rate.
-    void learning_rate(double) override
-    {
-        // Not implemented.
-    }
-
     /// Disable random noise e.g., for lyapunov testing.
     void random_noise(bool enable) override
     {
         noise_enabled_ = enable;
     }
 
+    /// Disable weight adaptation.
+    void learning(bool enable) override {}
+
+    void reset() override
+    {
+        prng_ = prng_init_;
+        af_prng_ = af::randomEngine{AF_RANDOM_ENGINE_DEFAULT, prng_()};
+        output_w_ = af::constant(af::NaN, output_names_.size(), n_ + 1, DType);
+    }
+
     std::unique_ptr<net_base> clone() const override
     {
         return std::make_unique<simple_esn>(*this);
+    }
+
+    void save(const fs::path& dir) override
+    {
+        throw std::runtime_error{"Not implemented."};
     }
 };
 
@@ -328,10 +367,15 @@ public:
 /// \param n_ins The number of inputs.
 /// \param n_outs The number of outputs.
 /// \param args The parameters by which is the network constructed.
-template <af::dtype DType = af::dtype::f64>
-simple_esn<DType>
-random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937& prng)
+template <af::dtype DType = DEFAULT_AF_DTYPE>
+simple_esn<DType> random_esn(
+  const immutable_set<std::string>& input_names,
+  const immutable_set<std::string>& output_names,
+  const po::variables_map& args,
+  prng_t& prng)
 {
+    long n_ins = input_names.size();
+    long n_outs = output_names.size();
     // The number of neurons.
     long n = args.at("esn.neurons").as<long>();
     // Standard deviation of the normal distribution generating the reservoir.
@@ -340,10 +384,10 @@ random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937&
     double mu_res = args.at("esn.mu-res").as<double>();
     // The upper bound for the input weights.
     // Those are generated uniformly from [0, in_upper].
-    double in_upper = args.at("esn.in-weight").as<double>();
+    std::vector<double> in_upper = args.at("esn.in-weight").as<std::vector<double>>();
     // The upper bound for the feedback weights.
     // Those are generated uniformly from [0, fb_upper].
-    double fb_upper = args.at("esn.fb-weight").as<double>();
+    std::vector<double> fb_upper = args.at("esn.fb-weight").as<std::vector<double>>();
     // The sparsity of the reservoir weight matrix. For 0, the matrix is
     // fully connected. For 1, the matrix is completely zero.
     double sparsity = args.at("esn.sparsity").as<double>();
@@ -354,36 +398,50 @@ random_esn(long n_ins, long n_outs, const po::variables_map& args, std::mt19937&
 
     af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
     af::array reservoir_w = sigma_res * af::randn({n, n}, DType, af_prng) + mu_res;
-    af::array input_w = af::randu({n, n_ins}, DType, af_prng) * in_upper;
-    af::array feedback_w = af::randu({n, n_outs}, DType, af_prng) * fb_upper;
+    af::array input_w = af::randu({n, n_ins}, DType, af_prng);
+    for (long i = 0; i < n_ins; ++i) input_w(af::span, i) *= in_upper.at(i);
+    af::array feedback_w = af::randu({n, n_outs}, DType, af_prng);
+    for (long i = 0; i < n_outs; ++i) input_w(af::span, i) *= fb_upper.at(i);
     // make the reservoir sparse by the given coefficient
     reservoir_w *= af::randu({reservoir_w.dims()}, DType, af_prng) >= sparsity;
-    return simple_esn<DType>{
-      n,     n_ins,   n_outs, std::move(reservoir_w), std::move(input_w), std::move(feedback_w),
-      noise, leakage, prng};
+    return simple_esn<DType>{n,
+                             input_names,
+                             output_names,
+                             std::move(reservoir_w),
+                             std::move(input_w),
+                             std::move(feedback_w),
+                             noise,
+                             leakage,
+                             prng};
 }
 
 /// Echo state network options description for command line parsing.
-po::options_description esn_arg_description()
+inline po::options_description esn_arg_description()
 {
     po::options_description esn_arg_desc{"Echo state network options"};
-    esn_arg_desc.add_options()                                                       //
-      ("esn.neurons", po::value<long>()->default_value(128),                         //
-       "The number of neurons.")                                                     //
-      ("esn.sigma-res", po::value<double>()->default_value(0.19762725044833218),     //
-       "See random_esn().")                                                          //
-      ("esn.mu-res", po::value<double>()->default_value(-0.0068959284626413861),     //
-       "See random_esn().")                                                          //
-      ("esn.in-weight", po::value<double>()->default_value(-0.004004819844231784),   //
-       "See random_esn().")                                                          //
-      ("esn.fb-weight", po::value<double>()->default_value(3.8736953058739977e-05),  //
-       "See random_esn().")                                                          //
-      ("esn.sparsity", po::value<double>()->default_value(0.81627753813108161),      //
-       "See random_esn().")                                                          //
-      ("esn.noise", po::value<double>()->default_value(1e-8),                        //
-       "Standard deviation of the noise added to the states of the network.")        //
-      ("esn.leakage", po::value<double>()->default_value(0.96129431689957912),       //
-       "See random_esn().");                                                         //
+    esn_arg_desc.add_options()                                                    //
+      ("esn.neurons", po::value<long>()->default_value(128),                      //
+       "The number of neurons.")                                                  //
+      ("esn.sigma-res", po::value<double>()->default_value(0.19762725044833218),  //
+       "See random_esn().")                                                       //
+      ("esn.mu-res", po::value<double>()->default_value(-0.0068959284626413861),  //
+       "See random_esn().")                                                       //
+      ("esn.in-weight",                                                           //
+       po::value<std::vector<double>>()                                           //
+         ->multitoken()                                                           //
+         ->default_value({-0.004004819844231784}, "-0.004004819844231784"),       //
+       "See random_esn().")                                                       //
+      ("esn.fb-weight",                                                           //
+       po::value<std::vector<double>>()                                           //
+         ->multitoken()                                                           //
+         ->default_value({0}, "0"),                                               //
+       "See random_esn().")                                                       //
+      ("esn.sparsity", po::value<double>()->default_value(0),                     //
+       "See random_esn().")                                                       //
+      ("esn.noise", po::value<double>()->default_value(0),                        //
+       "Standard deviation of the noise added to the states of the network.")     //
+      ("esn.leakage", po::value<double>()->default_value(1),                      //
+       "See random_esn().");                                                      //
     return esn_arg_desc;
 }
 

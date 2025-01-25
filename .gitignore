@@ -2,11 +2,10 @@
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*.py[cod]
-*$py.class
-
-# C extensions
-*.so
+*.pyc
+*.pyo
+*.pyd
+*py.class
 
 # Distribution / packaging
 .Python
@@ -129,5 +128,23 @@ ENV/
 # VSCode
 .vscode/settings.json
 
+# Singularity images
+*.sif
+
+# Vim swap files
+*.swp
+
+.git/
 log/
 compare_plot.pdf
+visual.csv
+fplot.dat
+
+# Metacentrum results
+run-cuda-experiment.o*
+run-cpu-experiment.o*
+cmake-build-singularity.o*
+c_cpp_properties.json
+
+datasets/
+tmp/

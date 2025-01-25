@@ -1,17 +1,24 @@
 #pragma once
 
 #include "arrayfire_utils.hpp"
+#include "data_map.hpp"
 #include "net.hpp"
 
 #include <arrayfire.h>
+#include <boost/algorithm/string.hpp>
 #include <cassert>
 #include <cmath>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <range/v3/all.hpp>
 #include <thread>
 
 namespace esn {
+
+namespace fs = std::filesystem;
+namespace rg = ranges;
+namespace rgv = ranges::views;
 
 class visualizer {
 private:
@@ -111,15 +118,15 @@ private:
         window_(0, 1).setAxesTitles("", "");
     }
 
-    void plot_input(const af::array& input)
+    void plot_input(const data_map& input)
     {
-        assert(input.numdims() == 1);
-        update_plot_history(input_history_, input);
+        assert(input.length() == 1);
+        update_plot_history(input_history_, input.data());
         window_(1, 0).setAxesTitles("Time", "");
         window_(1, 0).setAxesLimits(
           std::max(0L, time_ - history_size_), std::max(time_, history_size_), -1., 1., true);
-        for (long i = 0; i < input.dims(0); ++i) {
-            window_(1, 0).plot(plottable_plot_history(input_history_, i), "Desired/Input");
+        for (long i = 0; i < input.size(); ++i) {
+            window_(1, 0).plot(plottable_plot_history(input_history_, i), "Desired");
         }
     }
 
@@ -131,7 +138,7 @@ private:
         window_(1, 1).setAxesLimits(
           std::max(0L, time_ - history_size_), std::max(time_, history_size_), -1., 1., true);
         for (long i = 0; i < output.dims(0); ++i) {
-            window_(1, 1).plot(plottable_plot_history(output_history_, i), "Feedback/Output");
+            window_(1, 1).plot(plottable_plot_history(output_history_, i), "Output");
         }
     }
 
@@ -149,8 +156,10 @@ private:
             std::cout << "mean activation: " << mean << "\n";
             // Render the image.
             plot_state(data.state);
-            plot_input(data.desired.value_or(data.input));
-            plot_output(data.output);
+            plot_input(data.input.desired);
+            af::array output = af::constant(af::NaN, net.output_names().size(), net.state().type());
+            if (!data.output.empty()) output = data.output.data();
+            plot_output(output);
             window_.show();
             // Sleep.
             if (sleepms_ > 0) std::this_thread::sleep_for(std::chrono::milliseconds{sleepms_});
@@ -193,19 +202,56 @@ private:
 
     void on_state_change(net_base& net, const esn::net_base::on_state_change_data& data)
     {
-        if (!data.input.isscalar())
-            throw std::runtime_error{"Only scalar inputs are supported in file output."};
-        if (!data.output.isscalar())
-            throw std::runtime_error{"Only scalar outputs are supported in file output."};
-        if (time_ == 0) csv_out_ << "time,input,output\n";
-        csv_out_ << data.input.scalar<double>() << "," << data.output.scalar<double>() << "\n";
+        assert(data.input.desired.keys() == net.output_names());
+        if (time_ == 0) {
+            std::vector<std::string> header{"time"};
+            for (const std::string& h : net.input_names()) header.push_back("input-" + h);
+            for (const std::string& h : net.output_names()) header.push_back("output-" + h);
+            for (const std::string& h : net.output_names()) header.push_back("feedback-" + h);
+            for (const std::string& h : net.output_names()) header.push_back("desired-" + h);
+            header.push_back("event");
+            csv_out_ << boost::join(header, ",") << "\n";
+        }
+        std::vector<std::string> values{std::to_string(time_)};
+        assert(data.input.input.length() == 1);
+        for (const std::string& h : net.input_names()) {
+            if (data.input.input.keys().contains(h))
+                values.push_back(std::to_string(data.input.input.at(h).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        assert(data.output.length() == 1);
+        for (const std::string& h : net.output_names()) {
+            if (data.output.keys().contains(h))
+                values.push_back(std::to_string(data.output.at(h).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        assert(data.input.feedback.length() == 1);
+        for (const std::string& h : net.output_names()) {
+            if (data.input.feedback.keys().contains(h))
+                values.push_back(std::to_string(data.input.feedback.at(h).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        assert(data.input.desired.length() == 1);
+        for (const std::string& h : net.output_names()) {
+            if (data.input.desired.keys().contains(h))
+                values.push_back(std::to_string(data.input.desired.at(h).scalar<double>()));
+            else
+                values.push_back("");
+        }
+        values.push_back(data.event.value_or(""));
+        csv_out_ << boost::join(values, ",") << "\n";
+        ++time_;
     }
 
 public:
     file_saver() = default;
 
-    file_saver(const std::string& csv_out)
+    file_saver(const fs::path& csv_out)
     {
+        fs::create_directories(csv_out.parent_path());
         csv_out_.exceptions(std::ios_base::failbit | std::ios_base::badbit);
         csv_out_.open(csv_out);
     }

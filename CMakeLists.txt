@@ -1,11 +1,23 @@
-cmake_minimum_required(VERSION 3.3 FATAL_ERROR)
+cmake_minimum_required(VERSION 3.10 FATAL_ERROR)
 
-# Use clang++ by default because with g++, we could accidentaly
+# If using CPU backend, you may need to use clang++ by default
+# because with g++, you could accidentaly
 # fall into https://github.com/arrayfire/arrayfire/issues/2978.
-set(CMAKE_CXX_COMPILER "clang++")
+# set(CMAKE_CXX_COMPILER "clang++")
 
 # Export compile commants to help VS Code.
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+# Enable all CUDA architectures by default.
+if(NOT DEFINED CMAKE_CUDA_ARCHITECTURES)
+  # Supported architectures for CUDA 11.2
+  SET(CMAKE_CUDA_ARCHITECTURES "52;53;60;61;62;70;72;75;80;86")
+endif()
+
+# Use new policy for Boost libraries.
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
 
 project(
   "lcnn"
@@ -24,35 +36,104 @@ execute_process(
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(ArrayFire REQUIRED)
-find_package(Boost COMPONENTS program_options log log_setup REQUIRED)
-find_package(CUDA)
+find_package(Boost COMPONENTS program_options REQUIRED)
+find_package(CUDAToolkit)
 find_package(Eigen3 REQUIRED)
 find_package(Forge REQUIRED)
+find_package(fmt REQUIRED)
 cmake_policy(SET CMP0072 NEW)
 find_package(OpenGL REQUIRED)
-find_package(OpenCL)
+# find_package(OpenCL)  # OpenCL in unsupported for now
 
 # --------------
 # Compiler Flags
 # --------------
 
 set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_FLAGS "-Wall -pedantic ${CMAKE_CXX_FLAGS}")
+set(CMAKE_CXX_FLAGS "-Wall -Wmissing-field-initializers -pedantic ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -ggdb")
 set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
-# Link all boost libraries dynamically.
-add_definitions("-DBOOST_ALL_DYN_LINK")
 
-# ----------------------
-# Shorter Error Messages
-# ----------------------
+# ---------------------------------
+# Compile lcnn step implementations
+# ---------------------------------
 
-if (CMAKE_CXX_COMPILER_ID MATCHES "Clang")
-  set(CMAKE_CXX_FLAGS "-Wfatal-errors ${CMAKE_CXX_FLAGS}")
-elseif (CMAKE_CXX_COMPILER_ID MATCHES "GNU")
-  # GCC truncates multiline errors with -Wfatal-errors
-  # using -fmax-erorrs instead
-  set(CMAKE_CXX_FLAGS "-fmax-errors=2 ${CMAKE_CXX_FLAGS}")
+add_library(lcnn_step_generic lcnn_step_generic.cpp)
+
+add_library(lcnn_step_cpu lcnn_step_cpu.cpp)
+target_include_directories(
+  lcnn_step_cpu
+  PUBLIC ${ArrayFire_INCLUDE_DIRS}
+)
+target_link_libraries(
+  lcnn_step_cpu
+  PUBLIC lcnn_step_generic
+  PUBLIC ${ArrayFire_CPU_LIBRARIES}
+)
+
+if (CUDAToolkit_FOUND)
+  enable_language(CUDA)
+  add_library(lcnn_step_cuda lcnn_step_cuda.cu)
+  target_include_directories(
+    lcnn_step_cuda
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_step_cuda
+    PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+  )
+endif()
+
+if (OpenCL_FOUND)
+  add_library(lcnn_step_cl lcnn_step_cl.cpp)
+  target_include_directories(
+    lcnn_step_cl
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_step_cl
+    PUBLIC lcnn_step_generic
+    PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
+  )
+endif()
+
+add_library(lcnn_adapt_generic lcnn_adapt_generic.cpp)
+
+add_library(lcnn_adapt_cpu lcnn_adapt_cpu.cpp)
+target_include_directories(
+  lcnn_adapt_cpu
+  PUBLIC ${ArrayFire_INCLUDE_DIRS}
+)
+target_link_libraries(
+  lcnn_adapt_cpu
+  PUBLIC lcnn_adapt_generic
+  PUBLIC ${ArrayFire_CPU_LIBRARIES}
+)
+
+if (CUDAToolkit_FOUND)
+  enable_language(CUDA)
+  add_library(lcnn_adapt_cuda lcnn_adapt_cuda.cu)
+  target_include_directories(
+    lcnn_adapt_cuda
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_adapt_cuda
+    PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+  )
+endif()
+
+if (OpenCL_FOUND)
+  add_library(lcnn_adapt_cl lcnn_adapt_cl.cpp)
+  target_include_directories(
+    lcnn_adapt_cl
+    PUBLIC ${ArrayFire_INCLUDE_DIRS}
+  )
+  target_link_libraries(
+    lcnn_adapt_cl
+    PUBLIC lcnn_adapt_generic
+    PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
+  )
 endif()
 
 # ---------------------------------------
@@ -91,6 +172,7 @@ function(link_without_backend EXECUTABLE_NAME EXECUTABLE_SUFFIX)
     PUBLIC "${FORGE_LIBRARIES}"
     PUBLIC OpenGL::GLX
     PUBLIC tbb
+    PUBLIC fmt::fmt
   )
 endfunction(link_without_backend)
 
@@ -100,6 +182,8 @@ function(link_with_cpu EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cpu"
     PUBLIC ${ArrayFire_CPU_LIBRARIES}
+    PUBLIC lcnn_step_cpu
+    PUBLIC lcnn_adapt_cpu
   )
 endfunction(link_with_cpu)
 
@@ -109,6 +193,8 @@ function(link_with_cuda EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cuda"
     PUBLIC ${ArrayFire_CUDA_LIBRARIES}
+    PUBLIC lcnn_step_cuda
+    PUBLIC lcnn_adapt_cuda
   )
 endfunction(link_with_cuda)
 
@@ -118,6 +204,8 @@ function(link_with_cl EXECUTABLE_NAME)
   target_link_libraries(
     "${EXECUTABLE_NAME}_cl"
     PUBLIC ${ArrayFire_OpenCL_LIBRARIES}
+    PUBLIC lcnn_step_cl
+    PUBLIC lcnn_adapt_cl
   )
 endfunction(link_with_cl)
 
@@ -125,7 +213,7 @@ endfunction(link_with_cl)
 function(add_with_all EXECUTABLE_NAME)
   add_object("${EXECUTABLE_NAME}")
   link_with_cpu("${EXECUTABLE_NAME}")
-  if (CUDA_FOUND)
+  if (CUDAToolkit_FOUND)
     link_with_cuda("${EXECUTABLE_NAME}")
   endif()
   if (OpenCL_FOUND)
@@ -140,5 +228,14 @@ endfunction(add_with_all)
 add_with_all("evaluate")
 add_with_all("optimize")
 add_with_all("visual")
+add_with_all("compare_lcnn_kernels")
 add_with_all("param_sensitivity_int")
 add_with_all("param_sensitivity_double")
+add_with_all("benchmark_lcnn_step_speed")
+
+# ---------
+# Add tests
+# ---------
+
+enable_testing()
+add_subdirectory(test)

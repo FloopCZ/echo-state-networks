@@ -2,22 +2,54 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(gdb) Launch optmize_cuda for esn",
+            "name": "(gdb) Launch optimize_cuda for lcnn on narma10",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/optimize_cuda",
             "args": [
                 "--gen.net-type=lcnn",
-                "--lcnn.topology=sparse",
-                "--lcnn.input-to-all=true",
-                "--lcnn.state-height=20",
-                "--lcnn.state-width=25",
+                "--lcnn.state-height=10",
+                "--lcnn.state-width=15",
+                "--gen.benchmark-set=narma10",
+                "--opt.max-fevals=50",
+                "--bench.init-steps=20",
+                "--bench.train-steps=600",
+                "--bench.valid-steps=100",
+                "--gen.af-device=0",
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                },
+                {
+                    "description": "Set Disassembly Flavor to Intel",
+                    "text": "-gdb-set disassembly-flavor intel",
+                    "ignoreFailures": true
+                }
+            ]
+        },
+        {
+            "name": "(gdb) Launch evaluate_cuda for lcnn on narma10",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/evaluate_cuda",
+            "args": [
+                "--gen.net-type=lcnn",
+                "--lcnn.state-height=10",
+                "--lcnn.state-width=15",
                 "--gen.benchmark-set=narma10",
                 "--bench.init-steps=10",
                 "--bench.train-steps=100",
                 "--bench.valid-steps=100",
-                "--gen.af-device=0",
-                "--opt.no-multithreading"
+                "--gen.n-evals=1",
+                "--gen.af-device=0"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -33,19 +65,21 @@
             ]
         },
         {
-            "name": "(gdb) Launch evaluate_cuda for lcnn",
+            "name": "(gdb) Launch evaluate_cuda for lcnn on etth1",
             "type": "cppdbg",
             "request": "launch",
             "program": "${workspaceFolder}/build/evaluate_cuda",
             "args": [
                 "--gen.net-type=lcnn",
-                "--lcnn.topology=lcnn",
-                "--lcnn.input-to-all=true",
-                "--lcnn.state-height=20",
-                "--lcnn.state-width=25",
-                "--bench.init-steps=10",
-                "--bench.train-steps=100",
-                "--bench.valid-steps=100",
+                "--lcnn.state-height=10",
+                "--lcnn.state-width=15",
+                "--gen.benchmark-set=etth-loop",
+                "--gen.overwrite",
+                "--bench.init-steps=500",
+                "--bench.train-steps=8139",
+                "--bench.valid-steps=2881",
+                "--bench.validation-stride=500",
+                "--gen.n-evals=1",
                 "--gen.af-device=0"
             ],
             "stopAtEntry": false,
@@ -60,6 +94,6 @@
                     "ignoreFailures": true
                 }
             ]
-        }
+        },
     ]
 }

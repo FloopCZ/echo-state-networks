@@ -3,30 +3,70 @@
 // The benchmarks used in combination with \ref optimizer. //
 
 #include "analysis.hpp"
-#include "argument_utils.hpp"
+#include "arrayfire_utils.hpp"
+#include "benchmark_results.hpp"
+#include "common.hpp"
+#include "data_map.hpp"
 #include "net.hpp"
 
-#include <vector>
+#include <boost/algorithm/string.hpp>
+#include <boost/program_options.hpp>
+#include <filesystem>
+#include <fmt/format.h>
+#include <fstream>
+#include <range/v3/view.hpp>
 
 namespace esn {
 
+namespace fs = std::filesystem;
 namespace po = boost::program_options;
+namespace rg = ranges;
+namespace rgv = ranges::views;
 
 /// Base class for echo state network benchmarking tasks.
 class benchmark_set_base {
 protected:
     po::variables_map config_;
     std::vector<long> split_sizes_;
-    std::string error_measure_;
+    std::vector<std::string> error_measures_;
+    bool verbose_;
 
-    virtual af::array input_transform(const af::array& xs) const
+    virtual data_map input_transform(const data_map& xs) const
     {
-        return xs;
+        return xs.clamp(-10., 10.);
     }
 
-    virtual af::array output_transform(const af::array& ys) const
+    input_transform_fn_t input_transform_fn() const
     {
-        return ys;
+        return [this](const data_map& dm) -> data_map { return this->input_transform(dm); };
+    }
+
+    virtual double error_fnc(
+      const data_map& predicted, const data_map& desired, const std::string& error_measure) const
+    {
+        assert(predicted.keys() == desired.keys());
+        const af::array& predicted_arr = predicted.data();
+        const af::array& desired_arr = desired.data();
+        assert(predicted_arr.dims() == desired_arr.dims());
+        assert(desired_arr.numdims() <= 2);
+        if (error_measure == "mae") return af_utils::mae<double>(predicted_arr, desired_arr);
+        if (error_measure == "mse") return af_utils::mse<double>(predicted_arr, desired_arr);
+        if (error_measure == "nmse") return af_utils::nmse<double>(predicted_arr, desired_arr);
+        if (error_measure == "nrmse") return af_utils::nrmse<double>(predicted_arr, desired_arr);
+        throw std::invalid_argument("Unknown error measure `" + error_measure + "`.");
+    }
+
+    benchmark_results multi_error_fnc(
+      const std::vector<data_map>& predicted, const std::vector<data_map>& desired) const
+    {
+        assert(predicted.size() == desired.size());
+        benchmark_results results;
+        for (const std::string& error_measure : error_measures_) {
+            for (const auto& [dmp, dmd] : rgv::zip(predicted, desired)) {
+                results.insert(error_measure, error_fnc(dmp, dmd, error_measure));
+            }
+        }
+        return results;
     }
 
 public:
@@ -36,169 +76,237 @@ public:
             config_.at("bench.init-steps").as<long>()
           , config_.at("bench.train-steps").as<long>()
           , config_.at("bench.valid-steps").as<long>()}
-      , error_measure_{config_.at("bench.error-measure").as<std::string>()}
+      , error_measures_{config_.at("bench.error-measures").as<std::vector<std::string>>()}
+      , verbose_{config_.at("bench.verbose").as<bool>()}
     {
     }
 
-    virtual double evaluate(net_base& net, std::mt19937& prng) const = 0;
-    virtual long n_ins() const = 0;
-    virtual long n_outs() const = 0;
+    virtual benchmark_results evaluate(
+      net_base& net,
+      prng_t& prng,
+      std::optional<optimization_status_t> opt_status = std::nullopt) const = 0;
+    virtual const immutable_set<std::string>& input_names() const = 0;
+    virtual const immutable_set<std::string>& output_names() const = 0;
     virtual ~benchmark_set_base() = default;
+    virtual bool constant_data() const
+    {
+        return false;
+    }
 };
+
+using benchmark_factory_t =
+  std::function<std::unique_ptr<benchmark_set_base>(const po::variables_map&)>;
 
 /// Base class for echo state network benchmarking tasks.
 class benchmark_set : public benchmark_set_base {
 protected:
-    virtual double error_fnc(const af::array& predicted, const af::array& desired) const
-    {
-        assert(predicted.dims() == desired.dims());
-        assert(desired.numdims() == 2);
-        assert(desired.dims(0) == n_outs());
-        assert(desired.dims(1) == split_sizes_.at(2));
-        if (error_measure_ == "mse") return af_utils::mse<double>(predicted, desired);
-        if (error_measure_ == "nmse") return af_utils::nmse<double>(predicted, desired);
-        if (error_measure_ == "nrmse") return af_utils::nrmse<double>(predicted, desired);
-        throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
-    }
-
     /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
-    virtual std::tuple<af::array, af::array>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
+    virtual std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, prng_t& prng) const = 0;
 
 public:
     using benchmark_set_base::benchmark_set_base;
 
-    double evaluate(net_base& net, std::mt19937& prng) const override
+    benchmark_results evaluate(
+      net_base& net, prng_t& prng, std::optional<optimization_status_t> opt_status) const override
     {
         long len = rg::accumulate(split_sizes_, 0L);
-        auto [xs, ys] = generate_data(len, net.state().type(), prng);
-        assert(xs.numdims() == 2);
-        assert(xs.dims(0) == n_ins());
-        assert(xs.dims(0) == net.n_ins());
-        assert(xs.dims(1) == len);
-        assert(ys.numdims() == 2);
-        assert(ys.dims(0) == n_outs());
-        assert(ys.dims(0) == net.n_outs());
-        assert(ys.dims(1) == len);
+        data_map xs, ys;
+        std::tie(xs, ys) = generate_data(len, net.state().type(), prng);
+        assert(xs.keys() == input_names());
+        assert(xs.keys() == net.input_names());
+        assert(xs.length() >= len);
+        assert(ys.keys() == output_names());
+        assert(ys.keys() == net.output_names());
+        assert(ys.length() >= len);
         // use the input transform
         // split both input and output to init, train, test
-        std::vector<af::array> xs_groups = split_data(xs, split_sizes_);
-        std::vector<af::array> ys_groups = split_data(ys, split_sizes_);
+        std::vector<data_map> xs_groups = xs.split(split_sizes_);
+        std::vector<data_map> ys_groups = ys.split(split_sizes_);
         // initialize the network using the initial sequence
-        net.feed(input_transform(xs_groups[0]), input_transform(ys_groups[0]));
+        net.random_noise(true);
+        if (!xs_groups.at(0).empty()) {
+            net.event("init-start");
+            net.feed(
+              {.input = xs_groups.at(0),
+               .feedback = ys_groups.at(0),
+               .desired = ys_groups.at(0),
+               .input_transform = input_transform_fn()});
+        }
+        net.learning(false);
         // train the network on the training sequence
-        net.train(input_transform(xs_groups[1]), input_transform(ys_groups[1]));
+        if (!xs_groups.at(1).empty()) {
+            net.event("train-start");
+            net.train(
+              {.input = xs_groups.at(1),
+               .feedback = ys_groups.at(1),
+               .desired = ys_groups.at(1),
+               .input_transform = input_transform_fn()});
+        }
+        net.random_noise(false);
         // evaluate the performance of the network on the validation sequence
         // note no teacher forcing
-        af::array ys_predict = net.feed(input_transform(xs_groups[2])).outputs;
-        return error_fnc(output_transform(ys_predict), ys_groups[2]);
+        assert(!xs_groups.at(2).empty());
+        net.event("validation-start");
+        feed_result_t feed_result = net.feed(
+          {.input = xs_groups.at(2),
+           .feedback = {},
+           .desired = ys_groups.at(2),
+           .input_transform = input_transform_fn()});
+        data_map predicted{net.output_names(), feed_result.outputs};
+        benchmark_results error = multi_error_fnc({predicted}, {ys_groups.at(2)});
+        // print statistics
+        if (verbose_) {
+            const std::string& measure = error.name_at(0);
+            stats first = error.at(0);
+            std::cout << fmt::format("{} {} (+- {})", measure, first.mean(), first.std())
+                      << std::endl;
+        }
+        return error;
     }
 };
 
 /// Evaluate the performance of the given network on sequence prediction.
 ///
-/// The n_ins and n_outs has to be equal to one.
-/// The network is simulated for len(xs_test) steps and the error is
-/// calculated from the last output.
-class seq_prediction_benchmark_set : public benchmark_set_base {
+/// The network is trained on `train-steps` steps and simulated
+/// for `n-steps-ahead`. Then it is trained on one more item and again
+/// validated for `n-steps-ahead` until the end of `valid-steps` steps.
+/// The error is calculated from all the validation steps.
+class loop_benchmark_set : public benchmark_set_base {
 protected:
-    std::vector<long> split_sizes_;
-    long n_trials_;
+    long n_steps_ahead_;
+    long validation_stride_;
 
-    virtual double error_fnc(const af::array& predicted, const af::array& desired) const
-    {
-        assert(predicted.dims() == desired.dims());
-        assert(desired.numdims() == 2);
-        assert(desired.dims(0) == n_trials_);
-        assert(desired.dims(1) == split_sizes_.at(3));  // bench.n-steps-ahead
-        // variance is taken from the whole desired sequence
-        af::array var = af::var(af::flat(desired), AF_VARIANCE_DEFAULT);
-        assert(var.isscalar());
-        // mse only from the last output
-        af::array mse = af_utils::mse(predicted(af::span, af::end), desired(af::span, af::end), 0);
-        assert(mse.isscalar());
-
-        if (error_measure_ == "mse") return mse.scalar<double>();
-        if (error_measure_ == "nmse") return (mse / var).scalar<double>();
-        if (error_measure_ == "nrmse") return (af::sqrt(mse / var)).scalar<double>();
-        throw std::invalid_argument("Unknown error measure `" + error_measure_ + "`.");
-    };
-
-    // Generate the testing data. This should generate a sequence of dimensions [n_ins, len].
-    virtual af::array generate_data(long len, af::dtype dtype, std::mt19937& prng) const = 0;
+    /// Generate the training inputs and outputs of dimensions [n_ins, len] and [n_outs, len].
+    virtual std::tuple<data_map, data_map> generate_data(af::dtype dtype, prng_t& prng) const = 0;
 
 public:
     /// \param config The configuration parameters.
-    ///        bench.split_sizes: The split sizes [init, train, teacher-force, n-steps-ahead].
-    ///        bench.n-trials: The number of repeats of the [teacher-force, n-steps-ahead].
-    seq_prediction_benchmark_set(po::variables_map config)
+    ///        bench.split_sizes: The split sizes [init, train, n-steps-ahead].
+    loop_benchmark_set(po::variables_map config)
       : benchmark_set_base{std::move(config)}
-      , split_sizes_{
-          config_.at("bench.init-steps").as<long>(),
-          config_.at("bench.train-steps").as<long>(),
-          config_.at("bench.teacher-force-steps").as<long>(),
-          config_.at("bench.n-steps-ahead").as<long>()}
-      , n_trials_{config_.at("bench.n-trials").as<long>()}
+      , n_steps_ahead_{config_.at("bench.n-steps-ahead").as<long>()}
+      , validation_stride_{config_.at("bench.validation-stride").as<long>()}
     {
-        // Repeat the [teacher-force, test] procedure n_trials times.
-        for (long i = 1; i < n_trials_; ++i) {
-            split_sizes_.push_back(split_sizes_.at(2));
-            split_sizes_.push_back(split_sizes_.at(3));
-        }
+        split_sizes_ = {
+          config_.at("bench.init-steps").as<long>(),   //
+          config_.at("bench.train-steps").as<long>(),  //
+          config_.at("bench.valid-steps").as<long>()};
+        assert(n_steps_ahead_ <= split_sizes_.at(2));
     }
 
-    double evaluate(net_base& net, std::mt19937& prng) const override
+    benchmark_results evaluate(
+      net_base& net, prng_t& prng, std::optional<optimization_status_t> opt_status) const override
     {
-        assert(net.n_ins() == 1);
-        assert(net.n_ins() == net.n_outs());
-        assert((long)split_sizes_.size() == 2 + n_trials_ * 2);
-        // generate the input sequence
-        af::array xs = generate_data(rg::accumulate(split_sizes_, 1L), net.state().type(), prng);
-        assert(xs.type() == net.state().type());
-        assert(xs.numdims() == 2);
-        assert(xs.dims(0) == net.n_ins());
-        assert(xs.dims(1) == rg::accumulate(split_sizes_, 1L));
-        // generate the desired sequence
-        af::array ys = af::shift(xs, 0, -1);
-        xs = xs(af::span, af::seq(0, af::end - 1));
-        ys = ys(af::span, af::seq(0, af::end - 1));
-        assert(xs.dims(1) == rg::accumulate(split_sizes_, 0L));
-        assert(ys.dims(0) == net.n_outs());
-        assert(ys.dims(1) == rg::accumulate(split_sizes_, 0L));
-        // transform the input sequence
+        assert((long)split_sizes_.size() == 3);
+        // retrieve the data
+        data_map xs, ys;
+        std::tie(xs, ys) = generate_data(net.state().type(), prng);
+        assert(xs.keys() == net.input_names());
+        assert(ys.keys() == net.output_names());
+        assert(xs.length() == ys.length());
+        long split_sizes_sum = rg::accumulate(split_sizes_, 0L);
+        if (xs.length() < split_sizes_sum)
+            throw std::runtime_error{
+              "Not enough data in the dataset for the given split sizes. Data have "
+              + std::to_string(xs.length()) + " and split sizes " + std::to_string(split_sizes_sum)
+              + "."};
+        if (xs.length() != split_sizes_sum)
+            throw std::runtime_error{
+              "Split sizes sum does not correspond to the length of the dataset. Data have "
+              + std::to_string(xs.length()) + " and split sizes " + std::to_string(split_sizes_sum)
+              + "."};
         // split the sequences into groups
-        std::vector<af::array> xs_groups = split_data(xs, split_sizes_);
-        std::vector<af::array> ys_groups = split_data(ys, split_sizes_);
+        std::vector<data_map> xs_groups = xs.split(split_sizes_);
+        std::vector<data_map> ys_groups = ys.split(split_sizes_);
         // initialize the network using the initial sequence
-        net.feed(input_transform(xs_groups.at(0)), input_transform(ys_groups.at(0)));
-        // train the network on the training sequence
-        net.train(input_transform(xs_groups.at(1)), input_transform(ys_groups.at(1)));
-        // the rest are pairs (teacher-force, test)
-        af::array predicted = af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
-        af::array desired = af::constant(af::NaN, n_trials_, split_sizes_.at(3), xs.type());
-        for (long trial = 0; trial < n_trials_; ++trial) {
-            // teacher-force the tf sequence
+        net.random_noise(true);
+        if (!xs_groups.at(0).empty()) {
+            net.event("init-start");
             net.feed(
-              input_transform(xs_groups.at(2 * trial + 2)),
-              input_transform(ys_groups.at(2 * trial + 2)));
-            // predict and evaluate, note no teacher forcing
-            predicted(trial, af::span) =
-              net.loop(split_sizes_.at(3), input_transform(ys_groups.at(2 * trial + 3))).outputs;
-            desired(trial, af::span) = ys_groups.at(2 * trial + 3);
+              {.input = xs_groups.at(0),
+               .feedback = ys_groups.at(0),
+               .desired = ys_groups.at(0),
+               .input_transform = input_transform_fn()});
         }
-        // invoke the error function
-        return error_fnc(output_transform(predicted), desired);
+        net.learning(false);
+        // train the network on the training sequence with teacher forcing
+        if (!xs_groups.at(1).empty()) {
+            net.event("train-start");
+            net.train(
+              {.input = xs_groups.at(1),
+               .feedback = ys_groups.at(1),
+               .desired = ys_groups.at(1),
+               .input_transform = input_transform_fn()});
+        }
+        net.random_noise(false);
+        // evaluate the performance of the network on all continuous intervals of the validation
+        // sequence of length n_steps_ahead_ (except the last such interval)
+        const long n_validations =
+          (xs_groups.at(2).length() - n_steps_ahead_ + validation_stride_ - 1) / validation_stride_;
+        std::vector<data_map> all_predicted(n_validations);
+        std::vector<data_map> all_desired(n_validations);
+        // the last step in the sequence has an unknown desired value, so we skip the
+        // last sequence of n_steps_ahead_ (i.e., < instead of <=)
+        long i;
+        for (i = 0; i < xs_groups.at(2).length() - n_steps_ahead_; i += validation_stride_) {
+            assert(i / validation_stride_ < n_validations);
+            // feed the network with the validation data before the validation subsequence
+            if (i > 0) {
+                data_map input = xs_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                data_map desired = ys_groups.at(2).select(af::seq(i - validation_stride_, i - 1));
+                net.event("feed-extra");
+                net.feed(
+                  {.input = input,
+                   .feedback = desired,
+                   .desired = desired,
+                   .input_transform = input_transform_fn()});
+            }
+            // create a copy of the network before the validation so that we can simply
+            // continue feeding of the original net in the next iteration
+            std::unique_ptr<net_base> net_copy = net.clone();
+            // evaluate the performance of the network on the validation subsequence
+            data_map loop_input = xs_groups.at(2)
+                                    .select(af::seq(i, i + n_steps_ahead_ - 1))
+                                    .filter(persistent_input_names());
+            data_map desired = ys_groups.at(2).select(af::seq(i, i + n_steps_ahead_ - 1));
+            net_copy->event("validation-start");
+            af::array raw_predicted = net_copy
+                                        ->feed(
+                                          {.input = loop_input,
+                                           .feedback = {},
+                                           .desired = desired,
+                                           .input_transform = input_transform_fn()})
+                                        .outputs;
+            data_map predicted{output_names(), std::move(raw_predicted)};
+            // extract the targets
+            all_predicted.at(i / validation_stride_) = predicted.filter(target_names());
+            all_desired.at(i / validation_stride_) = desired.filter(target_names());
+        }
+        assert(i / validation_stride_ == n_validations);
+        benchmark_results error = multi_error_fnc(all_predicted, all_desired);
+        // print statistics
+        if (verbose_) {
+            const std::string& measure = error.name_at(0);
+            stats first = error.at(0);
+            std::cout << fmt::format("{} {} (+- {})", measure, first.mean(), first.std())
+                      << std::endl;
+        }
+        return error;
     }
+
+    virtual const immutable_set<std::string>& persistent_input_names() const = 0;
+
+    virtual const immutable_set<std::string>& target_names() const = 0;
 };
 
 /// The parameters are from Reservoir Topology in Deep Echo State Networks [2019]
 /// by Gallicchio and Micheli.
-class narma10_benchmark_set : public benchmark_set {
+class narma10_generator {
 protected:
     long tau_;
 
-    std::tuple<af::array, af::array>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<af::array, af::array> generate_narma(long len, af::dtype dtype, prng_t& prng) const
     {
         // NARMA10 can diverge, let's regenerate until it all fits in [-1, 1].
         af::array xs, ys;
@@ -207,32 +315,50 @@ protected:
             xs = af::randu({len}, dtype, af_prng) * 0.5;
             ys = narma(xs, 10, tau_, {0.3, 0.05, 1.5, 0.1});
         } while (af::anyTrue<bool>(af::abs(ys) > 1.0));
-        return {xs.T(), ys.T()};
+        return {xs, ys};
     }
 
 public:
+    narma10_generator(po::variables_map config) : tau_{config.at("bench.narma-tau").as<long>()} {}
+};
+
+class narma10_benchmark_set : public benchmark_set, public narma10_generator {
+protected:
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
+
+public:
     narma10_benchmark_set(po::variables_map config)
-      : benchmark_set{std::move(config)}, tau_{config_.at("bench.narma-tau").as<long>()}
+      : benchmark_set{std::move(config)}, narma10_generator{config_}
     {
     }
 
-    long n_ins() const override
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
-        return 1;
+        auto [xs, ys] = generate_narma(len + 1, dtype, prng);
+        return {{"xs", xs}, {"ys", ys}};
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
     }
 };
 
 class narma30_benchmark_set : public benchmark_set {
 protected:
     long tau_;
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
-    std::tuple<af::array, af::array>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         // NARMA10 can diverge, not sure about NARMA30, let's rather check.
         af::array xs, ys;
@@ -241,7 +367,7 @@ protected:
             xs = af::randu({len}, dtype, af_prng) * 0.5;
             ys = narma(xs, 30, tau_, {0.2, 0.004, 1.5, 0.001});
         } while (af::anyTrue<bool>(af::abs(ys) > 1.0));
-        return {xs.T(), ys.T()};
+        return {{"xs", xs}, {"ys", ys}};
     }
 
 public:
@@ -250,28 +376,30 @@ public:
     {
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& output_names() const override
     {
-        return 1;
+        return output_names_;
     }
 };
 
 class memory_capacity_benchmark_set : public benchmark_set {
 protected:
     long history_;
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_;
 
-    std::tuple<af::array, af::array>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
         af::array ys = memory_matrix(xs, history_);
-        return {xs.T(), ys};
+        return {{"xs", xs}, {output_names_, ys}};
     }
 
     /// The `memory capacity` measure.
@@ -279,19 +407,21 @@ protected:
     /// \param predicted The predicted memory matrix.
     /// \param desired The gold memory matrix.
     /// \returns The average squared covariance of the corresponding columns.
-    double memory_capacity(const af::array& predicted, const af::array& desired) const
+    double memory_capacity(const data_map& predicted, const data_map& desired) const
     {
-        assert(predicted.numdims() == 2 && desired.numdims() == 2);
-        assert(predicted.dims(0) == history_);
-        assert(desired.dims(0) == history_);
-        assert(predicted.dims(1) == desired.dims(1));
-        return af::sum<double>(af_utils::square(af_utils::cov(predicted, desired, 1)));
+        assert(predicted.keys() == desired.keys());
+        assert(predicted.keys() == output_names_);
+        return af::sum<double>(
+          af_utils::square(af_utils::cov(predicted.data(), desired.data(), 1)));
     }
 
-    double error_fnc(const af::array& predicted, const af::array& desired) const override
+    double error_fnc(
+      const data_map& predicted,
+      const data_map& desired,
+      const std::string& error_measure) const override
     {
-        if (error_measure_ == "memory-capacity") return memory_capacity(predicted, desired);
-        return benchmark_set::error_fnc(predicted, desired);
+        if (error_measure == "memory-capacity") return memory_capacity(predicted, desired);
+        return benchmark_set::error_fnc(predicted, desired, error_measure);
     }
 
 public:
@@ -301,16 +431,20 @@ public:
         if (history_ < 1)
             throw std::invalid_argument(
               "Memory history is too low (" + std::to_string(history_) + ").");
+        input_names_ = {"xs"};
+        std::set<std::string> output_names;
+        for (long i = 0; i < history_; ++i) output_names.insert("ys-" + std::to_string(i));
+        output_names_ = immutable_set<std::string>{output_names};
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& output_names() const override
     {
-        return history_;
+        return output_names_;
     }
 };
 
@@ -319,14 +453,16 @@ public:
 class memory_single_benchmark_set : public benchmark_set {
 protected:
     long history_;
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
-    std::tuple<af::array, af::array>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         af::array xs = af::randu({len}, dtype, af_prng) * 2. - 1;
         af::array ys = af::shift(xs, history_);
-        return {xs.T(), ys.T()};
+        return {{"xs", xs}, {"ys", ys}};
     }
 
 public:
@@ -338,14 +474,14 @@ public:
               "Memory history is too low (" + std::to_string(history_) + ").");
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& output_names() const override
     {
-        return 1;
+        return output_names_;
     }
 };
 
@@ -353,24 +489,22 @@ class mackey_glass_benchmark_set : public benchmark_set {
 protected:
     long tau_;
     double delta_;
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
-    af::array input_transform(const af::array& xs) const override
+    data_map input_transform(const data_map& xs) const override
     {
-        return af::tanh(xs - 1.);
+        if (xs.empty()) return {};
+        return {xs.keys(), af::tanh(xs.data() - 1.)};
     }
 
-    af::array output_transform(const af::array& ys) const override
-    {
-        return af::atanh(ys) + 1.;
-    }
-
-    std::tuple<af::array, af::array>
-    generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    std::tuple<data_map, data_map>
+    generate_data(long len, af::dtype dtype, prng_t& prng) const override
     {
         af::array mg = esn::mackey_glass(len + 1, tau_, delta_, dtype, prng);
         af::array xs = mg(af::seq(0, af::end - 1));
         af::array ys = mg(af::seq(1, af::end));
-        return {xs.T(), ys.T()};
+        return {{"xs", xs}, {"ys", ys}};
     }
 
 public:
@@ -381,56 +515,628 @@ public:
     {
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
     }
-    long n_outs() const override
+
+    const immutable_set<std::string>& output_names() const override
     {
-        return 1;
+        return output_names_;
     }
 };
 
-class mackey_glass_seq_benchmark_set : public seq_prediction_benchmark_set {
+class csv_loader {
 protected:
-    long tau_;
-    double delta_;
+    data_map data_;
+    std::vector<std::string> header_;
 
-    af::array input_transform(const af::array& xs) const override
+public:
+    csv_loader(const po::variables_map& config) {}
+
+    /// Load the data from the given CSV file.
+    ///
+    /// \param csv_path The path to the CSV file.
+    /// \param header The header of the CSV file. Leave empty to use the first row as the header.
+    void load_data(const fs::path& csv_path, const std::vector<std::string>& header)
     {
-        return af::tanh(xs - 1.);
+        if (!fs::exists(csv_path)) throw std::runtime_error{"CSV file does not exist."};
+        std::ifstream in{csv_path};
+        std::string line;
+
+        if (header.empty()) {
+            std::getline(in, line);
+            boost::split(header_, line, boost::is_any_of(","));
+            for (auto& col : header_) boost::trim(col);
+        } else {
+            header_ = header;
+        }
+
+        std::map<std::string, std::vector<double>> data;
+        while (std::getline(in, line)) {
+            std::vector<std::string> words;
+            boost::split(words, line, boost::is_any_of(","));
+            if (words.empty()) throw std::runtime_error{"Empty row."};
+            if (words.size() != header_.size()) throw std::runtime_error{"Invalid row length."};
+            for (const auto& [col, value] : rgv::zip(header_, words)) {
+                if (col != "date") data[col].push_back(std::stod(value));
+            }
+        };
+
+        long long n_features = header_.size() - 1;
+        long long n_points = data.begin()->second.size();
+
+        std::map<std::string, af::array> array_data;
+        for (const auto& [key, values] : data) array_data[key] = af_utils::to_array(values);
+        data_ = data_map{array_data};
+
+        std::cout << "Loaded CSV dataset.\n"
+                  << fmt::format("n_features: {}\n", n_features)
+                  << fmt::format("n_points: {}\n", n_points)
+                  << fmt::format("header: {}\n", boost::join(header_, ","));
+    }
+};
+
+class dataset_loader : public csv_loader {
+protected:
+    std::string set_type_;  // train/valid/test
+
+    const data_map& get_dataset(af::dtype dtype, prng_t& prng) const
+    {
+        if (set_type_ == "train") return train_data_;
+        if (set_type_ == "valid") return valid_data_;
+        if (set_type_ == "train-valid") return train_valid_data_;
+        if (set_type_ == "test") return test_data_;
+        if (set_type_ == "train-valid-test") return train_valid_test_data_;
+        throw std::runtime_error{"Unknown dataset."};
     }
 
-    af::array output_transform(const af::array& ys) const override
+    data_map train_data_;
+    data_map valid_data_;
+    data_map train_valid_data_;
+    data_map test_data_;
+    data_map train_valid_test_data_;
+
+public:
+    dataset_loader(po::variables_map config)
+      : csv_loader{config}, set_type_{config.at("bench.set-type").as<std::string>()}
     {
-        return af::atanh(ys) + 1.;
     }
 
-    af::array generate_data(long len, af::dtype dtype, std::mt19937& prng) const override
+    void load_data(
+      const fs::path& csv_path,
+      const std::vector<std::string>& header,
+      af::seq train_selector,
+      af::seq valid_selector,
+      af::seq test_selector)
     {
-        return mackey_glass(len, tau_, delta_, dtype, prng).T();
+        csv_loader::load_data(csv_path, header);
+
+        train_data_ = data_.select(train_selector);
+        data_map norm_reference = train_data_;
+        std::cout << "Dataset train has " << train_data_.length() << " points.\n";
+        train_data_ = train_data_.normalize_by(norm_reference);
+
+        valid_data_ = data_.select(valid_selector);
+        std::cout << "Dataset valid has " << valid_data_.length() << " points.\n";
+        valid_data_ = valid_data_.normalize_by(norm_reference);
+
+        test_data_ = data_.select(test_selector);
+        std::cout << "Dataset test has " << test_data_.length() << " points.\n";
+        test_data_ = test_data_.normalize_by(norm_reference);
+        std::cout << std::flush;
+
+        // Remove outliers from the training data.
+        train_data_ = train_data_.clamp(-10., 10.);
+
+        refresh_concatenated();
+
+        if (data_.contains("OT"))
+            std::cout << "Naive 1-step ahead prediction valid MSE error for OT is "
+                      << af_utils::mse<double>(
+                           valid_data_.at("OT"), af::shift(valid_data_.at("OT"), -1))
+                      << std::endl;
+    }
+
+    void refresh_concatenated()
+    {
+        train_valid_data_ = train_data_.concat(valid_data_);
+        std::cout << "Dataset train-valid has " << train_valid_data_.length() << " points.\n";
+
+        train_valid_test_data_ = train_valid_data_.concat(test_data_);
+        std::cout << "Dataset train-valid-test has " << train_valid_test_data_.length()
+                  << " points.\n";
+        std::cout << std::flush;
+    }
+};
+
+class loop_dataset_loader : public loop_benchmark_set, public dataset_loader {
+protected:
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, prng_t& prng) const override
+    {
+        const data_map& dataset = get_dataset(dtype, prng);
+        data_map xs = dataset.filter(input_names());
+        data_map ys = dataset.filter(output_names()).shift(-1);
+        return {std::move(xs), std::move(ys)};
     }
 
 public:
-    mackey_glass_seq_benchmark_set(po::variables_map config)
-      : seq_prediction_benchmark_set{std::move(config)}
-      , tau_{config_.at("bench.mackey-glass-tau").as<long>()}
-      , delta_{config_.at("bench.mackey-glass-delta").as<double>()}
+    loop_dataset_loader(po::variables_map config)
+      : loop_benchmark_set{config}, dataset_loader{config}
     {
-        if (n_trials_ < 50) {
-            std::cout << "WARNING: Mackey-Glass n_trials is low (" << n_trials_ << ")."
-                      << std::endl;
+    }
+
+    bool constant_data() const override
+    {
+        return true;
+    }
+};
+
+/// Sanity check benchmark for NARMA - with n-steps-ahead of size 1,
+/// and the second in-weight (i.e., ys) equal to fb-weight, the results should
+/// be the slightly better than for regular NARMA benchmark. The reason is,
+/// that loop benchmark always feeds ground truth to the input when
+/// doing "extra-feed", whereas the standard benchmark only uses the network's
+/// own output as feedback during validation.
+class narma10_loop_benchmark_set : public loop_benchmark_set, narma10_generator {
+protected:
+    immutable_set<std::string> persistent_input_names_{"xs"};
+    immutable_set<std::string> input_names_{"xs", "ys"};
+    immutable_set<std::string> output_names_{"ys"};
+    immutable_set<std::string> target_names_{"ys"};
+
+    std::tuple<data_map, data_map> generate_data(af::dtype dtype, prng_t& prng) const override
+    {
+        long len = rg::accumulate(split_sizes_, 0L);
+        auto [xs, ys] = generate_narma(len, dtype, prng);
+        data_map xs_dm{std::map<std::string, af::array>{{"xs", xs}, {"ys", af::shift(ys, 1)}}};
+        data_map ys_dm{"ys", ys};
+        return {std::move(xs_dm), std::move(ys_dm)};
+    }
+
+public:
+    narma10_loop_benchmark_set(po::variables_map config)
+      : loop_benchmark_set{config}, narma10_generator{config}
+    {
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class etth_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+    int variant_;
+
+public:
+    etth_loop_benchmark_set(po::variables_map config)
+      : loop_dataset_loader{config}, variant_{config.at("bench.ett-variant").as<int>()}
+    {
+        // The following values comply with the original Informer paper and the iTransformer paper.
+        af::seq train_selector(0, 12 * 30 * 24 - 1);
+        af::seq valid_selector(12 * 30 * 24, (12 + 4) * 30 * 24 - 1);
+        af::seq test_selector((12 + 4) * 30 * 24, (12 + 4 + 4) * 30 * 24 - 1);
+
+        load_data(
+          "third_party/datasets/ETT-small/ETTh" + std::to_string(variant_) + ".csv", {},
+          train_selector, valid_selector, test_selector);
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class etth_single_loop_benchmark_set : public etth_loop_benchmark_set {
+protected:
+    immutable_set<std::string> input_names_{"OT"};
+    immutable_set<std::string> output_names_{"OT"};
+    immutable_set<std::string> target_names_{"OT"};
+
+public:
+    etth_single_loop_benchmark_set(po::variables_map config)
+      : etth_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class ettm_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_{"HUFL", "HULL", "MUFL", "MULL", "LUFL", "LULL", "OT"};
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+    int variant_;
+
+public:
+    ettm_loop_benchmark_set(po::variables_map config)
+      : loop_dataset_loader{config}, variant_{config.at("bench.ett-variant").as<int>()}
+    {
+        // The following values comply with the original Informer paper and the iTransformer paper.
+        af::seq train_selector(0, 12 * 30 * 24 * 4 - 1);
+        af::seq valid_selector(12 * 30 * 24 * 4, (12 + 4) * 30 * 24 * 4 - 1);
+        af::seq test_selector((12 + 4) * 30 * 24 * 4, (12 + 4 + 4) * 30 * 24 * 4 - 1);
+
+        load_data(
+          "third_party/datasets/ETT-small/ETTm" + std::to_string(variant_) + ".csv", {},
+          train_selector, valid_selector, test_selector);
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class ettm_single_loop_benchmark_set : public ettm_loop_benchmark_set {
+protected:
+    immutable_set<std::string> input_names_{"OT"};
+    immutable_set<std::string> output_names_{"OT"};
+    immutable_set<std::string> target_names_{"OT"};
+
+public:
+    ettm_single_loop_benchmark_set(po::variables_map config)
+      : ettm_loop_benchmark_set{std::move(config)}
+    {
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class weather_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_{
+      "p (mbar)",
+      "T (degC)",
+      "Tpot (K)",
+      "Tdew (degC)",
+      "rh (%)",
+      "VPmax (mbar)",
+      "VPact (mbar)",
+      "VPdef (mbar)",
+      "sh (g/kg)",
+      "H2OC (mmol/mol)",
+      "rho (g/m**3)",
+      "wv (m/s)",
+      "max. wv (m/s)",
+      "wd (deg)",
+      "rain (mm)",
+      "raining (s)",
+      "SWDR (W/m�)",
+      "PAR (�mol/m�/s)",
+      "max. PAR (�mol/m�/s)",
+      "Tlog (degC)",
+      "OT"};
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+
+public:
+    weather_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
+    {
+        long len = 52696;
+        long train_len = std::floor(len * 0.7);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/weather/weather.csv", {}, train_selector, valid_selector,
+          test_selector);
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class electricity_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+
+public:
+    electricity_loop_benchmark_set(po::variables_map config)
+      : loop_dataset_loader{std::move(config)}
+    {
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i <= 319; ++i) input_names.insert(std::to_string(i));
+            input_names.insert("OT");
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
         }
+        output_names_ = input_names_;
+        target_names_ = input_names_;
+
+        long len = 26304;
+        long train_len = std::floor(len * 0.7);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/electricity/electricity.csv", {}, train_selector, valid_selector,
+          test_selector);
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& persistent_input_names() const override
     {
-        return 1;
+        return persistent_input_names_;
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return 1;
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class traffic_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+
+public:
+    traffic_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
+    {
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i <= 860; ++i) input_names.insert(std::to_string(i));
+            input_names.insert("OT");
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
+        output_names_ = input_names_;
+        target_names_ = input_names_;
+
+        long len = 17544;
+        long train_len = std::floor(len * 0.7);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/traffic/traffic.csv", {}, train_selector, valid_selector,
+          test_selector);
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class exchange_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+
+public:
+    exchange_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
+    {
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i <= 6; ++i) input_names.insert(std::to_string(i));
+            input_names.insert("OT");
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
+        output_names_ = input_names_;
+        target_names_ = input_names_;
+
+        long len = 7588;
+        long train_len = std::floor(len * 0.7);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/exchange_rate/exchange_rate.csv", {}, train_selector,
+          valid_selector, test_selector);
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
+    }
+};
+
+class solar_loop_benchmark_set : public loop_dataset_loader {
+protected:
+    immutable_set<std::string> persistent_input_names_{};
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_ = input_names_;
+    immutable_set<std::string> target_names_ = output_names_;
+
+public:
+    solar_loop_benchmark_set(po::variables_map config) : loop_dataset_loader{std::move(config)}
+    {
+        {
+            std::set<std::string> input_names;
+            for (long i = 0; i < 137; ++i) input_names.insert(fmt::format("{:03d}", i));
+            input_names_ = immutable_set<std::string>{std::move(input_names)};
+        }
+        output_names_ = input_names_;
+        target_names_ = input_names_;
+
+        long len = 52560;
+        long train_len = std::floor(len * 0.7);
+        long test_len = std::floor(len * 0.2);
+        long valid_len = len - train_len - test_len;
+        af::seq train_selector(0, train_len - 1);
+        af::seq valid_selector(train_len, train_len + valid_len - 1);
+        af::seq test_selector(train_len + valid_len, af::end);
+
+        load_data(
+          "third_party/datasets/Solar/solar_AL.txt", input_names_ | rg::to_vector, train_selector,
+          valid_selector, test_selector);
+    }
+
+    const immutable_set<std::string>& persistent_input_names() const override
+    {
+        return persistent_input_names_;
+    }
+
+    const immutable_set<std::string>& input_names() const override
+    {
+        return input_names_;
+    }
+
+    const immutable_set<std::string>& output_names() const override
+    {
+        return output_names_;
+    }
+
+    const immutable_set<std::string>& target_names() const override
+    {
+        return target_names_;
     }
 };
 
@@ -440,20 +1146,31 @@ protected:
     long seq_len_;
     double d0_;
     long n_retries_;
-    long n_ins_;
-    long n_outs_;
+    immutable_set<std::string> input_names_;
+    immutable_set<std::string> output_names_;
 
     double lyapunov_trial_(const net_base& net_, double d0, af::randomEngine& af_prng) const
     {
         // create a copy of the network to work with
         std::unique_ptr<net_base> net = net_.clone();
-        assert(net->n_ins() == net->n_outs());
+        assert(!net->input_names().empty());
+        std::string first_input = *net->input_names().begin();
         auto dtype = net->state().type();
+        auto generate_input = [&](long len) -> data_map {
+            std::map<std::string, af::array> init_data_map;
+            for (const auto& input_name : net->input_names())
+                init_data_map[input_name] = af::randu({len}, dtype, af_prng) * 0.5;
+            return data_map{init_data_map};
+        };
         // pass initial transitions by feeding a random sequence
-        af::array init_xs = af::randu({net->n_ins(), init_len_}, dtype, af_prng) * 0.5;
-        net->feed(init_xs);
+        data_map init_data = generate_input(init_len_);
+        net->feed(
+          {.input = init_data,
+           .feedback = {},
+           .desired = {},
+           .input_transform = input_transform_fn()});
         // build the sequence to be analyzed
-        af::array xs = af::randu({net->n_ins(), seq_len_}, dtype, af_prng) * 0.5;
+        data_map xs = generate_input(seq_len_);
         // make a soon-to-be perturbed clone of the original net
         net->random_noise(false);
         std::unique_ptr<net_base> net_pert = net->clone();
@@ -462,12 +1179,12 @@ protected:
         // for each time step
         for (int t = 0; t < seq_len_; ++t) {
             // perform a single step on the cloned net
-            net->step(xs(af::span, t));
+            net->step(xs.select(t), {}, {}, input_transform_fn());
             // perform a single step on the perturbed net (and perturb input in time 0)
             if (t == 0)
-                net_pert->step(xs(af::span, t) + d0);
+                net_pert->step(xs.select(t) + d0, {}, {}, input_transform_fn());
             else
-                net_pert->step(xs(af::span, t));
+                net_pert->step(xs.select(t), {}, {}, input_transform_fn());
             // calculate the distance between net and net_pert states
             double norm = af::norm(net->state() - net_pert->state(), AF_NORM_VECTOR_2);
             dists_time(t) = norm;
@@ -500,8 +1217,8 @@ public:
     /// \param n_retries The maximum number of retries if NaN is encountered (set -1 for infinity).
     lyapunov_benchmark_set(
       po::variables_map config,
-      long n_ins = 1,
-      long n_outs = 1,
+      immutable_set<std::string> input_names = {"xs"},
+      immutable_set<std::string> output_names = {"ys"},
       double d0 = 1e-12,
       long n_retries = 8)
       : benchmark_set_base{std::move(config)}
@@ -509,32 +1226,33 @@ public:
       , seq_len_{config_.at("bench.valid-steps").as<long>()}
       , d0_{d0}
       , n_retries_{n_retries}
-      , n_ins_{n_ins}
-      , n_outs_{n_outs}
+      , input_names_{std::move(input_names)}
+      , output_names_{std::move(output_names)}
     {
     }
 
-    double evaluate(net_base& net, std::mt19937& prng) const override
+    benchmark_results evaluate(
+      net_base& net, prng_t& prng, std::optional<optimization_status_t> opt_status) const override
     {
         af::randomEngine af_prng{AF_RANDOM_ENGINE_DEFAULT, prng()};
         double d0 = d0_;
         // if the lyapunov exponent is NaN, increase d0 and try over
         for (int retry = 0; retry < n_retries_; ++retry) {
             double lyap = lyapunov_trial_(net, d0, af_prng);
-            if (!std::isnan(lyap)) return lyap;
+            if (!std::isnan(lyap)) return {"lyap", lyap};
             d0 *= 1e2;
         }
-        return std::numeric_limits<double>::quiet_NaN();
+        return {"lyap", std::numeric_limits<double>::quiet_NaN()};
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return n_ins_;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& output_names() const override
     {
-        return n_outs_;
+        return output_names_;
     }
 };
 
@@ -542,40 +1260,58 @@ public:
 class semaphore_benchmark_set : public benchmark_set_base {
 protected:
     long period_;
-    long n_ins_;
-    long n_outs_;
+    long stop_;
+    immutable_set<std::string> input_names_{"xs"};
+    immutable_set<std::string> output_names_{"ys"};
 
 public:
     semaphore_benchmark_set(
-      po::variables_map config, long period = 100, long n_ins = 1, long n_outs = 1)
-      : benchmark_set_base{std::move(config)}, period_{period}, n_ins_{n_ins}, n_outs_{n_outs}
+      po::variables_map config,
+      long period = 100,
+      immutable_set<std::string> input_names = {"xs"},
+      immutable_set<std::string> output_names = {"ys"})
+      : benchmark_set_base{std::move(config)}
+      , period_{config_.at("bench.semaphore-period").as<long>()}
+      , stop_{config_.at("bench.semaphore-stop").as<long>()}
+      , input_names_{std::move(input_names)}
+      , output_names_{std::move(output_names)}
     {
     }
 
-    double evaluate(net_base& net, std::mt19937&) const override
+    benchmark_results
+    evaluate(net_base& net, prng_t&, std::optional<optimization_status_t> opt_status) const override
     {
-        assert(net.n_ins() == n_ins_ && net.n_outs() == n_outs_);
+        assert(net.input_names() == input_names_ && net.output_names() == output_names_);
         for (long time = 0;; ++time) {
-            double in = 2 * (time / period_ % 2) - 1;
-            net.step_constant(in, -in);
+            af::array in = af::constant(2. * (time / period_ % 2) - 1, 1, net.state().type());
+            if (time > stop_) {
+                in = af::constant(0, 1, net.state().type());
+                net.learning(false);
+                net.random_noise(false);
+            }
+            net.step({"xs", -in}, {"ys", -in}, {"ys", -in}, input_transform_fn());
         }
+        return {"semaphore", std::numeric_limits<double>::quiet_NaN()};
     }
 
-    long n_ins() const override
+    const immutable_set<std::string>& input_names() const override
     {
-        return n_ins_;
+        return input_names_;
     }
 
-    long n_outs() const override
+    const immutable_set<std::string>& output_names() const override
     {
-        return n_outs_;
+        return output_names_;
     }
 };
 
-std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args)
+inline std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args)
 {
     if (args.at("gen.benchmark-set").as<std::string>() == "narma10") {
         return std::make_unique<narma10_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "narma10-loop") {
+        return std::make_unique<narma10_loop_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "narma30") {
         return std::make_unique<narma30_benchmark_set>(args);
@@ -589,17 +1325,85 @@ std::unique_ptr<benchmark_set_base> make_benchmark(const po::variables_map& args
     if (args.at("gen.benchmark-set").as<std::string>() == "mackey-glass") {
         return std::make_unique<mackey_glass_benchmark_set>(args);
     }
-    if (args.at("gen.benchmark-set").as<std::string>() == "mackey-glass-seq-prediction") {
-        return std::make_unique<mackey_glass_seq_benchmark_set>(args);
-    }
     if (args.at("gen.benchmark-set").as<std::string>() == "lyapunov") {
         return std::make_unique<lyapunov_benchmark_set>(args);
     }
     if (args.at("gen.benchmark-set").as<std::string>() == "semaphore") {
         return std::make_unique<semaphore_benchmark_set>(args);
     }
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth-loop") {
+        return std::make_unique<etth_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "etth-single-loop") {
+        return std::make_unique<etth_single_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-loop") {
+        return std::make_unique<ettm_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "ettm-single-loop") {
+        return std::make_unique<ettm_single_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "weather-loop") {
+        return std::make_unique<weather_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "electricity-loop") {
+        return std::make_unique<electricity_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "traffic-loop") {
+        return std::make_unique<traffic_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "exchange-loop") {
+        return std::make_unique<exchange_loop_benchmark_set>(args);
+    }
+    if (args.at("gen.benchmark-set").as<std::string>() == "solar-loop") {
+        return std::make_unique<solar_loop_benchmark_set>(args);
+    }
     throw std::runtime_error{
       "Unknown benchmark \"" + args.at("gen.benchmark-set").as<std::string>() + "\"."};
+}
+
+inline po::options_description benchmark_arg_description()
+{
+    po::options_description benchmark_arg_desc{"Benchmark options"};
+    benchmark_arg_desc.add_options()                                              //
+      ("bench.memory-history", po::value<long>()->default_value(0),               //
+       "The length of the memory to be evaluated.")                               //
+      ("bench.n-steps-ahead", po::value<long>()->default_value(84),               //
+       "The length of the valid sequence in sequence prediction benchmark.")      //
+      ("bench.validation-stride", po::value<long>()->default_value(1),            //
+       "Stride of validation subsequences (of length n-steps-ahead).")            //
+      ("bench.mackey-glass-tau", po::value<long>()->default_value(30),            //
+       "The length of the memory to be evaluated.")                               //
+      ("bench.mackey-glass-delta", po::value<double>()->default_value(0.1),       //
+       "The time delta (and subsampling) for mackey glass equations.")            //
+      ("bench.narma-tau", po::value<long>()->default_value(1),                    //
+       "The time lag for narma series.")                                          //
+      ("bench.error-measures",                                                    //
+       po::value<std::vector<std::string>>()                                      //
+         ->multitoken()                                                           //
+         ->default_value({"mse"}, "mse"),                                         //
+       "The error function to be used. One of mse, nmse, nrmse.")                 //
+      ("bench.n-trials", po::value<long>()->default_value(1),                     //
+       "The number of repeats of the [teacher-force, valid] step in the "         //
+       "sequence prediction benchmark.")                                          //
+      ("bench.init-steps", po::value<long>()->default_value(1000),                //
+       "The number of training time steps.")                                      //
+      ("bench.train-steps", po::value<long>()->default_value(5000),               //
+       "The number of valid time steps.")                                         //
+      ("bench.valid-steps", po::value<long>()->default_value(1000),               //
+       "The number of test time steps.")                                          //
+      ("bench.semaphore-period", po::value<long>()->default_value(100),           //
+       "The period of flipping the semaphore sign.")                              //
+      ("bench.semaphore-stop", po::value<long>()->default_value(100),             //
+       "Time when semaphore stops blinking.")                                     //
+      ("bench.ett-variant", po::value<int>()->default_value(1),                   //
+       "Variant of the ETTh dataset (1 or 2).")                                   //
+      ("bench.set-type", po::value<std::string>()->default_value("train-valid"),  //
+       "Part of the ETT dataset (train, valid, train-valid, test).")              //
+      ("bench.verbose", po::value<bool>()->default_value(false),                  //
+       "Increase verbosity level.")                                               //
+      ;
+    return benchmark_arg_desc;
 }
 
 }  // namespace esn
