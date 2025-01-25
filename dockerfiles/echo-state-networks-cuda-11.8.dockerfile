@@ -1,9 +1,8 @@
 # Build as:
-# docker builder build --build-arg tag=cuda -t floopcz/echo-state-networks:cuda-11.8 -f echo-state-networks-cuda-11.8.dockerfile .
+# docker builder build --build-arg tag=cuda -t floopcz/echo-state-networks:cuda-11.8 -f dockerfiles/echo-state-networks-cuda-11.8.dockerfile .
 
 # Based on CUDA 11.8.
 FROM archlinux:base-devel-20221204.0.107760
-MAINTAINER Filip Matzner <docker@floop.cz>
 RUN echo "Server=https://archive.archlinux.org/repos/2022/12/09/\$repo/os/\$arch" > /etc/pacman.d/mirrorlist
 RUN echo "SigLevel = Never" >> /etc/pacman.conf
 

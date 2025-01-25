@@ -1,6 +1,6 @@
 #include "common_test.hpp"
 
-#include "../lcnn_step.hpp"
+#include "../src/lcnn_step.hpp"
 
 #include <arrayfire.h>
 #include <gtest/gtest.h>

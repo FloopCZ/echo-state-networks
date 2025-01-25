@@ -58,9 +58,9 @@ set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
 # Compile lcnn step implementations
 # ---------------------------------
 
-add_library(lcnn_step_generic lcnn_step_generic.cpp)
+add_library(lcnn_step_generic src/lcnn_step_generic.cpp)
 
-add_library(lcnn_step_cpu lcnn_step_cpu.cpp)
+add_library(lcnn_step_cpu src/lcnn_step_cpu.cpp)
 target_include_directories(
   lcnn_step_cpu
   PUBLIC ${ArrayFire_INCLUDE_DIRS}
@@ -73,7 +73,7 @@ target_link_libraries(
 
 if (CUDAToolkit_FOUND)
   enable_language(CUDA)
-  add_library(lcnn_step_cuda lcnn_step_cuda.cu)
+  add_library(lcnn_step_cuda src/lcnn_step_cuda.cu)
   target_include_directories(
     lcnn_step_cuda
     PUBLIC ${ArrayFire_INCLUDE_DIRS}
@@ -85,7 +85,7 @@ if (CUDAToolkit_FOUND)
 endif()
 
 if (OpenCL_FOUND)
-  add_library(lcnn_step_cl lcnn_step_cl.cpp)
+  add_library(lcnn_step_cl src/lcnn_step_cl.cpp)
   target_include_directories(
     lcnn_step_cl
     PUBLIC ${ArrayFire_INCLUDE_DIRS}
@@ -97,9 +97,9 @@ if (OpenCL_FOUND)
   )
 endif()
 
-add_library(lcnn_adapt_generic lcnn_adapt_generic.cpp)
+add_library(lcnn_adapt_generic src/lcnn_adapt_generic.cpp)
 
-add_library(lcnn_adapt_cpu lcnn_adapt_cpu.cpp)
+add_library(lcnn_adapt_cpu src/lcnn_adapt_cpu.cpp)
 target_include_directories(
   lcnn_adapt_cpu
   PUBLIC ${ArrayFire_INCLUDE_DIRS}
@@ -112,7 +112,7 @@ target_link_libraries(
 
 if (CUDAToolkit_FOUND)
   enable_language(CUDA)
-  add_library(lcnn_adapt_cuda lcnn_adapt_cuda.cu)
+  add_library(lcnn_adapt_cuda src/lcnn_adapt_cuda.cu)
   target_include_directories(
     lcnn_adapt_cuda
     PUBLIC ${ArrayFire_INCLUDE_DIRS}
@@ -124,7 +124,7 @@ if (CUDAToolkit_FOUND)
 endif()
 
 if (OpenCL_FOUND)
-  add_library(lcnn_adapt_cl lcnn_adapt_cl.cpp)
+  add_library(lcnn_adapt_cl src/lcnn_adapt_cl.cpp)
   target_include_directories(
     lcnn_adapt_cl
     PUBLIC ${ArrayFire_INCLUDE_DIRS}
@@ -144,7 +144,7 @@ endif()
 # Useful for building the same executable with many different linkage options.
 function(add_object EXECUTABLE_NAME)
   add_library(
-    "${EXECUTABLE_NAME}" OBJECT "${EXECUTABLE_NAME}.cpp"
+    "${EXECUTABLE_NAME}" OBJECT "src/${EXECUTABLE_NAME}.cpp"
   )
   target_include_directories(
     "${EXECUTABLE_NAME}"
@@ -158,7 +158,7 @@ endfunction(add_object)
 # This function links everything except for the ArrayFire backnd
 # to the given object. To be able to build the final executable,
 # a backend needs to be added.
-file(GLOB_RECURSE all_headers "*.hpp")
+file(GLOB_RECURSE all_headers "src/*.hpp")
 function(link_without_backend EXECUTABLE_NAME EXECUTABLE_SUFFIX)
   add_executable(
     "${EXECUTABLE_NAME}${EXECUTABLE_SUFFIX}"

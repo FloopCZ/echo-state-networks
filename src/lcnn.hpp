@@ -2,13 +2,13 @@
 
 // Locally connected Echo state network class and training functions. //
 
+#include "../third_party/elasticnet_af/elasticnet_af.hpp"
 #include "arrayfire_utils.hpp"
 #include "common.hpp"
 #include "data_map.hpp"
 #include "lcnn_adapt.hpp"
 #include "lcnn_step.hpp"
 #include "net.hpp"
-#include "third_party/elasticnet_af/elasticnet_af.hpp"
 
 #include <arrayfire.h>
 #include <boost/algorithm/string.hpp>
