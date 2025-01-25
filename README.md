@@ -129,3 +129,37 @@ The results can be visualized as follows:
 ```bash
 ./compare_plot.py --param lcnn.kernel-size --sort-by lcnn.kernel-height --connect lcnn.state-size log/compare-lcnn-20-25-*narma10*/*.csv
 ```
+
+## Citation
+
+If you consider our work useful for your research, please cite is as:
+```bibtex
+@inproceedings{
+    matzner2025lcesn,
+    title={Locally Connected Echo State Networks for Time Series Forecasting},
+    author={Filip Matzner and František Mráz},
+    booktitle={{ICLR}: International Conference on Learning Representations},
+    year={2025},
+    url={https://openreview.net/pdf?id=KeRwLLwZaw}
+}
+```
+
+If you only want to refer to our previous work on hyperparameter optimization, use:
+```bibtex
+@inproceedings{matzner2022hyperparameter,
+    author={Matzner, Filip},
+    title={Hyperparameter Tuning in Echo State Networks},
+    crossref={gecco2022},
+    pages={404–412},
+    doi={10.1145/3512290.3528721}
+}
+
+@proceedings{gecco2022,
+    title={GECCO '22: Proceedings of the Genetic and Evolutionary Computation Conference},
+    booktitle={GECCO '22: Proceedings of the Genetic and Evolutionary Computation Conference},
+    year={2022},
+    publisher={Association for Computing Machinery},
+    address={New York, NY, USA},
+    isbn={978-1-4503-9237-2},
+}
+```
