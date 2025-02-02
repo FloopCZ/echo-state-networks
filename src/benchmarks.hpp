@@ -1181,10 +1181,12 @@ protected:
             // perform a single step on the cloned net
             net->step(xs.select(t), {}, {}, input_transform_fn());
             // perform a single step on the perturbed net (and perturb input in time 0)
-            if (t == 0)
-                net_pert->step(xs.select(t) + d0, {}, {}, input_transform_fn());
-            else
+            if (t == 0) {
+                double d0_singledim = std::sqrt((d0 * d0) / xs.size());
+                net_pert->step(xs.select(t) + d0_singledim, {}, {}, input_transform_fn());
+            } else {
                 net_pert->step(xs.select(t), {}, {}, input_transform_fn());
+            }
             // calculate the distance between net and net_pert states
             double norm = af::norm(net->state() - net_pert->state(), AF_NORM_VECTOR_2);
             dists_time(t) = norm;
