@@ -10,7 +10,7 @@ for H in 200 100 50 25 0; do
             echo "Directory ${run_root} does not exist."
             exit 1
         fi
-        ./build/evaluate_cpu \
+        ./build/evaluate_cuda \
           --lcnn.load=${run_root}/best-model/ \
           --gen.benchmark-set=lyapunov \
           --gen.output-dir=${run_root}/lyapunov/
