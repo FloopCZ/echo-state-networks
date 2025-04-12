@@ -20,7 +20,7 @@ This repository is an official implementation of the **Locally Connected Echo St
 - **Local Connectivity:** Novel local reservoir topology enables much larger networks without compromising accuracy.
 
   <p align="center">
-   <img height="250em" src="https://github.com/user-attachments/assets/5a05b6d0-2ea6-41a1-b3e1-156f3fd5ba79">
+    <img height="250em" src="https://github.com/user-attachments/assets/5a05b6d0-2ea6-41a1-b3e1-156f3fd5ba79">
   </p>
 
 <!--
@@ -32,7 +32,7 @@ This repository is an official implementation of the **Locally Connected Echo St
 - **Forced Memory:** A new technique that stabilizes long-term memory dynamics, significantly improving performance on datasets with long time dependencies.
 
   <p align="center">
-   <img height="250em" src="https://github.com/user-attachments/assets/75318f6e-414b-4a24-8027-3b168a15bae2">
+    <img height="250em" src="https://github.com/user-attachments/assets/75318f6e-414b-4a24-8027-3b168a15bae2">
   </p>
 
 <!--
@@ -44,7 +44,7 @@ This repository is an official implementation of the **Locally Connected Echo St
 - **State-of-the-art Performance:** Competitive accuracy with modern deep learning models on well-established multivariate time series forecasting benchmarks.
 
   <p align="center">
-   <img height="400em" src="https://github.com/user-attachments/assets/99f5b1c4-3436-4a97-88bc-bfdc63e34305">
+    <img height="400em" src="https://github.com/user-attachments/assets/99f5b1c4-3436-4a97-88bc-bfdc63e34305">
   </p>
 
 
@@ -79,6 +79,7 @@ Furthermore, the naming should be made more consistent with the published paper.
 ## Clone the repository
 ```bash
 git clone https://github.com/FloopCZ/echo-state-networks.git
+cd echo-state-networks
 git submodule init
 git submodule update
 ```
