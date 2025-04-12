@@ -19,7 +19,7 @@ for ds in electricity etth1 etth2 exchange solar traffic weather ettm1 ettm2; do
         cmd="\"./experiments/evaluate-${ds}-loop-test-MODEL-LMS-AUTORETRAIN.sh\" \
           \"${log_dir}/run${best_run}/best-model\" \"${LMS}\" \"${AUTORETRAIN_EVERY}\" \"${n_steps_ahead}\" 1"
         qsub -v LOG_DIR="${log_dir}",TASK_OFFSET="${task_offset}",N_TASKS="${n_tasks}",cmd="${cmd}" \
-          ../run-cuda-experiment-singularity.sh
+          ./scripts/run-cuda-experiment-singularity.sh
         echo
     done
 done

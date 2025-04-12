@@ -3,7 +3,7 @@
 A high-performance implementation of **Echo State Networks** and **Locally Connected Echo State Networks (LCESNs)** in modern C++, optimized for time series forecasting tasks.
 
 <p align="center">
-<img height="250em" src="https://github.com/user-attachments/assets/7b04bb05-e111-4915-9ff3-c12a8274005a">
+  <img height="250em" src="https://github.com/user-attachments/assets/7b04bb05-e111-4915-9ff3-c12a8274005a">
 </p>
 
 Echo State Networks (ESNs) are recurrent neural networks characterized by their randomly initialized and fixed reservoir, with only the readout layer trained.
@@ -179,7 +179,7 @@ KERNELS="3 5" ./experiments/compare-TOPO-HEIGHT-WIDTH-kernels-TRAIN-v1-narma10.s
 
 Visualize results:
 ```bash
-./compare_plot.py --param lcnn.kernel-size --sort-by lcnn.kernel-height --connect lcnn.state-size log/compare-lcnn-20-25-*narma10*/*.csv
+./plot/compare_plot.py --param lcnn.kernel-size --sort-by lcnn.kernel-height --connect lcnn.state-size log/compare-lcnn-20-25-*narma10*/*.csv
 ```
 
 ## Citation
