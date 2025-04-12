@@ -9,7 +9,7 @@ A high-performance implementation of **Echo State Networks** and **Locally Conne
 Echo State Networks (ESNs) are recurrent neural networks characterized by their randomly initialized and fixed reservoir, with only the readout layer trained.
 Our novel LCESN model significantly reduces their computational complexity and improves stability, enabling substantially larger networks and achieving competitive forecasting accuracy on real-world datasets.
 
-## Paper
+## Research Paper
 This repository is an official implementation of the **Locally Connected Echo State Networks for Time Series Forecasting** paper by **Matzner and Mráz [2025]** published at **ICLR 2025**:
 
 [Paper PDF](https://openreview.net/pdf?id=KeRwLLwZaw) | [Poster](https://iclr.cc/media/PosterPDFs/ICLR%202025/30041.png?t=1744146697.4580014) | [Slides](https://iclr.cc/media/iclr-2025/Slides/30041.pdf)
